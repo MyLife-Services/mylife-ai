@@ -101,23 +101,22 @@ class Avatar extends EventEmitter {
             throw new Error('No conversation found for bot intelligence and could not be created.')
         conversation.bot_id = botId
         conversation.llm_id = bot_id
-        let _message = message,
-            messages = []
+        let messages = []
         if(shadowId)
-            messages = await this.shadow(shadowId, itemId, _message)
+            messages.push(...await this.shadow(shadowId, itemId, message))
         else {
+            let alteredMessage = message
             if(itemId){
                 // @todo - check if item exists in memory, fewer pings and inclusions overall
                 let { summary, } = await this.#factory.item(itemId)
-                if(summary?.length){
-                    summary = `possible **update-summary-request**: itemId=${ itemId }\n`
-                    + `**member-update-request**:\n`
-                    + message
-                    + `\n**current-summary-in-database**:\n`
-                    + summary
-                }
+                if(summary?.length)
+                    alteredMessage = `possible **update-summary-request**: itemId=${ itemId }\n`
+                        + `**member-update-request**:\n`
+                        + message
+                        + `\n**current-summary-in-database**:\n`
+                        + summary
             }
-            messages = await mCallLLM(this.#llmServices, conversation, _message, this.#factory, this)
+            messages.push(...await mCallLLM(this.#llmServices, conversation, alteredMessage, this.#factory, this))
         }
         conversation.addMessage({
             content: message,
