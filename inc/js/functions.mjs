@@ -1,5 +1,4 @@
 /* imports */
-import oAIAssetAssistant from './agents/system/asset-assistant.mjs'
 import {
 	upload as apiUpload,
 } from './api-functions.mjs'
@@ -54,8 +53,7 @@ async function bots(ctx){
 			} else {
 				const {
 					activeBotId,
-					prunedBots: bots,
-					mbr_id,
+					bots,
 				} = avatar
 				ctx.body = { // wrap bots
 					activeBotId,
@@ -156,7 +154,7 @@ async function greetings(ctx){
 	if(validateId?.length)
 		response.messages.push(...await avatar.validateRegistration(validateId))
 	else
-		response.messages.push(...await avatar.getGreeting(dynamic))
+		response.messages.push(...await avatar.greeting(dynamic))
 	response.success = response.messages.length > 0
 	ctx.body = response
 }
@@ -383,9 +381,9 @@ async function team(ctx){
  * @param {Koa} ctx - Koa Context object.
  * @returns {Object[]} - List of team objects.
  */
-function teams(ctx){
+async function teams(ctx){
 	const { avatar, } = ctx.state
-	ctx.body = avatar.teams()
+	ctx.body = await avatar.teams()
 }
 async function updateBotInstructions(ctx){
 	const { bid, } = ctx.params
