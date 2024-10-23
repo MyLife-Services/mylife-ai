@@ -225,7 +225,7 @@ class BotAgent {
 	 * @param {Guid} botId - The Bot id
 	 * @returns {void}
 	 */
-	setActiveBot(botId){
+	setActiveBot(botId=this.avatar?.id){
 		const Bot = this.#bots.find(bot=>bot.id===botId)
 		if(Bot)
 			this.#activeBot = Bot
@@ -278,7 +278,8 @@ class BotAgent {
 	 * @returns {Guid} - The active bot id
 	 */
 	get activeBotId(){
-		return this.#activeBot.id
+		console.log('BotAgent::activeBotId', this.#activeBot, this)
+		return this.#activeBot?.id
 	}
 	/**
 	 * Gets the primary avatar for Member.
@@ -286,8 +287,8 @@ class BotAgent {
 	 * @returns {Bot} - The primary avatar Bot instance
 	 */
 	get avatar(){
-		const bot = this.#bots.find(Bot=>Bot.isAvatar===true)
-		return bot
+		const Bot = this.#bots.find(Bot=>Bot.isAvatar===true)
+		return Bot
 	}
 	/**
 	 * Gets the Avatar id for whom this BotAgent is conscripted.
@@ -832,6 +833,7 @@ async function mInit(BotAgent, bots, factory, llm){
 	const { avatarId, vectorstoreId, } = BotAgent
 	bots.push(...await mInitBots(avatarId, vectorstoreId, factory, llm))
 	BotAgent.setActiveBot()
+	console.log('BotAgent::init', BotAgent.activeBot)
 }
 /**
  * Initializes active bots based upon criteria.
