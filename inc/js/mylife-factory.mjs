@@ -9,7 +9,6 @@ import Dataservices from './mylife-dataservices.mjs'
 import { Member, MyLife } from './core.mjs'
 import {
 	extendClass_consent,
-	extendClass_contribution,
     extendClass_conversation,
 	extendClass_experience,
     extendClass_file,
@@ -26,7 +25,6 @@ const mBotInstructions = {}
 const mDefaultBotType = 'personal-avatar'
 const mExtensionFunctions = {
 	extendClass_consent: extendClass_consent,
-	extendClass_contribution: extendClass_contribution,
 	extendClass_conversation: extendClass_conversation,
 	extendClass_experience: extendClass_experience,
 	extendClass_file: extendClass_file,

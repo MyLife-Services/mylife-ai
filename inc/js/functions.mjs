@@ -102,14 +102,17 @@ async function challenge(ctx){
  * @property {Object[]} responses - Response messages from Avatar intelligence
  */
 async function chat(ctx){
-	const { botId, itemId, message, shadowId, } = ctx.request.body ?? {} /* body nodes sent by fe */
+	const { botId, itemId, message, } = ctx.request.body
+		?? {} /* body nodes sent by fe */
 	if(!message?.length)
 			ctx.throw(400, 'missing `message` content')
-	const { avatar, dateNow=Date.now(), } = ctx.state
-	const { MemberSession, } = ctx.session
+	const { avatar, } = ctx.state
+	const session = avatar.isMyLife
+		? ctx.session.MemberSession
+		: null
 	if(botId?.length && botId!==avatar.activeBotId)
 		throw new Error(`Bot ${ botId } not currently active; chat() requires active bot`)
-	const response = await avatar.chat(message, itemId, shadowId, dateNow, MemberSession)
+	const response = await avatar.chat(message, itemId, session)
 	ctx.body = response
 }
 async function collections(ctx){

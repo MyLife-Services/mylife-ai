@@ -1,3 +1,5 @@
+import LLMServices from "../../mylife-llm-services.mjs"
+
 /* module constants */
 const mBot_idOverride = process.env.OPENAI_MAHT_GPT_OVERRIDE
 const mDefaultBotTypeArray = ['personal-avatar', 'avatar']
@@ -37,11 +39,31 @@ class Bot {
 			throw new Error('Bot database id required')
 	}
 	/* public functions */
-	async chat(){
-		console.log('Bot::chat', this.#conversation)
-		// what should be returned? Responses? Conversation object?
-		return this.#conversation
+	/**
+	 * Chat with the active bot.
+	 * @param {String} message - The member request
+	 * @param {String} originalMessage - The original message
+	 * @param {Boolean} allowSave - Whether to save the conversation, defaults to `true`
+	 * @param {Number} processStartTime - The process start time
+	 * @returns {Promise<Conversation>} - The Conversation instance updated with the chat exchange
+	 */
+	async chat(message, originalMessage, allowSave=true, processStartTime=Date.now()){
+		if(this.isMyLife && !this.isAvatar)
+			throw new Error('Only Q, MyLife Corporate Intelligence, is available for non-member conversation.')
+		const { bot_id, id, thread_id, type, } = this
+		if(!this.#conversation)
+			this.#conversation = await mConversationStart('chat', type, id, thread_id, bot_id, this.#llm, this.#factory)
+		const Conversation = this.#conversation
+		Conversation.prompt = message
+		Conversation.originalPrompt = originalMessage
+		await mCallLLM(Conversation, allowSave, this.#llm, this.#factory, this) // mutates Conversation
+        /* frontend mutations */
+		return Conversation
 	}
+	/**
+	 * Retrieves `this` Bot instance.
+	 * @returns {Bot} - The Bot instance
+	 */
 	getBot(){
 		return this
 	}
@@ -190,8 +212,19 @@ class BotAgent {
 			throw new Error(`Bot not found with id: ${ botId }`)
 		await mBotDelete(Bot, this.#bots, this.#llm, this.#factory)
 	}
-	async chat(){
-		return this.activeBot.chat()
+	/**
+	 * Chat with the active bot.
+	 * @param {Conversation} Conversation - The Conversation instance
+	 * @param {Boolean} allowSave - Whether to save the conversation, defaults to `true`
+	 * @param {Q} q - The avatar id
+	 * @returns {Promise<Conversation>} - The Conversation instance
+	 */
+	async chat(Conversation, allowSave=true, q){
+		if(!Conversation)
+			throw new Error('Conversation instance required')
+		Conversation.processingStartTime
+		await mCallLLM(Conversation, allowSave, this.#llm, this.#factory, q) // mutates Conversation
+		return Conversation
 	}
 	/**
 	 * Initializes a conversation, currently only requested by System Avatar, but theoretically could be requested by any externally-facing Member Avatar as well. **note**: not in Q because it does not have a #botAgent yet.
@@ -200,8 +233,9 @@ class BotAgent {
 	 * @returns {Promise<Conversation>} - The conversation object
 	 */
 	async conversationStart(type='chat', form='system-avatar'){
-		const { bot_id, } = this.avatar
-		const Conversation = await mConversationStart(type, form, null, bot_id, this.#llm, this.#factory)
+		const { bot_id: llm_id, id: bot_id, } = this.avatar
+		const Conversation = await mConversationStart(type, form, bot_id, null, llm_id, this.#llm, this.#factory)
+		console.log('BotAgent::conversationStart', Conversation.thread_id, Conversation.bot_id, Conversation.llm_id, Conversation.inspect(true))
 		return Conversation
 	}
 	/**
@@ -278,7 +312,6 @@ class BotAgent {
 	 * @returns {Guid} - The active bot id
 	 */
 	get activeBotId(){
-		console.log('BotAgent::activeBotId', this.#activeBot, this)
 		return this.#activeBot?.id
 	}
 	/**
@@ -697,9 +730,12 @@ async function mBotUpdate(factory, llm, bot, options={}){
 		botData.model = factory.globals.currentOpenAIBotModel
 	botData.id = id // validated
 	/* LLM updates */
-	const { bot_id, bot_name: name, instructions, tools, } = botData
-	if(bot_id?.length && (instructions || name || tools)){
+	const { bot_id, bot_name: name, instructions, llm_id, tools, } = botData
+	const llmId = llm_id
+		?? bot_id
+	if(llmId?.length && (instructions || name || tools)){
 		botData.model = factory.globals.currentOpenAIBotModel // not dynamic
+		botData.llm_id = llmId
 		await llm.updateBot(botData)
 		const updatedLLMFields = Object.keys(botData)
 			.filter(key=>key!=='id' && key!=='bot_id') // strip mechanicals
@@ -709,18 +745,62 @@ async function mBotUpdate(factory, llm, bot, options={}){
 	return updatedBotData
 }
 /**
+ * Sends Conversation instance with prompts for LLM to process, updating the Conversation instance before returning `void`.
+ * @todo - create actor-bot for internal chat? Concern is that API-assistants are only a storage vehicle, ergo not an embedded fine tune as I thought (i.e., there still may be room for new fine-tuning exercise); i.e., micro-instructionsets need to be developed for most. Unclear if direct thread/message instructions override or ADD, could check documentation or gpt, but...
+ * @todo - would dynamic event dialog be handled more effectively with a callback routine function, I think so, and would still allow for avatar to vet, etc.
+ * @module
+ * @param {Conversation} Conversation - Conversation instance
+ * @param {boolean} allowSave - Whether to save the conversation, defaults to `true`
+ * @param {LLMServices} llm - OpenAI object
+ * @param {AgentFactory} factory - Agent Factory object required for function execution
+ * @param {object} avatar - Avatar object
+ * @returns {Promise<void>} - Alters Conversation instance by nature
+ */
+async function mCallLLM(Conversation, allowSave=true, llm, factory, avatar){
+    const { llm_id, originalPrompt, processingStartTime=Date.now(), prompt, thread_id,  } = Conversation
+	if(!llm_id?.length)
+		throw new Error('No `llm_id` intelligence id found in Conversation for `mCallLLM`.')
+    if(!thread_id?.length)
+        throw new Error('No `thread_id` found in Conversation for `mCallLLM`.')
+	if(!prompt?.length)
+		throw new Error('No `prompt` found in Conversation for `mCallLLM`.')
+    const botResponses = await llm.getLLMResponse(thread_id, llm_id, prompt, factory, avatar)
+	const run_id = botResponses?.[0]?.run_id
+	if(!run_id?.length)
+		return
+	Conversation.addRun(run_id)
+    botResponses
+		.filter(botResponse=>botResponse?.run_id===Conversation.run_id)
+		.sort((mA, mB)=>(mB.created_at-mA.created_at))
+	Conversation.addMessage({
+		content: prompt,
+		created_at: processingStartTime,
+		originalPrompt,
+		role: 'member',
+		run_id,
+		thread_id,
+	})
+	Conversation.addMessages(botResponses)
+	if(allowSave)
+		console.log('chat::allowSave=`true`', Conversation.message?.content?.substring(0,64))// Conversation.save()
+	else
+		console.log('chat::allowSave=`false`', Conversation.message?.content?.substring(0,64))
+}
+/**
  * Create a new conversation.
  * @async
  * @module
  * @param {string} type - Type of conversation: chat, experience, dialog, inter-system, system, etc.; defaults to `chat`
  * @param {string} form - Form of conversation: system-avatar, member-avatar, etc.; defaults to `system-avatar`
  * @param {string} thread_id - The openai thread id
- * @param {string} botId - The bot id
+ * @param {string} llm_id - The id for the llm agent
+ * @param {LLMServices} llm - OpenAI object
+ * @param {AgentFactory} factory - Agent Factory object
  * @returns {Conversation} - The conversation object
  */
-async function mConversationStart(form='system', type='chat', thread_id, llmAgentId, llm, factory){
+async function mConversationStart(type='chat', form='system', bot_id, thread_id, llm_id, llm, factory){
 	const { mbr_id, } = factory
-	const thread = await llm.thread(thread_id)
+	const thread = await llm.thread(thread_id) // **note**: created here as to begin conversation/LLM independence, and to retain non-async nature of Constructor
 	const Conversation = new (factory.conversation)(
 		{
 			form,
@@ -728,8 +808,9 @@ async function mConversationStart(form='system', type='chat', thread_id, llmAgen
 			type,
 		},
 		factory,
-		thread,
-		llmAgentId
+		bot_id,
+		llm_id,
+		thread
 	)
 	return Conversation
 }
@@ -833,7 +914,6 @@ async function mInit(BotAgent, bots, factory, llm){
 	const { avatarId, vectorstoreId, } = BotAgent
 	bots.push(...await mInitBots(avatarId, vectorstoreId, factory, llm))
 	BotAgent.setActiveBot()
-	console.log('BotAgent::init', BotAgent.activeBot)
 }
 /**
  * Initializes active bots based upon criteria.

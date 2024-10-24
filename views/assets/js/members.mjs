@@ -715,7 +715,7 @@ async function submit(message, hideMemberChat=true){
  * @returns {void}
  */
 async function mSubmitChat(message) {
-    const { action, itemId, shadowId, } = chatActiveItem.dataset
+    const { action, itemId, } = chatActiveItem.dataset
 	const url = window.location.origin + '/members'
     const { id: botId, } = activeBot()
 	const request = {
@@ -724,7 +724,6 @@ async function mSubmitChat(message) {
             itemId,
 			message,
 			role: 'member',
-            shadowId,
 		}
     const options = {
         method: 'POST',

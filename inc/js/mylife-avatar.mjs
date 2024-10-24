@@ -80,71 +80,52 @@ class Avatar extends EventEmitter {
      * @public
      * @param {string} message - The chat message content
      * @param {Guid} itemId - The active collection-item id (optional)
-     * @param {Guid} shadowId - The active Shadow Id (optional)
-     * @param {number} processStartTime - The start time of the process (optional)
-     * @param {MemberSession} session - ignored, but required for **overload** on Q instance
-     * @param {string} thread_id - The openai thread id (required for **overload** on Q instance)
      * @returns {object} - The response object { instruction, responses, success, }
     */
-    async chat(message, itemId, shadowId, processStartTime=Date.now(), session=null, thread_id){
+    async chat(message, itemId){
+        /* validate request */
         if(!message)
             throw new Error('No message provided in context')
-
-
-
-        
-        const Conversation = this.activeBot.conversation()
-        // what should I actually return from chat?
-        if(!conversation)
-            throw new Error('No conversation found for bot intelligence and could not be created.')
-        conversation.bot_id = botId
-        conversation.llm_id = bot_id
-        let messages = []
-        if(shadowId)
-            messages.push(...await this.shadow(shadowId, itemId, message))
-        else {
-            let alteredMessage = message
-            if(itemId){
-                // @todo - check if item exists in memory, fewer pings and inclusions overall
-                let { summary, } = await this.#factory.item(itemId)
-                if(summary?.length)
-                    alteredMessage = `possible **update-summary-request**: itemId=${ itemId }\n`
-                        + `**member-update-request**:\n`
-                        + message
-                        + `\n**current-summary-in-database**:\n`
-                        + summary
-            }
-            messages.push(...await mCallLLM(this.#llmServices, conversation, alteredMessage, this.#factory, this))
+        const originalMessage = message
+        let processStartTime = Date.now()
+        this.backupResponse = {
+            message: `I received your request to chat, and sent the request to the central intelligence, but no response was received. Please try again, as the issue is likely aberrant.`,
+            type: 'system',
         }
-        conversation.addMessage({
-            content: message,
-            created_at: Date.now(),
-            role: 'user',
-        })
-        conversation.addMessages(messages)
-        if(mAllowSave)
-            conversation.save()
-        else
-            console.log('chat::BYPASS-SAVE', conversation.message?.content?.substring(0,64))
-        /* frontend mutations */
-        const responses = []
-        conversation.messages
-            .filter(_message=>{
-                return messages.find(__message=>__message.id===_message.id)
-                    && _message.type==='chat'
-                    && _message.role!=='user'
-            })
-            .map(_message=>mPruneMessage(botId, _message, 'chat', processStartTime))
-            .reverse()
-            .forEach(_message=>responses.push(_message))
-        if(!responses?.length){
-            const failsafeResponse = this.backupResponse
-                ?? {
-                        message: 'I am sorry, connection with my intelligence faltered, hopefully temporarily, ask to try again.',
-                        type: 'system',
-                    }
-            responses.push(failsafeResponse)
+        /* execute request */
+        if(this.globals.isValidGuid(itemId)){
+            // @todo - check if item exists in memory, fewer pings and inclusions overall
+            let { summary, } = await this.#factory.item(itemId)
+            if(summary?.length)
+                message = `possible **update-summary-request**: itemId=${ itemId }\n`
+                    + `**member-update-request**:\n`
+                    + message
+                    + `\n**current-summary-in-database**:\n`
+                    + summary
         }
+        const Conversation = await this.activeBot.chat(message, originalMessage, mAllowSave, processStartTime)
+        const responses = mPruneMessages(this.activeBotId, Conversation.getMessages() ?? [], 'chat', Conversation.processStartTime)
+        /* respond request */
+        const response = {
+            instruction: this.frontendInstruction,
+            responses,
+            success: true,
+        }
+        delete this.frontendInstruction
+        delete this.backupResponse
+        return response
+    }
+    /**
+     * Chat with an open agent, bypassing a specific bot.
+     * @param {Conversation} Conversation - The conversation instance
+     * @returns {Promise<void>} - Conversation instance is altered in place
+     */
+    async chatAgentBypass(Conversation){
+        if(!this.isMyLife)
+            throw new Error('Agent bypass only available for MyLife avatar.')
+		await this.#botAgent.chat(Conversation, mAllowSave, this)
+        const responses = mPruneMessages(this.activeBotId, Conversation.getMessages(), 'chat', Conversation?.processStartTime)
+        /* respond request */
         const response = {
             instruction: this.frontendInstruction,
             responses,
@@ -386,7 +367,6 @@ class Avatar extends EventEmitter {
      * @returns {Array} - The greeting message(s) string array in order of display
      */
     async greeting(dynamic=false){
-        console.log('greeting', this.#botAgent.activeBotId)
         const greetings = mPruneMessages(this.#botAgent.activeBotId, await this.#botAgent.greeting(dynamic), 'greeting')
         return greetings
     }
@@ -615,52 +595,6 @@ class Avatar extends EventEmitter {
                 success: false,
             }
         return response
-    }
-    /**
-     * Takes a shadow message and sends it to the appropriate bot for response, returning the standard array of bot responses.
-     * @param {Guid} shadowId - The shadow id.
-     * @param {Guid} itemId - The item id.
-     * @param {string} message - The member (interacting with shadow) message content.
-     * @returns {Object[]} - The array of bot responses.
-     */
-    async shadow(shadowId, itemId, message){
-        const processingStartTime = Date.now()
-        const shadows = await this.shadows()
-        const shadow = shadows.find(shadow=>shadow.id===shadowId)
-        if(!shadow)
-            throw new Error('Shadow not found.')
-        const { text, type, } = shadow
-        const item = await this.#factory.item(itemId)
-        if(!item)
-            throw new Error(`cannot find item: ${ itemId }`)
-        const { form, summary, } = item
-        let tailgate
-        switch(type){
-            case 'member':
-                message = `update-memory-request: itemId=${ itemId }\n` + message
-                break
-            case 'agent':
-                /*
-                // @stub - develop additional form types, entry or idea for instance
-                const dob = new Date(this.#factory.dob)
-                const diff_ms = Date.now() - dob.getTime()
-                const age_dt = new Date(diff_ms)
-                const age = Math.abs(age_dt.getUTCFullYear() - 1970)
-                message = `Given age of member: ${ age } and updated summary of personal memory: ${ summary }\n- answer the question: "${ text }"`
-                tailgate = {
-                    content: `Would you like to add this, or part of it, to your memory?`, // @stub - tailgate for additional data
-                    thread_id: bot.thread_id,
-                }
-                break
-                */
-            default:
-                break
-        }
-        let messages = await mCallLLM(this.#llmServices, this.activeBot, message, this.#factory, this)
-        messages = messages.map(message=>mPruneMessage(this.activeBotId, message, 'shadow', processingStartTime))
-        if(tailgate?.length)
-            messages.push(mPruneMessage(this.activeBotId, tailgate, 'system'))
-        return messages
     }
     /**
      * Gets the list of shadows.
@@ -1256,32 +1190,32 @@ class Q extends Avatar {
     /* overloaded methods */
     /**
      * OVERLOADED: Processes and executes incoming chat request.
+     * @todo - shunt registration actions to different MA functions
      * @public
      * @param {string} message - The chat message content
      * @param {Guid} itemId - The active collection-item id (optional)
-     * @param {Guid} shadowId - The active Shadow Id (optional)
-     * @param {number} processStartTime - The start time of the process
-     * @param {MemberSession} session - The MyLife MemberSession instance
-     * @returns {object} - The response(s) to the chat request
+     * @param {MemberSession} MemberSession - The member session object
+     * @returns {Promise<Object[]>} - The response(s) to the chat request
     */
-    async chat(message, itemId, shadowId, processStartTime=Date.now(), session){
-        if(itemId?.length || shadowId?.length)
-            throw new Error('MyLife System Avatar cannot process chats with `itemId` or `shadowId`.')
-        let { Conversation, } = session
+    async chat(message, itemId, MemberSession){
+        if(itemId?.length)
+            throw new Error('MyLife System Avatar cannot process chats with `itemId`.')
+        let { Conversation, } = MemberSession
         if(!Conversation){
-            const Conversation = await this.conversationStart('chat', 'system-avatar')
-            thread_id = Conversation.thread_id
+            Conversation = await this.conversationStart('chat', 'system-avatar')
+            if(!Conversation)
+                throw new Error('Unable to be create `Conversation`.')
             this.#conversations.push(Conversation)
+            MemberSession.Conversation = Conversation
         }
-        session.Conversation = Conversation // @stub - store elsewhere
+        Conversation.originalPrompt = message
+        Conversation.processStartTime = Date.now()
         if(this.isValidating) // trigger confirmation until session (or vld) ends
             message = `CONFIRM REGISTRATION PHASE: registrationId=${ this.registrationId }\n${ message }`
         if(this.isCreatingAccount)
             message = `CREATE ACCOUNT PHASE: ${ message }`
-
-
-
-        return super.chat(message, itemId, shadowId, processStartTime, null, thread_id)
+		Conversation.prompt = message
+        return await this.chatAgentBypass(Conversation)
     }
     /**
      * OVERLOADED: MyLife must refuse to create bots.
@@ -1440,31 +1374,6 @@ function mAvatarDropdown(globals, avatar){
         id,
         name,
     }
-}
-/**
- * Makes call to LLM and to return response(s) to prompt.
- * @todo - create actor-bot for internal chat? Concern is that API-assistants are only a storage vehicle, ergo not an embedded fine tune as I thought (i.e., there still may be room for new fine-tuning exercise); i.e., micro-instructionsets need to be developed for most. Unclear if direct thread/message instructions override or ADD, could check documentation or gpt, but...
- * @todo - would dynamic event dialog be handled more effectively with a callback routine function, I think so, and would still allow for avatar to vet, etc.
- * @todo - convert conversation requirements to bot
- * @module
- * @param {LLMServices} llmServices - OpenAI object currently
- * @param {Conversation} conversation - Conversation object
- * @param {string} prompt - dialog-prompt/message for llm
- * @param {AgentFactory} factory - Agent Factory object required for function execution
- * @param {object} avatar - Avatar object
- * @returns {Promise<Object[]>} - Array of Message instances in descending chronological order
- */
-async function mCallLLM(llmServices, conversation, prompt, factory, avatar){
-    const { bot_id, llm_id, thread_id } = conversation
-    const botId = llm_id
-        ?? bot_id
-    if(!thread_id || !botId)
-        throw new Error('Both `thread_id` and `bot_id` required for LLM call.')
-    const messages = await llmServices.getLLMResponse(thread_id, botId, prompt, factory, avatar)
-    messages.sort((mA, mB)=>{
-        return mB.created_at - mA.created_at
-    })
-    return messages
 }
 /**
  * Cancels openAI run.
@@ -2006,9 +1915,9 @@ async function mExperienceStart(avatar, factory, experienceId, avatarExperienceV
     experience.variables = avatarExperienceVariables
     /* assign living experience */
     let [memberDialog, scriptDialog] = await Promise.all([
-        avatar.createConversation('experience'),
-        avatar.createConversation('dialog')
-    ]) // async cobstruction
+        avatar.conversationStart('experience'),
+        avatar.conversationStart('dialog')
+    ]) // async construction
     experience.memberDialog = memberDialog
     experience.scriptDialog = scriptDialog
 }
@@ -2271,7 +2180,6 @@ function mPruneMessage(activeBotId, message, type='chat', processStartTime=Date.
     /* parse message */
     let agent='server',
         content='',
-        purpose=type,
         response_time=Date.now()-processStartTime
     const { content: messageContent, } = message
     const rSource = /【.*?\】/gs
@@ -2291,7 +2199,6 @@ function mPruneMessage(activeBotId, message, type='chat', processStartTime=Date.
         activeBotId,
         agent,
         message,
-        purpose,
         response_time,
         type,
     }
@@ -2330,22 +2237,17 @@ function mPruneMessages(botId, messageArray, type='chat', processStartTime=Date.
 async function mReliveMemoryNarration(avatar, factory, llm, Bot, item, memberInput='NEXT'){
     console.log('mReliveMemoryNarration::start', item.id, memberInput)
     const { relivingMemories, } = avatar
-    const { bot, } = Bot
-    const { bot_id, id: botId, } = bot
+    const { id: botId, } = Bot
     const { id, } = item
     const processStartTime = Date.now()
     let message = `## relive memory itemId: ${ id }\n`
     let relivingMemory = relivingMemories.find(reliving=>reliving.item.id===id)
     if(!relivingMemory){ /* create new activated reliving memory */
-        const conversation = await avatar.createConversation('memory', undefined, botId, false)
-        conversation.llm_id = bot_id
-        const { thread_id, } = conversation
+        const conversation = await avatar.conversationStart('memory', 'member-avatar')
         relivingMemory = {
-            bot,
             conversation,
             id,
             item,
-            thread_id,
         }
         relivingMemories.push(relivingMemory)
         console.log(`mReliveMemoryNarration::new reliving memory: ${ id }`)
@@ -2367,7 +2269,6 @@ async function mReliveMemoryNarration(avatar, factory, llm, Bot, item, memberInp
         id,
         messages,
         success: true,
-        thread_id,
     }
     return memory
 }

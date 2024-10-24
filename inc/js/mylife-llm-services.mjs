@@ -57,18 +57,18 @@ class LLMServices {
     }
     /**
      * Deletes an assistant from OpenAI.
-     * @param {string} botId - GPT-Assistant external ID
+     * @param {string} llm_id - GPT-Assistant external ID
      * @returns 
      */
-    async deleteBot(botId){
+    async deleteBot(llm_id){
         try {
-            const deletedBot = await this.openai.beta.assistants.del(botId)
+            const deletedBot = await this.openai.beta.assistants.del(llm_id)
             return deletedBot
         } catch (error) {
             if(error.name==='PermissionDeniedError')
-                console.error(`Permission denied to delete assistant: ${ botId }`)
+                console.error(`Permission denied to delete assistant: ${ llm_id }`)
             else
-                console.error(`ERROR trying to delete assistant: ${ botId }`, error.name, error.message)
+                console.error(`ERROR trying to delete assistant: ${ llm_id }`, error.name, error.message)
         }
     }
     /**
@@ -108,17 +108,17 @@ class LLMServices {
      * @example - `run` object: { assistant_id, id, model, provider, required_action, status, usage }
      * @todo - confirm that reason for **factory** is to run functions as responses from LLM; ergo in any case, find better way to stash/cache factory so it does not need to be passed through every such function
      * @param {string} thread_id - Thread id.
-     * @param {string} botId - GPT-Assistant/Bot id.
+     * @param {string} llm_id - GPT-Assistant/Bot id.
      * @param {string} prompt - Member input.
      * @param {AgentFactory} factory - Avatar Factory object to process request.
      * @param {Avatar} avatar - Avatar object.
      * @returns {Promise<Object[]>} - Array of openai `message` objects.
      */
-    async getLLMResponse(thread_id, botId, prompt, factory, avatar){
+    async getLLMResponse(thread_id, llm_id, prompt, factory, avatar){
         if(!thread_id?.length)
             thread_id = ( await mThread(this.openai) ).id
         await mAssignRequestToThread(this.openai, thread_id, prompt)
-        const run = await mRunTrigger(this.openai, botId, thread_id, factory, avatar)
+        const run = await mRunTrigger(this.openai, llm_id, thread_id, factory, avatar)
         const { id: run_id, } = run
         const llmMessages = ( await this.messages(thread_id) )
             .filter(message=>message.role=='assistant' && message.run_id==run_id)
@@ -127,14 +127,14 @@ class LLMServices {
     /**
      * Given member request for help, get response from specified bot assistant.
      * @param {string} thread_id - Thread id.
-     * @param {string} botId - GPT-Assistant/Bot id.
+     * @param {string} llm_id - GPT-Assistant/Bot id.
      * @param {string} helpRequest - Member input.
      * @param {AgentFactory} factory - Avatar Factory object to process request.
      * @param {Avatar} avatar - Avatar object.
      * @returns {Promise<Object>} - openai `message` objects.
      */
-    async help(thread_id, botId, helpRequest, factory, avatar){
-        const helpResponse = await this.getLLMResponse(thread_id, botId, helpRequest, factory, avatar)
+    async help(thread_id, llm_id, helpRequest, factory, avatar){
+        const helpResponse = await this.getLLMResponse(thread_id, llm_id, helpRequest, factory, avatar)
         return helpResponse
     }
     /**
@@ -159,15 +159,16 @@ class LLMServices {
     }
     /**
      * Updates assistant with specified data. Example: Tools object for openai: { tool_resources: { file_search: { vector_store_ids: [vectorStore.id] } }, }; https://platform.openai.com/docs/assistants/tools/file-search/quickstart?lang=node.js
+     * @todo - conform payload to OpenAI API Reference
      * @param {string} bot - The bot object data.
      * @returns {Promise<Object>} - openai assistant object.
      */
     async updateBot(bot){
-        let { bot_id, ...assistantData } = bot
-        if(!bot_id?.length)
+        let { botId, bot_id, llm_id, ...assistantData } = bot
+        if(!llm_id?.length)
             throw new Error('No bot ID provided for update')
         assistantData = mValidateAssistantData(assistantData) // throws on improper format
-        const assistant = await this.openai.beta.assistants.update(bot_id, assistantData)
+        const assistant = await this.openai.beta.assistants.update(llm_id, assistantData)
         return assistant
     }
     /**
@@ -324,7 +325,7 @@ async function mRunFunctions(openai, run, factory, avatar){ // add avatar ref
             &&  run.required_action?.submit_tool_outputs?.tool_calls
             &&  run.required_action.submit_tool_outputs.tool_calls.length
         ){
-            const { assistant_id: bot_id, id: runId, metadata, thread_id, } = run
+            const { assistant_id: llm_id, id: runId, metadata, thread_id, } = run
             const toolCallsOutput = await Promise.all(
                 run.required_action.submit_tool_outputs.tool_calls
                     .map(async tool=>{
@@ -681,14 +682,14 @@ async function mRunStart(llmServices, assistantId, threadId){
  * Triggers openAI run and updates associated `run` object.
  * @module
  * @param {OpenAI} openai - OpenAI object
- * @param {string} botId - Bot id
+ * @param {string} llm_id - Bot id
  * @param {string} threadId - Thread id
  * @param {AgentFactory} factory - Avatar Factory object to process request
  * @param {Avatar} avatar - Avatar object
  * @returns {void} - All content generated by run is available in `avatar`.
  */
-async function mRunTrigger(openai, botId, threadId, factory, avatar){
-    const run = await mRunStart(openai, botId, threadId)
+async function mRunTrigger(openai, llm_id, threadId, factory, avatar){
+    const run = await mRunStart(openai, llm_id, threadId)
     if(!run)
         throw new Error('Run failed to start')
     const finishRun = await mRunFinish(openai, run, factory, avatar)
