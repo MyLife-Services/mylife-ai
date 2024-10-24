@@ -15,26 +15,25 @@ class MylifeMemberSession extends EventEmitter {
 		super()
 		this.#factory = factory
 		this.#mbr_id = this.isMyLife ? this.factory.mbr_id : false
-		mAssignFactoryListeners(this.#factory)
 		console.log(
 			chalk.bgGray('MylifeMemberSession:constructor(factory):generic-mbr_id::end'),
 			chalk.bgYellowBright(this.factory.mbr_id),
 		)
 	}
+	/**
+	 * Initializes the member session. If `isMyLife`, then session requires chat thread unique to visitor; session has singleton System Avatar who maintains all running Conversations.
+	 * @param {String} mbr_id - Member id to initialize session
+	 * @returns {Promise<MylifeMemberSession>} - Member session instance
+	 */
 	async init(mbr_id=this.mbr_id){
-		// if isMyLife, then session requires chat thread unique to guest; session has own avatar, demonstrate this is true and then create new conversation
 		if(!this.locked && this.mbr_id && this.mbr_id!==mbr_id){ // unlocked, initialize member session
 			this.#mbr_id = mbr_id
-			mAssignFactoryListeners(this.#factory)
 			await this.#factory.init(this.mbr_id) // needs only `init()` with different `mbr_id` to reset
 			this.#Member = await this.factory.getMyLifeMember()
-			this.#autoplayed = false // resets autoplayed flag, although should be impossible as only other "variant" requires guest status, as one-day experiences can be run for guests also [for pay]
-			this.thread_id = null // reset thread_id from Q-session
-			this.emit('onInit-member-initialize', this.#Member.memberName)
-			console.log(
-				chalk.bgBlue('created-member:'),
-				chalk.bgRedBright(this.#Member.memberName)
-			)
+			this.#autoplayed = false
+			delete this.Conversation
+			delete this.thread_id
+			console.log(chalk.bgBlue('created-member:'), chalk.bgRedBright(this.#Member.memberName))
 		}
 		return this
 	}
@@ -244,22 +243,6 @@ class MylifeMemberSession extends EventEmitter {
 	get subtitle(){
 		return this.#Member?.agentName
 	}
-}
-function mAssignFactoryListeners(_session){
-	if(_session.isMyLife) // all sessions _begin_ as MyLife
-		_session.factory.on('member-unlocked',_mbr_id=>{
-			console.log(
-				chalk.grey('session::constructor::member-unlocked_trigger'),
-				chalk.bgGray(_mbr_id)
-			)
-		})
-	else // all _"end"_ as member
-		_session.factory.on('avatar-activated',_avatar=>{
-			console.log(
-				chalk.grey('session::constructor::avatar-activated_trigger'),
-				chalk.bgGray(_avatar.id)
-			)
-		})
 }
 function mValidCtxObject(_ctx){
 	//	validate ctx object
