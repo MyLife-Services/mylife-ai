@@ -82,7 +82,6 @@ function extendClass_conversation(originClass, referencesObject){
          * @returns {Object[]} - The updated messages array.
          */
         addMessage(message){
-            console.log('class-extenders::addMessage', message?.content?.[0]?.text?.value ?? message)
             const { id, } = message
             if(this.#messages.find(message=>message.id===id))
                 return this.messages

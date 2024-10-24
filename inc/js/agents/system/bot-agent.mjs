@@ -235,7 +235,6 @@ class BotAgent {
 	async conversationStart(type='chat', form='system-avatar'){
 		const { bot_id: llm_id, id: bot_id, } = this.avatar
 		const Conversation = await mConversationStart(type, form, bot_id, null, llm_id, this.#llm, this.#factory)
-		console.log('BotAgent::conversationStart', Conversation.thread_id, Conversation.bot_id, Conversation.llm_id, Conversation.inspect(true))
 		return Conversation
 	}
 	/**
@@ -782,9 +781,7 @@ async function mCallLLM(Conversation, allowSave=true, llm, factory, avatar){
 	})
 	Conversation.addMessages(botResponses)
 	if(allowSave)
-		console.log('chat::allowSave=`true`', Conversation.message?.content?.substring(0,64))// Conversation.save()
-	else
-		console.log('chat::allowSave=`false`', Conversation.message?.content?.substring(0,64))
+		Conversation.save() // no `await`
 }
 /**
  * Create a new conversation.
