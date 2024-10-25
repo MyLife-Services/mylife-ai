@@ -1353,13 +1353,13 @@ function mAvatarDropdown(globals, avatar){
 /**
  * Cancels openAI run.
  * @module
- * @param {LLMServices} llmServices - OpenAI object
+ * @param {LLMServices} llm - The LLMServices instance
  * @param {string} thread_id - Thread id
  * @param {string} runId - Run id
  * @returns {object} - [OpenAI run object](https://platform.openai.com/docs/api-reference/runs/object)
  */
-async function mCancelRun(llmServices, thread_id, runId,){
-    return await llmServices.beta.threads.runs.cancel(
+async function mCancelRun(llm, thread_id, runId,){
+    return await llm.beta.threads.runs.cancel(
         thread_id,
         runId
     )
