@@ -591,7 +591,7 @@ class AgentFactory extends BotFactory {
 		return avatar
 	}
 	/**
-	 * Generates via personal intelligence, nature of consent/protection around itemId or botId.
+	 * Generates via personal intelligence, nature of consent/protection around itemId or Bot id.
 	 * @todo - build out consent structure
 	 * @param {Guid} id - The id of the item to generate consent for.
 	 * @param {Guid} requesting_mbr_id - The id of the member requesting consent.

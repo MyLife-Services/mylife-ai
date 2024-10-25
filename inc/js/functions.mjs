@@ -35,7 +35,7 @@ async function alerts(ctx){
 	}
 }
 async function bots(ctx){
-	const { bid, } = ctx.params // botId sent in url path
+	const { bid, } = ctx.params // bot_id sent in url path
 	const { avatar } = ctx.state
 	const bot = ctx.request.body ?? {}
 	const { id, } = bot
@@ -102,7 +102,7 @@ async function challenge(ctx){
  * @property {Object[]} responses - Response messages from Avatar intelligence
  */
 async function chat(ctx){
-	const { botId, itemId, message, } = ctx.request.body
+	const { botId: bot_id, itemId, message, } = ctx.request.body
 		?? {} /* body nodes sent by fe */
 	if(!message?.length)
 			ctx.throw(400, 'missing `message` content')
@@ -110,8 +110,8 @@ async function chat(ctx){
 	const session = avatar.isMyLife
 		? ctx.session.MemberSession
 		: null
-	if(botId?.length && botId!==avatar.activeBotId)
-		throw new Error(`Bot ${ botId } not currently active; chat() requires active bot`)
+	if(bot_id?.length && bot_id!==avatar.activeBotId)
+		throw new Error(`Bot ${ bot_id } not currently active; chat() requires active bot`)
 	const response = await avatar.chat(message, itemId, session)
 	ctx.body = response
 }
@@ -244,9 +244,9 @@ async function migrateBot(ctx){
 	ctx.body = await avatar.migrateBot(bid)
 }
 async function migrateChat(ctx){
-	const { tid, } = ctx.params
+	const { bid, } = ctx.params
 	const { avatar, } = ctx.state
-	ctx.body = await avatar.migrateChat(tid)
+	ctx.body = await avatar.migrateChat(bid)
 }
 /**
  * Given an itemId, obscures aspects of contents of the data record.

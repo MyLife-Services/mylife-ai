@@ -2,10 +2,10 @@
 /**
  * Consumes a conversation object and uses supplied factory to (create/)save it to MyLife CosmosDB. Each session conversation is saved as a separate document, and a given thread may span many conversations, so cross-checking by thread_id will be required when rounding up and consolidating summaries for older coversations.
  * @param {AgentFactory} factory - Factory instance
- * @param {Conversation} conversation - Conversation object
+ * @param {Conversation} Conversation - Conversation instance
  * @returns {Promise<void>}
  */
-async function mSaveConversation(factory, conversation){
+async function mSaveConversation(Conversation, factory){
     const {
         being,
         bot_id,
@@ -14,10 +14,9 @@ async function mSaveConversation(factory, conversation){
         isSaved=false,
         name,
         thread,
-        thread_id,
         type,
-    } = conversation
-    let { messages, } = conversation
+    } = Conversation
+    let { messages, } = Conversation
     messages = messages
         .map(_msg=>_msg.micro)
     if(!isSaved){

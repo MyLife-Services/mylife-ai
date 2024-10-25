@@ -2,6 +2,7 @@ import { Marked } from 'marked'
 import EventEmitter from 'events'
 import AssetAgent from './agents/system/asset-agent.mjs'
 import BotAgent from './agents/system/bot-agent.mjs'
+import CollectionsAgent from './agents/system/collections-agent.mjs'
 import EvolutionAgent from './agents/system/evolution-agent.mjs'
 import LLMServices from './mylife-llm-services.mjs'
 /* module constants */
@@ -19,7 +20,9 @@ const mAvailableModes = ['standard', 'admin', 'evolution', 'experience', 'restor
 class Avatar extends EventEmitter {
     #assetAgent
     #botAgent
+    #collectionsAgent
     #evolver
+    #experienceAgent
     #experienceGenericVariables = {
         age: undefined,
         birthdate: undefined,
@@ -49,6 +52,7 @@ class Avatar extends EventEmitter {
         this.#llmServices = llmServices
         this.#assetAgent = new AssetAgent(this.#factory, this.#llmServices)
         this.#botAgent = new BotAgent(this.#factory, this.#llmServices)
+        this.#collectionsAgent = new CollectionsAgent(this.#factory, this.#llmServices)
     }
     /* public functions */
     /**
@@ -68,11 +72,11 @@ class Avatar extends EventEmitter {
     /**
      * Get a Bot instance by id.
      * @public
-     * @param {Guid} botId - The bot id
+     * @param {Guid} bot_id - The bot id
      * @returns {Promise<Bot>} - The bot object from memory
      */
-    bot(botId){
-        const Bot = this.#botAgent.bot(botId)
+    bot(bot_id){
+        const Bot = this.#botAgent.bot(bot_id)
         return Bot
     }
     /**
@@ -116,9 +120,10 @@ class Avatar extends EventEmitter {
         return response
     }
     /**
-     * Chat with an open agent, bypassing a specific bot.
+     * Chat with an open agent, bypassing specific or active bot.
      * @param {Conversation} Conversation - The conversation instance
-     * @returns {Promise<void>} - Conversation instance is altered in place
+     * @returns {Promise<Object>} - Response object: { instruction, responses, success, }
+     * @note - Conversation instance is altered in place
      */
     async chatAgentBypass(Conversation){
         if(!this.isMyLife)
@@ -325,29 +330,19 @@ class Avatar extends EventEmitter {
      * @param {Guid} id - The Bot id
      * @returns {object} - The pruned Bot object
      */
-    getBot(botId){
-        const bot = this.#botAgent.bot(botId)?.bot
+    getBot(bot_id){
+        const bot = this.#botAgent.bot(bot_id)?.bot
         return bot
-    }
-    /**
-     * Returns the pruned bots for avatar.
-     * @param {Guid} id - The Bot id
-     * @returns {Object[]} - The pruned Bot objects
-     */
-    getBots(){
-		const bots = this.bots
-			.map(Bot=>Bot.bot)
-		return bots
     }
     /**
      * Gets Conversation object. If no thread id, creates new conversation.
      * @param {string} thread_id - openai thread id (optional)
-     * @param {Guid} botId - The bot id (optional)
+     * @param {Guid} bot_id - The bot id (optional)
      * @returns {Conversation} - The conversation object.
      */
-    getConversation(thread_id, botId){
+    getConversation(thread_id, bot_id){
         const conversation = this.conversations
-            .filter(c=>(thread_id?.length && c.thread_id===thread_id) || (botId?.length && c.botId===botId))
+            .filter(c=>(thread_id?.length && c.thread_id===thread_id) || (bot_id?.length && c.bot_id===bot_id))
             ?.[0]
         return conversation
     }
@@ -434,32 +429,36 @@ class Avatar extends EventEmitter {
     }
     /**
      * Migrates a bot to a new, presumed combined (with internal or external) bot.
-     * @param {Guid} botId - The bot id.
-     * @returns 
+     * @param {Guid} bot_id - The bot id
+     * @returns {Promise<Bot>} - The migrated Bot instance
      */
-    async migrateBot(botId){
-        const bot = await this.bot(botId)
-        if(!bot)
-            throw new Error(`Bot not found with id: ${ botId }`)
-        const { id, } = bot
-        if(botId!==id)
-            throw new Error(`Bot id mismatch: ${ botId }!=${ id }`)
-        return bot
+    async migrateBot(bot_id){
+        const migration = await this.#botAgent.migrateBot(bot_id)
+        return migration
     }
     /**
      * Migrates a chat conversation from an old thread to a newly created (or identified) destination thread.
      * @param {string} thread_id - Conversation thread id in OpenAI
      * @returns {Conversation} - The migrated conversation object
      */
-    async migrateChat(thread_id){
-        /* validate request */
-        const conversation = this.getConversation(thread_id)
-        if(!conversation)
-            throw new Error(`Conversation thread_id not found: ${ thread_id }`)
-        /* execute request */
-        const updatedConversation = await mMigrateChat(this, this.#factory, this.#llmServices, conversation)
-        /* respond request */
-        return updatedConversation
+    async migrateChat(bot_id){
+        const success = await this.#botAgent.migrateChat(bot_id)
+        const response = {
+            responses: [success
+                ? {
+                    agent: 'server',
+                    message: `I have successfully migrated this conversation to a new thread.`,
+                    type: 'chat',
+                }
+                : {
+                    agent: 'server',
+                    message: `I'm sorry - I encountered an error while trying to migrate this conversation; please try again.`,
+                    type: 'chat',
+                }
+            ],
+            success,
+        }
+        return response
     }
     /**
      * Given an itemId, obscures aspects of contents of the data record. Obscure is a vanilla function for MyLife, so does not require intervening intelligence and relies on the factory's modular LLM.
@@ -467,7 +466,7 @@ class Avatar extends EventEmitter {
      * @returns {Object} - The obscured item object
      */
     async obscure(iid){
-        const updatedSummary = await this.#factory.obscure(iid)
+        const updatedSummary = await this.activeBot.obscure(iid)
         this.frontendInstruction = {
             command: 'updateItemSummary',
             itemId: iid,
@@ -523,63 +522,46 @@ class Avatar extends EventEmitter {
     }
     /**
      * Member request to retire a bot.
-     * @param {Guid} botId - The bot id.
-     * @returns {object} - The retired bot object.
+     * @param {Guid} bot_id - The id of Bot to retire
+     * @returns {object} - The Response object: { instruction, responses, success, }
      */
-    async retireBot(botId){
-        /* reset active bot, if required */
-        if(this.activeBotId===botId)
-            this.#botAgent.setActiveBot() // avatar cannot be retired
-        const bot = await this.bot(botId)
-        if(!bot)
-            throw new Error(`Bot not found with id: ${ botId }`)
-        const { id, } = bot
-        if(botId!==id)
-            throw new Error(`Bot id mismatch: ${ botId }!=${ id }`)
-        this.#botAgent.botDelete(botId)
+    async retireBot(bot_id){
+        const success = await this.#botAgent.deleteBot(bot_id)
         const response = {
             instruction: {
-                command: 'removeBot',
-                id: botId,
+                command: success ? 'removeBot' : 'error',
+                id: bot_id,
             },
-            responses: [{
-                agent: 'server',
-                message: `I have removed this bot from the team.`,
-                purpose: 'system',
-                type: 'chat',
-            }],
-            success: true,
+            responses: [success
+                ? {
+                    agent: 'server',
+                    message: `I have removed this bot from the team.`,
+                    type: 'chat',
+                }
+                : {
+                    agent: 'server',
+                    message: `I'm sorry - I encountered an error while trying to retire this bot; please try again.`,
+                    type: 'system',
+                }
+            ],
+            success,
         }
         return response
     }
     /**
-     * Member-request to retire a chat conversation thread and begin a new one with the same intelligence.
-     * @param {string} thread_id - Conversation thread id in OpenAI
+     * Currently only proxy for `migrateChat`.
+     * @param {string} bot_id - Bot id with Conversation to retire
      * @returns {object} - The response object { instruction, responses, success, }
      */
-    async retireChat(botId){
-        /* validate request */
-        const conversation = this.getConversation(null, botId)
-        if(!conversation){
-            throw new Error(`Conversation not found with bot id: ${ botId }`)
-        }
-        const { thread_id: cid, } = conversation
-        const bot = await this.bot(botId)
-        const { id: _botId, thread_id: tid, } = bot
-        if(botId!=_botId)
-            throw new Error(`Bot id mismatch: ${ botId }!=${ bot_id }`)
-        if(tid!=cid)
-            throw new Error(`Conversation mismatch: ${ tid }!=${ cid }`)
-        /* execute request */
-        const updatedConversation = await mMigrateChat(this, this.#factory, this.#llmServices, conversation)
+    async retireChat(bot_id){
+        const success = await this.#botAgent.migrateChat(bot_id)
         /* respond request */
-        const response = !!updatedConversation
+        const response = success
             ? { /* @todo - add frontend instructions to remove migrateChat button */
                 instruction: null,
                 responses: [{
                     agent: 'server',
-                    message: `I have successfully retired this conversation thread and started a new one.`,
-                    purpose: 'system',
+                    message: `I have successfully retired this conversation.`,
                     type: 'chat',
                 }],
                 success: true,
@@ -589,7 +571,6 @@ class Avatar extends EventEmitter {
                 responses: [{
                     agent: 'server',
                     message: `I'm sorry - I encountered an error while trying to retire this conversation; please try again.`,
-                    purpose: 'system',
                     type: 'chat',
                 }],
                 success: false,
@@ -611,32 +592,30 @@ class Avatar extends EventEmitter {
      * @returns {Object} - The response object { messages, success, error,}
      */
     async summarize(fileId, fileName, processStartTime=Date.now()){
-        if(this.isMyLife)
-            throw new Error('MyLife avatar cannot summarize files.')
-        if(!fileId?.length && !fileName?.length)
-            throw new Error('File id or name required for summarization.')
-        const { bot_id, id: botId, thread_id, } = this.avatar
-        const prompt = `Summarize this file document: name=${ fileName }, id=${ fileId }`
-        const response = {
-            messages: [],
-            success: false,
+        /* validate request */
+        this.backupResponse = {
+            message: `I received your request to summarize, but an error occurred in the process. Perhaps try again with another file.`,
+            type: 'system',
         }
-        try{
-            let messages = await mCallLLM(this.#llmServices, { bot_id, thread_id, }, prompt, this.#factory, this)
-            messages = messages
-                .map(message=>mPruneMessage(botId, message, 'mylife-file-summary', processStartTime))
-                .filter(message=>message && message.role!=='user')
-            if(!messages.length)
-                throw new Error('No valid messages returned from summarization.')
-            response.messages.push(...messages)
-            response.success = true
-        } catch(error) {
-            response.messages.push({ content: `Unfortunately, a server error occured: ${error.message}`, role: 'system', })
-            response.messages.push({ content: 'Please indicate in a help chat what went wrong. Or one might ask... why can\'t I do that, and I don\'t have a great answer at the moment.', role: 'system', })
-            response.error = error
-            console.log('ERROR::Avatar::summarize()', error)
+        let success = false
+        /* execute request */
+        responses = await this.#botAgent.summarize(fileId, fileName, processStartTime)
+        /* respond request */
+        if(!responses?.length)
+            responses = [this.backupResponse]
+        else {
+            responses = mPruneMessage(this.avatar.id, responses, 'mylife-file-summary', processStartTime)
+            instructions = {
+                command: 'updateFileSummary',
+                itemId: fileId,
+            }
+            success = true
         }
-        return response
+        return {
+            instructions,
+            responses,
+            success,
+        }
     }
     /**
      * Get a specified team, its details and _instanced_ bots, by id for the member.
@@ -742,11 +721,11 @@ class Avatar extends EventEmitter {
      * Set the active bot id. If not match found in bot list, then defaults back to this.id (avatar).
      * @setter
      * @requires mBotInstructions
-     * @param {string} botId - The requested bot id
+     * @param {string} bot_id - The requested bot id
      * @returns {void}
      */
-    set activeBotId(botId){
-        this.#botAgent.setActiveBot(botId)
+    set activeBotId(bot_id){
+        this.#botAgent.setActiveBot(bot_id)
     }
     get activeBotNewestVersion(){
         const { type, } = this.activeBot
@@ -1215,7 +1194,8 @@ class Q extends Avatar {
         if(this.isCreatingAccount)
             message = `CREATE ACCOUNT PHASE: ${ message }`
 		Conversation.prompt = message
-        return await this.chatAgentBypass(Conversation)
+        const response = await this.chatAgentBypass(Conversation)
+        return response
     }
     /**
      * OVERLOADED: MyLife must refuse to create bots.
@@ -1237,11 +1217,15 @@ class Q extends Avatar {
         const updatedSummary = await botFactory.obscure(iid)
         return updatedSummary
     }
+    /* overload rejections */
     /**
-     * OVERLOADED: Refuses to upload to MyLife.
+     * OVERLOADED: Q refuses to execute.
      * @public
      * @throws {Error} - MyLife avatar cannot upload files.
      */
+    summarize(){
+        throw new Error('MyLife avatar cannot summarize files.')
+    }
     upload(){
         throw new Error('MyLife avatar cannot upload files.')
     }
@@ -1429,7 +1413,7 @@ async function mCast(factory, cast){
 }
 function mCreateSystemMessage(activeBot, message, factory){
     if(!(message instanceof factory.message)){
-        const { id: botId, thread_id, } = activeBot
+        const { id: bot_id, thread_id, } = activeBot
         const content = message?.content ?? message?.message ?? message
         message = new (factory.message)({
             being: 'message',
@@ -1439,38 +1423,8 @@ function mCreateSystemMessage(activeBot, message, factory){
             type: 'system'
         })
     }
-    message = mPruneMessage(botId, message, 'system')
+    message = mPruneMessage(bot_id, message, 'system')
     return message
-}
-/**
- * Deletes conversation and updates 
- * @param {Conversation} conversation - The conversation object
- * @param {Conversation[]} conversations - The conversations array
- * @param {Object} bot - The bot involved in the conversation
- * @param {AgentFactory} factory - Agent Factory object
- * @param {LLMServices} llm - OpenAI object
- * @returns {Promise<boolean>} - `true` if successful
- */
-async function mDeleteConversation(conversation, conversations, bot, factory, llm){
-    const { id, } = conversation
-    /* delete conversation from memory */
-    const conversationId = conversations.findIndex(_conversation=>_conversation.id===id)
-    if(conversationId<0)
-        throw new Error('Conversation not found in conversations.')
-    conversations.splice(conversationId, 1)
-    /* delete thread_id from bot and save to Cosmos */
-    bot.thread_id = ''
-    const { id: botId, thread_id, } = bot
-    factory.updateBot({
-        id: botId,
-        thread_id,
-    })
-    /* delete conversation from Cosmos */
-    const deletedConversation = await factory.deleteItem(conversation.id)
-    /* delete thread from LLM */
-    const deletedThread = await llm.deleteThread(thread_id)
-    console.log('mDeleteConversation', conversation.id, deletedConversation, thread_id, deletedThread)
-    return true
 }
 /**
  * Takes character data and makes necessary adjustments to roles, urls, etc.
@@ -1992,118 +1946,6 @@ async function mInit(factory, llmServices, avatar, botAgent, assetAgent){
     avatar.experiencesLived = await factory.experiencesLived(false)
 }
 /**
- * Migrates specified conversation (by thread_id) and returns conversation with new thread processed and saved to bot, both as a document and in avatar memory.
- * @param {Avatar} avatar - Avatar object
- * @param {AgentFactory} factory - AgentFactory object
- * @param {LLMServices} llm - OpenAI object
- * @param {string} thread_id - The thread_id of the conversation
- * @returns 
- */
-async function mMigrateChat(avatar, factory, llm, conversation){
-    /* constants and variables */
-    const { thread_id, } = conversation
-    const chatLimit=25
-    let messages = await llm.messages(thread_id) // @todo - limit to 25 messages or modify request
-    if(!messages?.length)
-        return conversation
-    const { botId, } = conversation
-    const bot = await avatar.bot(botId)
-    const botType = bot.type
-    let disclaimer=`INFORMATIONAL ONLY **DO NOT PROCESS**\n`,
-        itemCollectionTypes='item',
-        itemLimit=1000,
-        type='item'
-    switch(botType){
-        case 'biographer':
-        case 'personal-biographer':
-            type = 'memory'
-            itemCollectionTypes = `memory,story,narrative`
-            break
-        case 'diary':
-        case 'journal':
-        case 'journaler':
-            type = 'entry'
-            const itemType = botType==='journaler'
-                ? 'journal'
-                : botType
-            itemCollectionTypes = `${ itemType },entry,`
-            break
-        default:
-            break
-    }
-    const chatSummary=`## ${ type.toUpperCase() } CHAT SUMMARY\n`,
-        chatSummaryRegex = /^## [^\n]* CHAT SUMMARY\n/,
-        itemSummary=`## ${ type.toUpperCase() } LIST\n`,
-        itemSummaryRegex = /^## [^\n]* LIST\n/
-    const items = ( await avatar.collections(type) )
-        .sort((a, b)=>a._ts-b._ts)
-        .slice(0, itemLimit)
-    const itemList = items
-        .map(item=>`- itemId: ${ item.id } :: ${ item.title }`)
-        .join('\n')
-    const itemCollectionList = items
-        .map(item=>item.id)
-        .join(',')
-        .slice(0, 512) // limit for metadata string field
-    const metadata = {
-        bot_id: botId,
-        conversation_id: conversation.id,
-    }
-    /* prune messages source material */
-    messages = messages
-        .slice(0, chatLimit)
-        .map(message=>{
-            const { content: contentArray, id, metadata, role, } = message
-            const content = contentArray
-                .filter(_content=>_content.type==='text')
-                .map(_content=>_content.text?.value)
-                ?.[0]
-            return { content, id, metadata, role, }
-        })
-        .filter(message=>!itemSummaryRegex.test(message.content))
-    const summaryMessage = messages
-        .filter(message=>!chatSummaryRegex.test(message.content))
-        .map(message=>message.content)
-        .join('\n')
-    /* contextualize previous content */
-    const summaryMessages = []
-    /* summary of items */
-    if(items.length)
-        summaryMessages.push({
-            content: itemSummary + disclaimer + itemList,
-            metadata: {
-                collectionList: itemCollectionList,
-                collectiontypes: itemCollectionTypes,
-            },
-            role: 'assistant',
-        })
-    /* summary of messages */
-    if(summaryMessage.length)
-        summaryMessages.push({
-            content: chatSummary + disclaimer + summaryMessage,
-            metadata: {
-                collectiontypes: itemCollectionTypes,
-            },
-            role: 'assistant',
-        })
-    if(!summaryMessages.length)
-        return conversation
-    /* add messages to new thread */
-    const newThread = await llm.thread(null, summaryMessages.reverse(), metadata)
-    conversation.setThread(newThread)
-    bot.thread_id = conversation.thread_id
-    const _bot = {
-        id: bot.id,
-        thread_id: conversation.thread_id,
-    }
-    factory.updateBot(_bot) // removed await
-    if(mAllowSave)
-        conversation.save()
-    else
-        console.log('migrateChat::BYPASS-SAVE', conversation.thread_id)
-    return conversation
-}
-/**
  * Get experience scene navigation array.
  * @getter
  * @returns {Object[]} - The scene navigation array for the experience.
@@ -2206,17 +2048,17 @@ function mPruneMessage(activeBotId, message, type='chat', processStartTime=Date.
 }
 /**
  * Prune an array of Messages and return.
- * @param {Guid} botId - The Active Bot id property
+ * @param {Guid} bot_id - The Active Bot id property
  * @param {Object[]} messageArray - The array of messages to prune
  * @param {string} type - The type of message, defaults to chat
  * @param {number} processStartTime - The time the process started, defaults to function call
  * @returns {Object[]} - Concatenated message object
  */
-function mPruneMessages(botId, messageArray, type='chat', processStartTime=Date.now()){
+function mPruneMessages(bot_id, messageArray, type='chat', processStartTime=Date.now()){
     if(!messageArray.length)
         throw new Error('No messages to prune')
     messageArray = messageArray
-        .map(message=>mPruneMessage(botId, message, type, processStartTime))
+        .map(message=>mPruneMessage(bot_id, message, type, processStartTime))
     return messageArray
 }
 /**
@@ -2237,7 +2079,7 @@ function mPruneMessages(botId, messageArray, type='chat', processStartTime=Date.
 async function mReliveMemoryNarration(avatar, factory, llm, Bot, item, memberInput='NEXT'){
     console.log('mReliveMemoryNarration::start', item.id, memberInput)
     const { relivingMemories, } = avatar
-    const { id: botId, } = Bot
+    const { id: bot_id, } = Bot
     const { id, } = item
     const processStartTime = Date.now()
     let message = `## relive memory itemId: ${ id }\n`
@@ -2253,7 +2095,7 @@ async function mReliveMemoryNarration(avatar, factory, llm, Bot, item, memberInp
         console.log(`mReliveMemoryNarration::new reliving memory: ${ id }`)
     } else /* opportunity for member interrupt */
         message += `MEMBER INPUT: ${ memberInput }\n`
-    const { conversation, thread_id, } = relivingMemory
+    const { conversation, } = relivingMemory
     console.log(`mReliveMemoryNarration::reliving memory: ${ id }`, message)
     let messages = await mCallLLM(llm, conversation, message, factory, avatar)
     conversation.addMessages(messages)
@@ -2264,7 +2106,7 @@ async function mReliveMemoryNarration(avatar, factory, llm, Bot, item, memberInp
                 && message.type==='chat'
                 && message.role!=='user'
         })
-        .map(message=>mPruneMessage(botId, message, 'chat', processStartTime))
+        .map(message=>mPruneMessage(bot_id, message, 'chat', processStartTime))
     const memory = {
         id,
         messages,

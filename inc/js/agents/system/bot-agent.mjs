@@ -1,5 +1,3 @@
-import LLMServices from "../../mylife-llm-services.mjs"
-
 /* module constants */
 const mBot_idOverride = process.env.OPENAI_MAHT_GPT_OVERRIDE
 const mDefaultBotTypeArray = ['personal-avatar', 'avatar']
@@ -27,16 +25,18 @@ const mTeams = [
  * @todo - are private vars for factory and llm necessary, or passable?
  */
 class Bot {
+	#collectionsAgent
 	#conversation
 	#factory
 	#llm
-	constructor(botData, factory, llm){
+	constructor(botData, llm, factory){
 		this.#factory = factory
 		this.#llm = llm
 		botData = this.globals.sanitize(botData)
 		Object.assign(this, botData)
 		if(!this.id)
 			throw new Error('Bot database id required')
+		// @stub - this.#collectionsAgent = new CollectionsAgent(llm, factory)
 	}
 	/* public functions */
 	/**
@@ -50,10 +50,7 @@ class Bot {
 	async chat(message, originalMessage, allowSave=true, processStartTime=Date.now()){
 		if(this.isMyLife && !this.isAvatar)
 			throw new Error('Only Q, MyLife Corporate Intelligence, is available for non-member conversation.')
-		const { bot_id, id, thread_id, type, } = this
-		if(!this.#conversation)
-			this.#conversation = await mConversationStart('chat', type, id, thread_id, bot_id, this.#llm, this.#factory)
-		const Conversation = this.#conversation
+		const Conversation = await this.getConversation()
 		Conversation.prompt = message
 		Conversation.originalPrompt = originalMessage
 		await mCallLLM(Conversation, allowSave, this.#llm, this.#factory, this) // mutates Conversation
@@ -68,6 +65,19 @@ class Bot {
 		return this
 	}
 	/**
+	 * Retrieves the Conversation instance for this bot.
+	 * @param {String} message - The member request (optional)
+	 * @returns {Promise<Conversation>} - The Conversation instance
+	 */
+	async getConversation(message){
+		if(!this.#conversation){
+			const { bot_id: _llm_id, id: bot_id, thread_id, type, } = this
+			let { llm_id=_llm_id, } = this // @stub - deprecate bot_id
+			this.#conversation = await mConversationStart('chat', type, bot_id, thread_id, llm_id, this.#llm, this.#factory, message)
+		}
+		return this.#conversation
+	}
+	/**
 	 * Retrieves a greeting message from the active bot.
 	 * @param {Boolean} dynamic - Whether to use dynamic greetings (`true`) or static (`false`)
 	 * @param {LLMServices} llm - OpenAI object
@@ -77,6 +87,23 @@ class Bot {
 	async getGreeting(dynamic=false, llm, factory){
 		const greetings =  await mBotGreeting(dynamic, this, llm, factory)
 		return greetings
+	}
+    /**
+     * Migrates Conversation from an old thread to a newly created (or identified) destination thread.
+     * @returns {Boolean} - Whether or not operation was successful
+     */
+	async migrateChat(){
+		const migration = mMigrateChat(this, this.#llm, this.#factory)
+		return !!migration
+	}
+    /**
+     * Given an itemId, obscures aspects of contents of the data record. Obscure is a vanilla function for MyLife, so does not require intervening intelligence and relies on the factory's modular LLM.
+     * @param {Guid} itemId - The item id
+     * @returns {Object} - The obscured item object
+     */
+	async obscure(itemId){
+        const updatedSummary = await this.#factory.obscure(itemId)
+		return updatedSummary
 	}
 	/**
 	 * Updates a Bot instance's data.
@@ -92,6 +119,24 @@ class Bot {
 	}
 	async save(){
 
+	}
+	/**
+	 * Sets the thread id for the bot.
+	 * @param {String} thread_id - The thread id
+	 * @returns {Promise<void>}
+	 */
+	async setThread(thread_id){
+		const llm_id = this.llm_id
+			?? this.bot_id
+		if(!thread_id?.length)
+			thread_id = await this.#llm.createThread(llm_id)
+		const { id, } = this
+		this.thread_id = thread_id
+		const bot = {
+			id,
+			thread_id,
+		}
+		await this.#factory.updateBot(bot)
 	}
 	/* getters/setters */
 	/**
@@ -109,6 +154,9 @@ class Bot {
 			version,
 		}
 		return bot
+	}
+	get conversation(){
+		return this.#conversation
 	}
 	get globals(){
 		return this.#factory.globals
@@ -154,6 +202,7 @@ class BotAgent {
     #avatarId
     #bots
     #factory
+	#fileConversation
 	#llm
 	#vectorstoreId
     constructor(factory, llm){
@@ -180,13 +229,16 @@ class BotAgent {
     }
 	/* public functions */
 	/**
-	 * Retrieves a bot instance by id.
-	 * @param {Guid} botId - The Bot id
+	 * Retrieves Bot instance by id or type, defaults to personal-avatar.
+	 * @param {Guid} bot_id - The Bot id
+	 * @param {String} botType - The Bot type
 	 * @returns {Promise<Bot>} - The Bot instance
 	 */
-	bot(botId){
-		const Bot = this.#bots
-			.find(bot=>bot.id===botId)
+	bot(bot_id, botType){
+		const Bot = botType?.length
+			? this.#bots.find(bot=>bot.type===botType)
+			: this.#bots.find(bot=>bot.id===bot_id)
+			?? this.avatar
 		return Bot
 	}
 	/**
@@ -195,7 +247,7 @@ class BotAgent {
 	 * @returns {Bot} - The created Bot instance
 	 */
 	async botCreate(botData){
-		const Bot = await mBotCreate(this.#avatarId, this.#vectorstoreId, botData, this.#factory)
+		const Bot = await mBotCreate(this.#avatarId, this.#vectorstoreId, botData, this.#llm, this.#factory)
 		this.#bots.push(Bot)
 		this.setActiveBot(Bot.id)
 		return Bot
@@ -203,14 +255,14 @@ class BotAgent {
 	/**
 	 * Deletes a bot instance.
 	 * @async
-	 * @param {Guid} botId - The Bot id
-	 * @returns {Promise<void>}
+	 * @param {Guid} bot_id - The Bot id
+	 * @returns {Promise<Boolean>} - Whether or not operation was successful
 	 */
-	async botDelete(botId){
-		const Bot = this.#bots.find(bot=>bot.id===botId)
-		if(!Bot)
-			throw new Error(`Bot not found with id: ${ botId }`)
-		await mBotDelete(Bot, this.#bots, this.#llm, this.#factory)
+	async botDelete(bot_id){
+		if(!this.#factory.isMyLife)
+			return false
+		const success = await mBotDelete(bot_id, this, this.#llm, this.#factory)
+		return success
 	}
 	/**
 	 * Chat with the active bot.
@@ -222,7 +274,7 @@ class BotAgent {
 	async chat(Conversation, allowSave=true, q){
 		if(!Conversation)
 			throw new Error('Conversation instance required')
-		Conversation.processingStartTime
+		Conversation.processStartTime
 		await mCallLLM(Conversation, allowSave, this.#llm, this.#factory, q) // mutates Conversation
 		return Conversation
 	}
@@ -230,19 +282,15 @@ class BotAgent {
 	 * Initializes a conversation, currently only requested by System Avatar, but theoretically could be requested by any externally-facing Member Avatar as well. **note**: not in Q because it does not have a #botAgent yet.
 	 * @param {String} type - The type of conversation, defaults to `chat`
 	 * @param {String} form - The form of conversation, defaults to `system-avatar`
-	 * @returns {Promise<Conversation>} - The conversation object
+	 * @param {String} prompt - The prompt for the conversation (optional)
+	 * @returns {Promise<Conversation>} - The Conversation instance
 	 */
-	async conversationStart(type='chat', form='system-avatar'){
-		const { bot_id: llm_id, id: bot_id, } = this.avatar
-		const Conversation = await mConversationStart(type, form, bot_id, null, llm_id, this.#llm, this.#factory)
+	async conversationStart(type='chat', form='system-avatar', prompt){
+		const { avatar, } = this
+		const { bot_id: _llm_id, id: bot_id, } = avatar
+		let { llm_id=_llm_id, } = avatar // @stub - deprecate bot_id
+		const Conversation = await mConversationStart(type, form, bot_id, null, llm_id, this.#llm, this.#factory, prompt)
 		return Conversation
-	}
-	/**
-	 * Retrieves bots by instance.
-	 * @returns {Bot[]} - The array of bots
-	 */
-	getBots(){
-		return this.#bots
 	}
     /**
      * Get a static or dynamic greeting from active bot.
@@ -253,13 +301,38 @@ class BotAgent {
         const greetings = await this.activeBot.getGreeting(dynamic, this.#llm, this.#factory)
         return greetings
     }
+    /**
+     * Migrates a bot to a new, presumed combined (with internal or external) bot.
+     * @param {Guid} bot_id - The bot id
+     * @returns {Promise<Bot>} - The migrated Bot instance
+     */
+    async migrateBot(bot_id){
+		throw new Error('migrateBot() not yet implemented')
+    }
+    /**
+     * Migrates a chat conversation from an old thread to a newly created (or identified) destination thread.
+     * @param {Guid} bot_id - Bot id whose Conversation is to be migrated
+     * @returns {Boolean} - Whether or not operation was successful
+     */
+    async migrateChat(bot_id){
+		/* validate request */
+		if(this.#factory.isMyLife)
+			throw new Error('Chats with Q cannot be migrated.')
+		const Bot = this.bot(bot_id)
+		if(!Bot)
+			return false
+        /* execute request */
+		await Bot.migrateChat()
+        /* respond request */
+        return true
+    }
 	/**
 	 * Sets the active bot for the BotAgent.
-	 * @param {Guid} botId - The Bot id
+	 * @param {Guid} bot_id - The Bot id
 	 * @returns {void}
 	 */
-	setActiveBot(botId=this.avatar?.id){
-		const Bot = this.#bots.find(bot=>bot.id===botId)
+	setActiveBot(bot_id=this.avatar?.id){
+		const Bot = this.#bots.find(bot=>bot.id===bot_id)
 		if(Bot)
 			this.#activeBot = Bot
 	}
@@ -271,6 +344,22 @@ class BotAgent {
 	setActiveTeam(teamId){
 		this.#activeTeam = this.teams.find(team=>team.id===teamId)
 			?? this.#activeTeam
+	}
+	async summarize(fileId, fileName, processStartTime=Date.now()){
+		let responses = []
+		if(!fileId?.length && !fileName?.length)
+			return responses
+		let prompts = []
+		if(fileId?.length)
+			prompts.push(`id=${ fileId }`)
+		if(fileName?.length)
+			prompts.push(`file-name=${ fileName }`)
+		const prompt = `Summarize file document: ${ prompts.join(', ') }`
+		if(!this.#fileConversation)
+			this.#fileConversation = await this.conversationStart('file-summary', 'member-avatar', prompt, processStartTime)
+		this.#fileConversation.prompt = prompt
+		responses = await mCallLLM(this.#fileConversation, false, this.#llm, this.#factory)
+        return responses
 	}
 	/**
 	 * Updates a bot instance.
@@ -331,7 +420,7 @@ class BotAgent {
 		return this.#avatarId
 	}
 	/**
-	 * Gets the array of bots employed by this BotAgent. For full instances, call `getBots()`.
+	 * Gets the array of bots employed by this BotAgent.
 	 * @getter
 	 * @returns {Bot[]} - The array of bots
 	 */
@@ -376,14 +465,14 @@ class BotAgent {
  * Initializes openAI assistant and returns associated `assistant` object.
  * @module
  * @param {object} botData - The bot data object
- * @param {LLMServices} llmServices - OpenAI object
+ * @param {LLMServices} llm - OpenAI object
  * @returns {object} - [OpenAI assistant object](https://platform.openai.com/docs/api-reference/assistants/object)
  */
-async function mAI_openai(botData, llmServices){
+async function mAI_openai(botData, llm){
     const { bot_name, type, } = botData
 	botData.name = bot_name
 		?? `_member_${ type }`
-    const bot = await llmServices.createBot(botData)
+    const bot = await llm.createBot(botData)
 	return bot
 }
 /**
@@ -457,21 +546,21 @@ async function mBot(avatarId, vectorstore_id, factory, botData){
 }
 /**
  * Creates bot and returns associated `bot` object.
- * @todo - botData.name = botDbName should not be required, push logic to `llm-services`
+ * @todo - validBotData.name = botDbName should not be required, push logic to `llm-services`
  * @module
  * @async
  * @param {Guid} avatarId - The Avatar id
  * @param {String} vectorstore_id - The Vectorstore id
- * @param {Object} bot - The bot data
+ * @param {Object} botData - The bot proto-data
  * @param {AgentFactory} factory - Agent Factory instance
  * @returns {Promise<Bot>} - Created Bot instance
 */
-async function mBotCreate(avatarId, vectorstore_id, bot, factory){
+async function mBotCreate(avatarId, vectorstore_id, botData, llm, factory){
 	/* validation */
-	const { type, } = bot
+	const { type, } = botData
 	if(!avatarId?.length || !type?.length)
 		throw new Error('avatar id and type required to create bot')
-	const { instructions, version, } = mBotInstructions(factory, bot)
+	const { instructions, version=1.0, } = mBotInstructions(factory, type)
 	const model = process.env.OPENAI_MODEL_CORE_BOT
 		?? process.env.OPENAI_MODEL_CORE_AVATAR
 		?? 'gpt-4o'
@@ -481,8 +570,8 @@ async function mBotCreate(avatarId, vectorstore_id, bot, factory){
         bot_name = `My ${type}`,
         description = `I am a ${type} for ${factory.memberName}`,
         name = `bot_${type}_${avatarId}`,
-    } = bot
-	const botData = {
+    } = botData
+	const validBotData = {
 		being: 'bot',
 		bot_name,
 		description,
@@ -504,13 +593,14 @@ async function mBotCreate(avatarId, vectorstore_id, bot, factory){
 		version,
 	}
 	/* create in LLM */
-	const { id: bot_id, thread_id, } = await mBotCreateLLM(botData, llm)
+	const { id: bot_id, thread_id, } = await mBotCreateLLM(validBotData, llm)
 	if(!bot_id?.length)
 		throw new Error('bot creation failed')
 	/* create in MyLife datastore */
-	botData.bot_id = bot_id
-	botData.thread_id = thread_id
-	const Bot = new Bot(await factory.createBot(botData))
+	validBotData.bot_id = bot_id
+	validBotData.thread_id = thread_id
+	botData = await factory.createBot(validBotData) // repurposed incoming botData
+	const Bot = new Bot(botData, llm, factory)
 	console.log(chalk.green(`bot created::${ type }`), Bot.thread_id, Bot.id, Bot.bot_id, Bot.bot_name )
 	return Bot
 }
@@ -530,27 +620,28 @@ async function mBotCreateLLM(botData, llm){
 }
 /**
  * Deletes the bot requested from avatar memory and from all long-term storage.
- * @param {object} Bot - The bot object to delete
- * @param {Object[]} bots - The bots array
- * @param {LLMServices} llm - OpenAI object
- * @param {AgentFactory} factory - Agent Factory object
- * @returns {void}
+ * @param {Guid} bot_id - The bot id to delete
+ * @param {BotAgent} BotAgent - BotAgent instance
+ * @param {LLMServices} llm - The LLMServices instance
+ * @param {AgentFactory} factory - The Factory instance
+ * @returns {Promise<Boolean>} - Whether or not operation was successful
  */
-async function mBotDelete(Bot, bots, llm, factory){
+async function mBotDelete(bot_id, BotAgent, llm, factory){
+	const Bot = BotAgent.bot(bot_id)
+	const { id, llm_id, type, thread_id, } = Bot
     const cannotRetire = ['actor', 'system', 'personal-avatar']
-    const { bot_id, id, thread_id, type, } = bot
     if(cannotRetire.includes(type))
-        throw new Error(`Cannot retire bot type: ${ type }`)
+        return false
     /* delete from memory */
-    const botId = bots.findIndex(_bot=>_bot.id===id)
-    if(botId<0)
-        throw new Error('Bot not found in bots.')
-    bots.splice(botId, 1)
+	const { bots, } = BotAgent
+	const botIndex = bots.findIndex(bot=>bot.id===id)
+    bots.splice(botIndex, 1)
     /* delete bot from Cosmos */
     factory.deleteItem(id)
-    /* delete thread and bot from OpenAI */
-    llm.deleteBot(bot_id)
+    /* delete thread and bot from LLM */
+    llm.deleteBot(llm_id)
     llm.deleteThread(thread_id)
+	return true
 }
 /**
  * Returns set of Greeting messages, dynamic or static
@@ -592,12 +683,11 @@ async function mBotGreeting(dynamic=false, Bot, llm, factory){
 /**
  * Returns MyLife-version of bot instructions.
  * @module
- * @param {BotFactory} factory - Factory object
- * @param {object} bot - Bot object
- * @returns {object} - minor 
+ * @param {AgentFactory} factory - The Factory instance
+ * @param {String} type - The type of Bot to create
+ * @returns {object} - The intermediary bot instructions object: { instructions, version, }
  */
-function mBotInstructions(factory, bot){
-	const { type=mDefaultBotType, } = bot
+function mBotInstructions(factory, type=mDefaultBotType){
     let {
 		instructions,
 		limit=8000,
@@ -684,13 +774,16 @@ function mBotInstructions(factory, bot){
                 break
         }
     })
-	/* assess and validate limit */
-    return { instructions, version, }
+	const response = {
+		instructions,
+		version,
+	}
+	return response
 }
 /**
  * Updates bot in Cosmos, and if necessary, in LLM. Returns unsanitized bot data document.
  * @param {AgentFactory} factory - Factory object
- * @param {LLMServices} llm - LLMServices object
+ * @param {LLMServices} llm - The LLMServices instance
  * @param {object} bot - Bot object, winnow via mBot in `mylife-avatar.mjs` to only updated fields
  * @param {object} options - Options object: { instructions: boolean, model: boolean, tools: boolean, vectorstoreId: string, }
  * @returns 
@@ -729,19 +822,18 @@ async function mBotUpdate(factory, llm, bot, options={}){
 		botData.model = factory.globals.currentOpenAIBotModel
 	botData.id = id // validated
 	/* LLM updates */
-	const { bot_id, bot_name: name, instructions, llm_id, tools, } = botData
-	const llmId = llm_id
-		?? bot_id
-	if(llmId?.length && (instructions || name || tools)){
+	const { bot_id, bot_name: name, instructions, tools, } = botData
+	let { llm_id=bot_id, } = botData
+	if(llm_id?.length && (instructions || name || tools)){
 		botData.model = factory.globals.currentOpenAIBotModel // not dynamic
-		botData.llm_id = llmId
+		botData.llm_id = llm_id
 		await llm.updateBot(botData)
 		const updatedLLMFields = Object.keys(botData)
 			.filter(key=>key!=='id' && key!=='bot_id') // strip mechanicals
-		console.log(chalk.green('mUpdateBot()::update in OpenAI'), id, bot_id, updatedLLMFields)
+		console.log(chalk.green('mUpdateBot()::update in OpenAI'), id, llm_id, updatedLLMFields)
 	}
-	const updatedBotData = await factory.updateBot(botData)
-	return updatedBotData
+	botData = await factory.updateBot(botData)
+	return botData
 }
 /**
  * Sends Conversation instance with prompts for LLM to process, updating the Conversation instance before returning `void`.
@@ -750,13 +842,14 @@ async function mBotUpdate(factory, llm, bot, options={}){
  * @module
  * @param {Conversation} Conversation - Conversation instance
  * @param {boolean} allowSave - Whether to save the conversation, defaults to `true`
- * @param {LLMServices} llm - OpenAI object
+ * @param {LLMServices} llm - The LLMServices instance
  * @param {AgentFactory} factory - Agent Factory object required for function execution
  * @param {object} avatar - Avatar object
  * @returns {Promise<void>} - Alters Conversation instance by nature
  */
 async function mCallLLM(Conversation, allowSave=true, llm, factory, avatar){
-    const { llm_id, originalPrompt, processingStartTime=Date.now(), prompt, thread_id,  } = Conversation
+    const { llm_id, originalPrompt, processStartTime=Date.now(), prompt, thread_id,  } = Conversation
+	console.log('mCallLLM', llm_id, thread_id, prompt, processStartTime)
 	if(!llm_id?.length)
 		throw new Error('No `llm_id` intelligence id found in Conversation for `mCallLLM`.')
     if(!thread_id?.length)
@@ -773,7 +866,7 @@ async function mCallLLM(Conversation, allowSave=true, llm, factory, avatar){
 		.sort((mA, mB)=>(mB.created_at-mA.created_at))
 	Conversation.addMessage({
 		content: prompt,
-		created_at: processingStartTime,
+		created_at: processStartTime,
 		originalPrompt,
 		role: 'member',
 		run_id,
@@ -784,6 +877,25 @@ async function mCallLLM(Conversation, allowSave=true, llm, factory, avatar){
 		Conversation.save() // no `await`
 }
 /**
+ * Deletes conversation and updates 
+ * @param {Conversation} Conversation - The Conversation instance
+ * @param {LLMServices} llm - The LLMServices instance
+ * @returns {Promise<boolean>} - `true` if successful
+ */
+async function mConversationDelete(Conversation, factory, llm){
+    /* delete thread_id from bot and save to Cosmos */
+    Bot.thread_id = ''
+    const { id, thread_id, } = Bot
+    factory.updateBot({
+        id,
+        thread_id,
+    })
+    await factory.deleteItem(Conversation.id) /* delete conversation from Cosmos */
+    await llm.deleteThread(thread_id) /* delete thread from LLM */
+    console.log('mDeleteConversation', Conversation.id, thread_id)
+    return true
+}
+/**
  * Create a new conversation.
  * @async
  * @module
@@ -791,17 +903,22 @@ async function mCallLLM(Conversation, allowSave=true, llm, factory, avatar){
  * @param {string} form - Form of conversation: system-avatar, member-avatar, etc.; defaults to `system-avatar`
  * @param {string} thread_id - The openai thread id
  * @param {string} llm_id - The id for the llm agent
- * @param {LLMServices} llm - OpenAI object
+ * @param {LLMServices} llm - The LLMServices instance
  * @param {AgentFactory} factory - Agent Factory object
+ * @param {string} prompt - The prompt for the conversation (optional)
+ * @param {number} processStartTime - The time the processing started, defaults to `Date.now()`
  * @returns {Conversation} - The conversation object
  */
-async function mConversationStart(type='chat', form='system', bot_id, thread_id, llm_id, llm, factory){
-	const { mbr_id, } = factory
-	const thread = await llm.thread(thread_id) // **note**: created here as to begin conversation/LLM independence, and to retain non-async nature of Constructor
+async function mConversationStart(type='chat', form='system', bot_id, thread_id, llm_id, llm, factory, prompt, processStartTime=Date.now()){
+	const { mbr_id, newGuid: id, } = factory
+	const thread = await mThread(thread_id, llm)
 	const Conversation = new (factory.conversation)(
 		{
 			form,
+			id,
 			mbr_id,
+			prompt,
+			processStartTime,
 			type,
 		},
 		factory,
@@ -904,7 +1021,7 @@ function mGetGPTResources(globals, toolName, vectorstoreId){
  * @param {BotAgent} BotAgent - The BotAgent to initialize
  * @param {Bot[]} bots - The array of bots (empty on init)
  * @param {AgentFactory} factory - The factory instance
- * @param {LLMServices} llm - The LLM instance
+ * @param {LLMServices} llm - The LLMServices instance
  * @returns {void}
  */
 async function mInit(BotAgent, bots, factory, llm){
@@ -917,7 +1034,7 @@ async function mInit(BotAgent, bots, factory, llm){
  * @param {Guid} avatarId - The Avatar id
  * @param {String} vectorstore_id - The Vectorstore id
  * @param {AgentFactory} factory - The MyLife factory instance
- * @param {LLMServices} llm - The LLM instance
+ * @param {LLMServices} llm - The LLMServices instance
  * @returns {Bot[]} - The array of activated and available bots
  */
 async function mInitBots(avatarId, vectorstore_id, factory, llm){
@@ -925,9 +1042,118 @@ async function mInitBots(avatarId, vectorstore_id, factory, llm){
 		.map(botData=>{
 			botData.vectorstore_id = vectorstore_id
 			botData.object_id = avatarId
-			return new Bot(botData, factory, llm)
+			return new Bot(botData, llm, factory)
 		})
 	return bots
+}
+/**
+ * Migrates LLM thread/memory to new one, altering Conversation instance.
+ * @param {Bot} Bot - Bot instance
+ * @param {LLMServices} llm - The LLMServices instance
+ * @returns {Promise<Boolean>} - Whether or not operation was successful
+ */
+async function mMigrateChat(Bot, llm){
+    /* constants and variables */
+	const { Conversation, id: bot_id, type: botType, } = Bot
+	if(!Conversation)
+		return false
+    const { chatLimit=25, thread_id, } = Conversation
+    let messages = await llm.messages(thread_id) // @todo - limit to 25 messages or modify request
+    if(!messages?.length)
+        return false
+    let disclaimer=`INFORMATIONAL ONLY **DO NOT PROCESS**\n`,
+        itemCollectionTypes='item',
+        itemLimit=100,
+        type='item'
+    switch(botType){
+        case 'biographer':
+        case 'personal-biographer':
+            type = 'memory'
+            itemCollectionTypes = `memory,story,narrative`
+            break
+        case 'diary':
+        case 'journal':
+        case 'journaler':
+            type = 'entry'
+            const itemType = botType==='journaler'
+                ? 'journal'
+                : botType
+            itemCollectionTypes = `${ itemType },entry,`
+            break
+        default:
+            break
+    }
+    const chatSummary=`## ${ type.toUpperCase() } CHAT SUMMARY\n`,
+        chatSummaryRegex = /^## [^\n]* CHAT SUMMARY\n/,
+        itemSummary=`## ${ type.toUpperCase() } LIST\n`,
+        itemSummaryRegex = /^## [^\n]* LIST\n/
+    const items = ( await avatar.collections(type) )
+        .sort((a, b)=>a._ts-b._ts)
+        .slice(0, itemLimit)
+    const itemList = items
+        .map(item=>`- itemId: ${ item.id } :: ${ item.title }`)
+        .join('\n')
+    const itemCollectionList = items
+        .map(item=>item.id)
+        .join(',')
+        .slice(0, 512) // limit for metadata string field
+    const metadata = {
+        bot_id: bot_id,
+        conversation_id: Conversation.id,
+    }
+    /* prune messages source material */
+    messages = messages
+        .slice(0, chatLimit)
+        .map(message=>{
+            const { content: contentArray, id, metadata, role, } = message
+            const content = contentArray
+                .filter(_content=>_content.type==='text')
+                .map(_content=>_content.text?.value)
+                ?.[0]
+            return { content, id, metadata, role, }
+        })
+        .filter(message=>!itemSummaryRegex.test(message.content))
+    const summaryMessage = messages
+        .filter(message=>!chatSummaryRegex.test(message.content))
+        .map(message=>message.content)
+        .join('\n')
+    /* contextualize previous content */
+    const summaryMessages = []
+    /* summary of items */
+    if(items.length)
+        summaryMessages.push({
+            content: itemSummary + disclaimer + itemList,
+            metadata: {
+                collectionList: itemCollectionList,
+                collectiontypes: itemCollectionTypes,
+            },
+            role: 'assistant',
+        })
+    /* summary of messages */
+    if(summaryMessage.length)
+        summaryMessages.push({
+            content: chatSummary + disclaimer + summaryMessage,
+            metadata: {
+                collectiontypes: itemCollectionTypes,
+            },
+            role: 'assistant',
+        })
+    if(!summaryMessages.length)
+        return
+    /* add messages to new thread */
+    Conversation.setThread( await llm.thread(null, summaryMessages.reverse(), metadata) )
+    await Bot.setThread(Conversation.thread_id) // autosaves `thread_id`, no `await`
+	console.log('mMigrateChat::SUCCESS', Bot.thread_id, Conversation.inspect(true))
+    if(mAllowSave)
+        Conversation.save() // no `await`
+    else
+        console.log('mMigrateChat::BYPASS-SAVE', Conversation.thread_id)
+}
+async function mThread(thread_id, llm){
+	const messages = []
+	const metadata = {}
+	const thread = await llm.thread(thread_id, messages, metadata)
+	return thread
 }
 /* exports */
 export default BotAgent

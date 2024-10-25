@@ -176,7 +176,7 @@ function extendClass_conversation(originClass, referencesObject){
          * @returns {void}
          */
         async save(){
-            this.#saved = await mSaveConversation(this.#factory, this)
+            this.#saved = await mSaveConversation(this, this.#factory)
         }
         //  public getters/setters
         /**
