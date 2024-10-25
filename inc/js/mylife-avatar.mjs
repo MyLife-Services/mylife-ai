@@ -36,10 +36,10 @@ class Avatar extends EventEmitter {
     #factory // do not expose
     #livedExperiences = [] // array of ids for lived experiences
     #livingExperience
+    #livingMemory
     #llmServices
     #mode = 'standard' // interface-mode from module `mAvailableModes`
     #nickname // avatar nickname, need proxy here as g/setter is "complex"
-    #relivingMemories = [] // array of active reliving memories, with items, maybe conversations, included
     #vectorstoreId // vectorstore id for avatar
     /**
      * @constructor
@@ -208,24 +208,15 @@ class Avatar extends EventEmitter {
         return await this.#factory.deleteItem(id)
     }
     /**
-     * End a memory.
+     * End the living memory, if running.
      * @async
      * @public
      * @todo - save conversation fragments
-     * @param {Guid} id - The id of the memory to end.
-     * @returns {boolean} - true if memory ended successfully.
+     * @returns {void}
      */
-    async endMemory(id){
+    async endMemory(){
         // @stub - save conversation fragments */
-        const { relivingMemories, } = this
-        const index = relivingMemories.findIndex(item=>item.id===id)
-        if(index>=0){
-            const removedMemory = relivingMemories.splice(index, 1)
-            if(!removedMemory.length)
-                return false
-            console.log('item removed', removedMemory?.[0] ?? `index: ${ index } failed`)
-        }
-        return true
+        this.#livingMemory = null
     }
     /**
      * Ends an experience.
@@ -503,10 +494,10 @@ class Avatar extends EventEmitter {
         const { id, } = item
         if(!id)
             throw new Error(`item does not exist in member container: ${ iid }`)
-        /* develop narration */
-        const Biographer = this.#botAgent.biographer
-        const narration = await mReliveMemoryNarration(this, this.#factory, this.#llmServices, Biographer, item, memberInput)
-        return narration // include any required .map() pruning
+        const narration = await mReliveMemoryNarration(item, memberInput, this.#botAgent, this.#llmServices, this.#factory, this)
+        // include any required .map() pruning
+        console.log('reliveMemory::narration', narration)
+        return narration
     }
     /**
      * Allows member to reset passphrase.
@@ -1109,12 +1100,12 @@ class Avatar extends EventEmitter {
             this.#nickname = nickname
     }
     /**
-     * Get the `active` reliving memories.
+     * Get the `active` reliving memory.
      * @getter
      * @returns {object[]} - The active reliving memories.
      */
-    get relivingMemories(){
-        return this.#relivingMemories
+    get livingMemory(){
+        return this.#livingMemory
     }
     get registrationId(){
         return this.#factory.registrationId
@@ -2068,45 +2059,20 @@ function mPruneMessages(bot_id, messageArray, type='chat', processStartTime=Date
  * - others are common to living, but with `reliving`, the biographer bot (only narrator allowed in .10) incorporate any user-contributed contexts or imrpovements to the memory summary that drives the living and sharing. All by itemId.
  * - if user "interrupts" then interruption content should be added to memory updateSummary; doubt I will keep work interrupt, but this too is hopefully able to merely be embedded in the biographer bot instructions.
  * Currently testing efficacy of all instructions (i.e., no callbacks, as not necessary yet) being embedded in my biog-bot, `madrigal`.
- * @param {Avatar} avatar - Member's avatar object.
- * @param {AgentFactory} factory - Member's AgentFactory object.
- * @param {LLMServices} llm - OpenAI object.
- * @param {Bot} Bot - The relevant bot instance
- * @param {object} item - The memory object.
+ * @param {object} item - The memory object
  * @param {string} memberInput - The member input (or simply: NEXT, SKIP, etc.)
- * @returns {Promise<object>} - The reliving memory object for frontend to execute.
+ * @param {BotAgent} BotAgent - The Bot Agent instance
+ * @param {Avatar} avatar - Member Avatar instance
+ * @returns {Promise<object>} - The reliving memory object for frontend to execute
  */
-async function mReliveMemoryNarration(avatar, factory, llm, Bot, item, memberInput='NEXT'){
-    console.log('mReliveMemoryNarration::start', item.id, memberInput)
-    const { relivingMemories, } = avatar
-    const { id: bot_id, } = Bot
+async function mReliveMemoryNarration(item, memberInput, BotAgent, avatar){
     const { id, } = item
-    const processStartTime = Date.now()
-    let message = `## relive memory itemId: ${ id }\n`
-    let relivingMemory = relivingMemories.find(reliving=>reliving.item.id===id)
-    if(!relivingMemory){ /* create new activated reliving memory */
-        const conversation = await avatar.conversationStart('memory', 'member-avatar')
-        relivingMemory = {
-            conversation,
-            id,
-            item,
-        }
-        relivingMemories.push(relivingMemory)
-        console.log(`mReliveMemoryNarration::new reliving memory: ${ id }`)
-    } else /* opportunity for member interrupt */
-        message += `MEMBER INPUT: ${ memberInput }\n`
-    const { conversation, } = relivingMemory
-    console.log(`mReliveMemoryNarration::reliving memory: ${ id }`, message)
-    let messages = await mCallLLM(llm, conversation, message, factory, avatar)
-    conversation.addMessages(messages)
+    avatar.livingMemory = await BotAgent.liveMemory(item, memberInput, avatar.livingMemory)
+    const { Conversation, } = avatar.livingMemory
+    const { bot_id, type, } = Conversation
     /* frontend mutations */
-    messages = conversation.messages
-        .filter(message=>{ // limit to current chat response(s); usually one, perhaps faithfully in future [or could be managed in LLM]
-            return messages.find(_message=>_message.id===message.id)
-                && message.type==='chat'
-                && message.role!=='user'
-        })
-        .map(message=>mPruneMessage(bot_id, message, 'chat', processStartTime))
+    const messages = Conversation.getMessages()
+        .map(message=>mPruneMessage(bot_id, message, type))
     const memory = {
         id,
         messages,

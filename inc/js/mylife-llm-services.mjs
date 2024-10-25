@@ -318,7 +318,7 @@ async function mRunFinish(llmServices, run, factory, avatar){
  * @returns {object} - [OpenAI run object](https://platform.openai.com/docs/api-reference/runs/object)
  * @throws {Error} - If tool function not recognized
  */
-async function mRunFunctions(openai, run, factory, avatar){ // add avatar ref
+async function mRunFunctions(openai, run, factory, avatar){
     try{
         if(
                 run.required_action?.type=='submit_tool_outputs'
@@ -439,21 +439,23 @@ async function mRunFunctions(openai, run, factory, avatar){ // add avatar ref
                             case 'getsummary':
                             case 'get_summary':
                             case 'get summary':
-                                console.log('mRunFunctions()::getSummary::begin', itemId)
-                                avatar.backupResponse = {
-                                    message: `I'm sorry, I couldn't finding this summary. I believe the issue might have been temporary. Would you like me to try again?`,
-                                    type: 'system',
-                                }
+                                console.log('mRunFunctions()::getSummary::begin', itemId, avatar)
+                                if(avatar)
+                                    avatar.backupResponse = {
+                                        message: `I'm sorry, I couldn't finding this summary. I believe the issue might have been temporary. Would you like me to try again?`,
+                                        type: 'system',
+                                    }
                                 let { summary: _getSummary, title: _getSummaryTitle, } = item
                                     ?? {}
                                 if(!_getSummary?.length){
                                     action = `error getting summary for itemId: ${ itemId ?? 'missing itemId' } - halt any further processing and instead ask user to paste summary into chat and you will continue from there to incorporate their message.`
                                     _getSummary = 'no summary found for itemId'
                                 } else {
-                                    avatar.backupResponse = {
-                                        message: `I was able to retrieve the summary indicated.`,
-                                        type: 'system',
-                                    }
+                                    if(avatar)
+                                        avatar.backupResponse = {
+                                            message: `I was able to retrieve the summary indicated.`,
+                                            type: 'system',
+                                        }
                                     action = `with the summary in this JSON payload, incorporate the most recent member request into a new summary and run the \`updateSummary\` function and follow its action`
                                     success = true
                                 }

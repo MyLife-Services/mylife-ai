@@ -126,10 +126,8 @@ class Bot {
 	 * @returns {Promise<void>}
 	 */
 	async setThread(thread_id){
-		const llm_id = this.llm_id
-			?? this.bot_id
 		if(!thread_id?.length)
-			thread_id = await this.#llm.createThread(llm_id)
+			thread_id = await mThread(this.#llm)
 		const { id, } = this
 		this.thread_id = thread_id
 		const bot = {
@@ -163,6 +161,9 @@ class Bot {
 	}
 	get isAvatar(){
 		return mDefaultBotTypeArray.includes(this.type)
+	}
+	get isBiographer(){
+		return ['personal-biographer', 'biographer'].includes(this.type)
 	}
 	get isMyLife(){
 		return this.#factory.isMyLife
@@ -301,6 +302,40 @@ class BotAgent {
         const greetings = await this.activeBot.getGreeting(dynamic, this.#llm, this.#factory)
         return greetings
     }
+	/**
+	 * Begins or continues a living memory conversation.
+	 * @param {Object} item - Memory item from database
+	 * @param {String} memberInput - The member input (with instructions)
+	 * @param {Object} livingMemory - The living memory object: { Conversation, id, item, }
+	 * @returns {Object} - The living memory object
+	 */
+	async liveMemory(item, memberInput='', livingMemory){
+		const { biographer, } = this
+		let message = `## LIVE Memory\n`
+		if(!livingMemory){
+			const { bot_id: _llm_id, id: bot_id, type, } = biographer
+			const { llm_id=_llm_id, } = biographer
+			const messages = []
+			messages.push({
+				content: `## MEMORY SUMMARY, ID=${ item.id }\n## FOR REFERENCE ONLY\n${ item.summary }\n`,
+				role: 'user',
+			})
+			memberInput = message + memberInput
+			const Conversation = await mConversationStart('memory', type, bot_id, null, llm_id, this.#llm, this.#factory, memberInput, messages)
+			Conversation.action = 'living'
+			livingMemory = {
+				Conversation,
+				id: this.#factory.newGuid,
+				item,
+			}
+		}
+		const { Conversation, } = livingMemory
+		Conversation.prompt = memberInput?.trim()?.length
+			? memberInput
+			: message
+		await mCallLLM(Conversation, false, this.#llm, this.#factory)
+		return livingMemory
+	}
     /**
      * Migrates a bot to a new, presumed combined (with internal or external) bot.
      * @param {Guid} bot_id - The bot id
@@ -418,6 +453,15 @@ class BotAgent {
 	 */
 	get avatarId(){
 		return this.#avatarId
+	}
+	/**
+	 * Gets the Biographer bot for the BotAgent.
+	 * @getter
+	 * @returns {Bot} - The Biographer Bot instance
+	 */
+	get biographer(){
+		const Biographer = this.#bots.find(bot=>bot.isBiographer)
+		return Biographer
 	}
 	/**
 	 * Gets the array of bots employed by this BotAgent.
@@ -848,8 +892,7 @@ async function mBotUpdate(factory, llm, bot, options={}){
  * @returns {Promise<void>} - Alters Conversation instance by nature
  */
 async function mCallLLM(Conversation, allowSave=true, llm, factory, avatar){
-    const { llm_id, originalPrompt, processStartTime=Date.now(), prompt, thread_id,  } = Conversation
-	console.log('mCallLLM', llm_id, thread_id, prompt, processStartTime)
+    const { llm_id, originalPrompt, processStartTime=Date.now(), prompt, thread_id, } = Conversation
 	if(!llm_id?.length)
 		throw new Error('No `llm_id` intelligence id found in Conversation for `mCallLLM`.')
     if(!thread_id?.length)
@@ -906,12 +949,14 @@ async function mConversationDelete(Conversation, factory, llm){
  * @param {LLMServices} llm - The LLMServices instance
  * @param {AgentFactory} factory - Agent Factory object
  * @param {string} prompt - The prompt for the conversation (optional)
- * @param {number} processStartTime - The time the processing started, defaults to `Date.now()`
+ * @param {Message[]} messages - The array of messages to seed the conversation
  * @returns {Conversation} - The conversation object
  */
-async function mConversationStart(type='chat', form='system', bot_id, thread_id, llm_id, llm, factory, prompt, processStartTime=Date.now()){
+async function mConversationStart(type='chat', form='system', bot_id, thread_id, llm_id, llm, factory, prompt, messages){
 	const { mbr_id, newGuid: id, } = factory
-	const thread = await mThread(thread_id, llm)
+	const metadata = { bot_id, conversation_id: id, mbr_id, },
+		processStartTime = Date.now(),
+		thread = await mThread(llm, thread_id, messages, metadata)
 	const Conversation = new (factory.conversation)(
 		{
 			form,
@@ -1141,7 +1186,7 @@ async function mMigrateChat(Bot, llm){
     if(!summaryMessages.length)
         return
     /* add messages to new thread */
-    Conversation.setThread( await llm.thread(null, summaryMessages.reverse(), metadata) )
+    Conversation.setThread( await mThread(llm, null, summaryMessages.reverse(), metadata) )
     await Bot.setThread(Conversation.thread_id) // autosaves `thread_id`, no `await`
 	console.log('mMigrateChat::SUCCESS', Bot.thread_id, Conversation.inspect(true))
     if(mAllowSave)
@@ -1149,9 +1194,15 @@ async function mMigrateChat(Bot, llm){
     else
         console.log('mMigrateChat::BYPASS-SAVE', Conversation.thread_id)
 }
-async function mThread(thread_id, llm){
-	const messages = []
-	const metadata = {}
+/**
+ * Gets or creates a new thread in LLM provider.
+ * @param {LLMServices} llm - The LLMServices instance
+ * @param {String} thread_id - The thread id (optional)
+ * @param {Messages[]} messages - The array of messages to seed the thread (optional)
+ * @param {Object} metadata - The metadata object (optional)
+ * @returns {Promise<Object>} - The thread object
+ */
+async function mThread(llm, thread_id, messages, metadata){
 	const thread = await llm.thread(thread_id, messages, metadata)
 	return thread
 }
