@@ -654,16 +654,12 @@ class Dataservices {
 	 * @returns {object} - The bot document
 	 */
 	async updateBot(botData){
-		const { id, type: discardType, ...updateBotData } = botData
-		if(!Object.keys(updateBotData))
+		const { id, type: discardType='avatar', ...updateBotData } = botData
+		if(!Object.keys(updateBotData).length)
 			return botData
-	    const chunks = this.globals.chunkArray(updateKeys, 10)
-		for(const chunk of chunks){
-			const chunkData = {}
-			chunk.forEach(key=>(chunkData[key] = updateBotData[key]))
-			const patchedData = await this.patch(id, chunkData)
-			console.log('updateBot()::patch', patchedData)
-		}
+		if(updateBotData.bot_name?.length)
+			updateBotData.name = `bot_${ discardType }_${ updateBotData.bot_name }_${ id }`
+		botData = await this.patch(id, updateBotData)
 		return botData
 	}
 	/**

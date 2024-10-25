@@ -314,7 +314,7 @@ class Globals extends EventEmitter {
 		return typeof version === 'string' && regex.test(version)
 	}
 	/**
-	 * Sanitize an object by removing forbidden Cosmos fields.
+	 * Sanitize an object by removing forbidden Cosmos fields and undefined/null values.
 	 * @param {object} object - Cosmos document to sanitize
 	 * @returns {object} - Sanitized data object
 	 */
@@ -323,7 +323,11 @@ class Globals extends EventEmitter {
 			throw new Error('Parameter requires an object')
 		const sanitizedData = Object.fromEntries(
 			Object.entries(object)
-				.filter(([key, value])=>!mForbiddenCosmosFields.some(char => key.startsWith(char)))
+				.filter(([key, value])=>
+					!mForbiddenCosmosFields.some(char => key.startsWith(char)) &&
+					value !== null &&
+					value !== undefined
+				)
 		)
 		return sanitizedData
 	}

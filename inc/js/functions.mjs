@@ -37,9 +37,14 @@ async function alerts(ctx){
 async function bots(ctx){
 	const { bid, } = ctx.params // bot_id sent in url path
 	const { avatar } = ctx.state
-	const bot = ctx.request.body ?? {}
-	const { id, } = bot
+	const bot = ctx.request.body
+		?? {}
 	switch(ctx.method){
+		case 'DELETE': // retire bot
+			if(!ctx.Globals.isValidGuid(bid))
+				ctx.throw(400, `missing bot id`)
+			ctx.body = await avatar.retireBot(bid)
+			break
 		case 'POST': // create new bot
 			ctx.body = await avatar.createBot(bot)
 			break
@@ -51,10 +56,8 @@ async function bots(ctx){
 			if(bid?.length){ // specific bot
 				ctx.body = await avatar.getBot(ctx.params.bid)
 			} else {
-				const {
-					activeBotId,
-					bots,
-				} = avatar
+				const { activeBotId, } = avatar
+				const bots = await avatar.getBots()
 				ctx.body = { // wrap bots
 					activeBotId,
 					bots,
@@ -286,12 +289,8 @@ async function privacyPolicy(ctx){
  * @param {Koa} ctx - Koa Context object
  */
 async function retireBot(ctx){
-	const { avatar, } = ctx.state
-	const { bid, } = ctx.params // bot id
-	if(!ctx.Globals.isValidGuid(bid))
-		ctx.throw(400, `missing bot id`)
-	const response = await avatar.retireBot(bid)
-	ctx.body = response
+	ctx.method = 'DELETE'
+	return await this.bots(ctx)
 }
 /**
  * Direct request from member to retire a chat (via bot).

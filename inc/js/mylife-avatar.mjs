@@ -326,6 +326,15 @@ class Avatar extends EventEmitter {
         return bot
     }
     /**
+     * Returns pruned Bots for Member Avatar.
+     * @returns 
+     */
+    getBots(){
+        const bots = this.bots
+            .map(Bot=>Bot.bot)
+        return bots
+    }
+    /**
      * Gets Conversation object. If no thread id, creates new conversation.
      * @param {string} thread_id - openai thread id (optional)
      * @param {Guid} bot_id - The bot id (optional)
@@ -540,6 +549,36 @@ class Avatar extends EventEmitter {
         return response
     }
     /**
+     * Retire a Bot, deleting altogether.
+     * @param {Guid} bot_id - The bot id
+     * @returns {object} - The response object { instruction, responses, success, }
+     */
+    async retireBot(bot_id){
+        if(!this.globals.isValidGuid(bot_id))
+            throw new Error(`Invalid bot id: ${ bot_id }`)
+        const success = await this.#botAgent.botDelete(bot_id)
+        const response = {
+            instruction: {
+                command: success ? 'retireBot' : 'error',
+                id: bot_id,
+            },
+            responses: [success
+                ? {
+                    agent: 'server',
+                    message: `I have removed this bot from the team.`,
+                    type: 'chat',
+                }
+                : {
+                    agent: 'server',
+                    message: `I'm sorry - I encountered an error while trying to retire this bot; please try again.`,
+                    type: 'system',
+                }
+            ],
+            success,
+        }
+        return response
+    }
+    /**
      * Currently only proxy for `migrateChat`.
      * @param {string} bot_id - Bot id with Conversation to retire
      * @returns {object} - The response object { instruction, responses, success, }
@@ -629,12 +668,12 @@ class Avatar extends EventEmitter {
     /**
      * Update a specific bot.
      * @async
-     * @param {object} botData - Bot data to set
-     * @returns {Promise<Bot>} - The updated bot
+     * @param {Object} botData - Bot data to set
+     * @returns {Promise<Object>} - The updated bot
      */
     async updateBot(botData){
-        const bot = await this.#botAgent.updateBot(botData)
-        return bot
+        const Bot = await this.#botAgent.updateBot(botData)
+        return Bot.bot
     }
     /**
      * Update instructions for bot-assistant based on type. Default updates all LLM pertinent properties.
@@ -711,7 +750,6 @@ class Avatar extends EventEmitter {
     /**
      * Set the active bot id. If not match found in bot list, then defaults back to this.id (avatar).
      * @setter
-     * @requires mBotInstructions
      * @param {string} bot_id - The requested bot id
      * @returns {void}
      */
@@ -786,7 +824,7 @@ class Avatar extends EventEmitter {
             ?? this.core.birth?.[0]?.place
     }
     /**
-     * Returns avatar Bot instances.
+     * Returns Member Avatar's Bot instances.
      * @getter
      * @returns {Bot[]} - Array of Bot instances
      */
@@ -913,7 +951,9 @@ class Avatar extends EventEmitter {
      * @returns {array} - The help bots.
      */
     get helpBots(){
-        return this.bots.filter(bot=>bot.type==='help')
+        const bots = this.getBots()
+            .filter(bot=>bot.type==='help')
+        return bots
     }
     /**
      * Test whether avatar session is creating an account.

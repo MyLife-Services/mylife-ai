@@ -1303,12 +1303,12 @@ async function mRetireBot(event){
         if(mActiveBot.id===botId)
             setActiveBot()
         /* retire bot */
-        const url = window.location.origin + '/members/retire/bot/' + botId
+        const url = window.location.origin + '/members/bots/' + botId
         let response = await fetch(url, {
             headers: {
                 'Content-Type': 'application/json'
             },
-            method: 'POST',
+            method: 'DELETE',
         })
         if(!response.ok)
             throw new Error(`HTTP error! Status: ${response.status}`)

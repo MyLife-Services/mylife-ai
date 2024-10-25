@@ -28,14 +28,28 @@ class Bot {
 	#collectionsAgent
 	#conversation
 	#factory
+	#instructionNodes = new Set()
 	#llm
 	constructor(botData, llm, factory){
+		const { id=factory.newGuid, type=mDefaultBotType, } = botData
 		this.#factory = factory
 		this.#llm = llm
 		botData = this.globals.sanitize(botData)
 		Object.assign(this, botData)
-		if(!this.id)
-			throw new Error('Bot database id required')
+		this.id = id
+		this.type = type
+		switch(type){
+			case 'diary':
+			case 'journal':
+			case 'journaler':
+				this.#instructionNodes.add('interests')
+				this.#instructionNodes.add('flags')
+				break
+			case 'personal-biographer':
+			default:
+				this.#instructionNodes.add('interests')
+				break
+		}
 		// @stub - this.#collectionsAgent = new CollectionsAgent(llm, factory)
 	}
 	/* public functions */
@@ -111,11 +125,14 @@ class Bot {
 	 * @param {object} botOptions - Options for updating
 	 * @returns 
 	 */
-	async update(botData, botOptions){
+	async update(botData, botOptions={}){
 		/* validate request */
 		this.globals.sanitize(botData)
-		const Bot = await mBotUpdate(this.#factory, this.#llm, botData, botOptions)
-		return this.globals.sanitize(Bot)
+		/* execute request */
+		botOptions.instructions = Object.keys(botData).some(key => this.#instructionNodes.has(key))
+		const bot = await mBotUpdate(botData, botOptions, this, this.#llm, this.#factory)
+		/* respond request */
+		return this.globals.sanitize(bot)
 	}
 	async save(){
 
@@ -138,15 +155,17 @@ class Bot {
 	}
 	/* getters/setters */
 	/**
-	 * Gets the frontend bot object. If full instance is required, use `getBot()`.
+	 * Gets the frontend bot object.
 	 * @getter
 	 */
 	get bot() {
-		const { bot_name, description, id, purpose, type, version } = this
+		const { bot_name: name, description, flags, id, interests, purpose, type, version } = this
 		const bot = {
-			bot_name,
 			description,
+			flags,
 			id,
+			interests,
+			name,
 			purpose,
 			type,
 			version,
@@ -158,6 +177,18 @@ class Bot {
 	}
 	get globals(){
 		return this.#factory.globals
+	}
+	get instructionNodes(){
+		return this.#instructionNodes
+	}
+	set instructionNodes(instructionNode){
+		this.#instructionNodes.add(instructionNode)
+	}
+	get instructionNodeValues(){
+		return [...this.#instructionNodes].reduce((acc, key)=>{
+			acc[key] = this[key]
+			return acc
+		}, {})
 	}
 	get isAvatar(){
 		return mDefaultBotTypeArray.includes(this.type)
@@ -260,7 +291,7 @@ class BotAgent {
 	 * @returns {Promise<Boolean>} - Whether or not operation was successful
 	 */
 	async botDelete(bot_id){
-		if(!this.#factory.isMyLife)
+		if(this.#factory.isMyLife)
 			return false
 		const success = await mBotDelete(bot_id, this, this.#llm, this.#factory)
 		return success
@@ -402,12 +433,12 @@ class BotAgent {
 	 * @param {object} botOptions - Options for updating the bot
 	 * @returns {Promise<Bot>} - The updated Bot instance
 	 */
-	async updateBot(botData, botOptions={}){
+	async updateBot(botData, botOptions){
 		const { id, } = botData
 		if(!this.globals.isValidGuid(id))
 			throw new Error('`id` parameter required')
 		const Bot = this.#bots.find(bot=>bot.id===id)
-		if(!!Bot)
+		if(!Bot)
 			throw new Error(`Bot not found with id: ${ id }`)
 		Bot.update(botData, botOptions)
 		return Bot
@@ -604,7 +635,7 @@ async function mBotCreate(avatarId, vectorstore_id, botData, llm, factory){
 	const { type, } = botData
 	if(!avatarId?.length || !type?.length)
 		throw new Error('avatar id and type required to create bot')
-	const { instructions, version=1.0, } = mBotInstructions(factory, type)
+	const { instructions, version=1.0, } = mBotInstructions(factory, botData)
 	const model = process.env.OPENAI_MODEL_CORE_BOT
 		?? process.env.OPENAI_MODEL_CORE_AVATAR
 		?? 'gpt-4o'
@@ -644,9 +675,9 @@ async function mBotCreate(avatarId, vectorstore_id, botData, llm, factory){
 	validBotData.bot_id = bot_id
 	validBotData.thread_id = thread_id
 	botData = await factory.createBot(validBotData) // repurposed incoming botData
-	const Bot = new Bot(botData, llm, factory)
-	console.log(chalk.green(`bot created::${ type }`), Bot.thread_id, Bot.id, Bot.bot_id, Bot.bot_name )
-	return Bot
+	const _Bot = new Bot(botData, llm, factory)
+	console.log(`bot created::${ type }`, _Bot.thread_id, _Bot.id, _Bot.bot_id, _Bot.bot_name )
+	return _Bot
 }
 /**
  * Creates bot and returns associated `bot` object.
@@ -672,7 +703,8 @@ async function mBotCreateLLM(botData, llm){
  */
 async function mBotDelete(bot_id, BotAgent, llm, factory){
 	const Bot = BotAgent.bot(bot_id)
-	const { id, llm_id, type, thread_id, } = Bot
+	const { bot_id: _llm_id, id, type, thread_id, } = Bot
+	const { llm_id=_llm_id, } = Bot
     const cannotRetire = ['actor', 'system', 'personal-avatar']
     if(cannotRetire.includes(type))
         return false
@@ -681,10 +713,12 @@ async function mBotDelete(bot_id, BotAgent, llm, factory){
 	const botIndex = bots.findIndex(bot=>bot.id===id)
     bots.splice(botIndex, 1)
     /* delete bot from Cosmos */
-    factory.deleteItem(id)
+    await factory.deleteItem(id)
     /* delete thread and bot from LLM */
-    llm.deleteBot(llm_id)
-    llm.deleteThread(thread_id)
+	if(llm_id?.length)
+    	await llm.deleteBot(llm_id)
+	if(thread_id?.length)
+	    await llm.deleteThread(thread_id)
 	return true
 }
 /**
@@ -728,15 +762,17 @@ async function mBotGreeting(dynamic=false, Bot, llm, factory){
  * Returns MyLife-version of bot instructions.
  * @module
  * @param {AgentFactory} factory - The Factory instance
- * @param {String} type - The type of Bot to create
+ * @param {Object} botData - The bot proto-data
  * @returns {object} - The intermediary bot instructions object: { instructions, version, }
  */
-function mBotInstructions(factory, type=mDefaultBotType){
+function mBotInstructions(factory, botData={}){
+	const { type=mDefaultBotType, } = botData
     let {
 		instructions,
 		limit=8000,
 		version,
-	} = factory.botInstructions(type) ?? {}
+	} = factory.botInstructions(type)
+		?? {}
     if(!instructions) // @stub - custom must have instruction loophole
 		throw new Error(`bot instructions not found for type: ${ type }`)
     let {
@@ -777,7 +813,7 @@ function mBotInstructions(factory, type=mDefaultBotType){
     /* apply replacements */
     replacements.forEach(replacement=>{
         const placeholderRegExp = factory.globals.getRegExp(replacement.name, true)
-        const replacementText = eval(`bot?.${replacement.replacement}`)
+        const replacementText = eval(`botData?.${replacement.replacement}`)
 			?? eval(`factory?.${replacement.replacement}`)
             ?? eval(`factory.core?.${replacement.replacement}`)
             ?? replacement?.default
@@ -788,7 +824,7 @@ function mBotInstructions(factory, type=mDefaultBotType){
     references.forEach(_reference=>{
         const _referenceText = _reference.insert
         const replacementText = eval(`factory?.${_reference.value}`)
-            ?? eval(`bot?.${_reference.value}`)
+            ?? eval(`botData?.${_reference.value}`)
             ?? _reference.default
             ?? '`unknown-value`'
         switch(_reference.method ?? 'replace'){
@@ -826,57 +862,59 @@ function mBotInstructions(factory, type=mDefaultBotType){
 }
 /**
  * Updates bot in Cosmos, and if necessary, in LLM. Returns unsanitized bot data document.
- * @param {AgentFactory} factory - Factory object
- * @param {LLMServices} llm - The LLMServices instance
- * @param {object} bot - Bot object, winnow via mBot in `mylife-avatar.mjs` to only updated fields
+ * @module
+ * @param {object} botData - Bot data update object
  * @param {object} options - Options object: { instructions: boolean, model: boolean, tools: boolean, vectorstoreId: string, }
+ * @param {Bot} Bot - The Bot instance
+ * @param {LLMServices} llm - The LLMServices instance
+ * @param {AgentFactory} factory - Factory instance
  * @returns 
  */
-async function mBotUpdate(factory, llm, bot, options={}){
-	/* constants */
+async function mBotUpdate(botData, options={}, Bot, llm, factory){
+	/* validate request */
+	if(!Bot)
+		throw new Error('Bot instance required to update bot')
+	const { bot_id, id, llm_id, metadata={}, type, vectorstoreId, } = Bot
+	const _llm_id = llm_id
+	?? bot_id // @stub - deprecate bot_id
 	const {
-		id, // no modifications
-		instructions: removeInstructions,
-		tools: removeTools,
-		tool_resources: removeResources,
-		type, // no modifications
-		...botData // extract member-driven bot data
-	} = bot
+		instructions: discardInstructions,
+		mbr_id, // no modifications allowed
+		name, // no modifications allowed
+		tools: discardTools,
+		tool_resources: discardResources,
+		...allowedBotData
+	} = botData
 	const {
 		instructions: updateInstructions=false,
 		model: updateModel=false,
 		tools: updateTools=false,
-		vectorstoreId,
 	} = options
-	if(!factory.globals.isValidGuid(id))
-		throw new Error('bot `id` required in bot argument: `{ id: guid }`')
 	if(updateInstructions){
-		const { instructions, version=1.0, } = mBotInstructions(factory, bot)
-		botData.instructions = instructions
-		botData.metadata = botData.metadata ?? {}
-		botData.metadata.version = version.toString()
-		botData.version = version /* omitted from llm, but appears on updateBot */
+		const instructionReferences = { ...Bot.instructionNodeValues, ...allowedBotData }
+		const { instructions, version=1.0, } = mBotInstructions(factory, instructionReferences)
+		allowedBotData.instructions = instructions
+		allowedBotData.metadata = metadata
+		allowedBotData.metadata.version = version.toString()
+		allowedBotData.version = version /* omitted from llm, but appears on updateBot */
 	}
 	if(updateTools){
 		const { tools, tool_resources, } = mGetAIFunctions(type, factory.globals, vectorstoreId)
-		botData.tools = tools
-		botData.tool_resources = tool_resources
+		allowedBotData.tools = tools
+		allowedBotData.tool_resources = tool_resources
 	}
 	if(updateModel)
-		botData.model = factory.globals.currentOpenAIBotModel
-	botData.id = id // validated
-	/* LLM updates */
-	const { bot_id, bot_name: name, instructions, tools, } = botData
-	let { llm_id=bot_id, } = botData
-	if(llm_id?.length && (instructions || name || tools)){
-		botData.model = factory.globals.currentOpenAIBotModel // not dynamic
-		botData.llm_id = llm_id
-		await llm.updateBot(botData)
-		const updatedLLMFields = Object.keys(botData)
-			.filter(key=>key!=='id' && key!=='bot_id') // strip mechanicals
-		console.log(chalk.green('mUpdateBot()::update in OpenAI'), id, llm_id, updatedLLMFields)
+		allowedBotData.model = factory.globals.currentOpenAIBotModel
+	allowedBotData.id = id
+	allowedBotData.type = type
+	/* execute request */
+	if(_llm_id?.length && (allowedBotData.instructions || allowedBotData.bot_name?.length || allowedBotData.tools)){
+		allowedBotData.model = factory.globals.currentOpenAIBotModel // not dynamic
+		allowedBotData.llm_id = _llm_id
+		await llm.updateBot(allowedBotData)
 	}
-	botData = await factory.updateBot(botData)
+	botData = await factory.updateBot(allowedBotData)
+	/* respond request */
 	return botData
 }
 /**

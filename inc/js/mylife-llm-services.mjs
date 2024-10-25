@@ -37,9 +37,9 @@ class LLMServices {
      * @param {object} bot - The bot data
      * @returns {Promise<object>} - openai assistant object
      */
-    async createBot(bot){
-        bot = mValidateAssistantData(bot) // throws on improper format
-        bot = await this.openai.beta.assistants.create(bot)
+    async createBot(botData){
+        botData = mValidateAssistantData(botData)
+        const bot = await this.openai.beta.assistants.create(botData)
         const thread = await mThread(this.openai)
         bot.thread_id = thread.id
         return bot
@@ -160,15 +160,15 @@ class LLMServices {
     /**
      * Updates assistant with specified data. Example: Tools object for openai: { tool_resources: { file_search: { vector_store_ids: [vectorStore.id] } }, }; https://platform.openai.com/docs/assistants/tools/file-search/quickstart?lang=node.js
      * @todo - conform payload to OpenAI API Reference
-     * @param {string} bot - The bot object data.
+     * @param {Object} botData - The bot object data.
      * @returns {Promise<Object>} - openai assistant object.
      */
-    async updateBot(bot){
-        let { botId, bot_id, llm_id, ...assistantData } = bot
+    async updateBot(botData){
+        let { bot_id, llm_id, ...assistantData } = botData
         if(!llm_id?.length)
             throw new Error('No bot ID provided for update')
-        assistantData = mValidateAssistantData(assistantData) // throws on improper format
-        const assistant = await this.openai.beta.assistants.update(llm_id, assistantData)
+        botData = mValidateAssistantData(assistantData)
+        const assistant = await this.openai.beta.assistants.update(llm_id, botData)
         return assistant
     }
     /**
@@ -760,13 +760,9 @@ function mValidateAssistantData(data){
         version,
     } = data
     const name = bot_name
-        ?? gptName // bot_name internal mylife-alias for openai `name`
-    delete metadata.created
+        ?? gptName
+    metadata.id = id
     metadata.updated = `${ Date.now() }` // metadata nodes must be strings
-    if(id)
-        metadata.id = id
-    else
-        metadata.created = `${ Date.now() }`
     const assistantData = {
         description,
         instructions,
@@ -776,8 +772,11 @@ function mValidateAssistantData(data){
         tools,
         tool_resources,
     }
-    if(!Object.keys(assistantData).length)
-        throw new Error('Assistant data does not have the correct structure.')
+    Object.keys(assistantData).forEach(key => {
+        if (assistantData[key] === undefined) {
+            delete assistantData[key]
+        }
+    })
     return assistantData
 }
 /* exports */
