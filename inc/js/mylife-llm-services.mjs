@@ -439,7 +439,7 @@ async function mRunFunctions(openai, run, factory, avatar){
                             case 'getsummary':
                             case 'get_summary':
                             case 'get summary':
-                                console.log('mRunFunctions()::getSummary::begin', itemId, avatar)
+                                console.log('mRunFunctions()::getSummary::begin', itemId)
                                 if(avatar)
                                     avatar.backupResponse = {
                                         message: `I'm sorry, I couldn't find this summary. I believe the issue might have been temporary. Would you like me to try again?`,

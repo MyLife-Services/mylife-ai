@@ -364,7 +364,6 @@ class BotAgent {
 	async liveMemory(item, memberInput='', Avatar){
 		const { biographer, } = this
 		const livingMemory = Avatar.livingMemory
-		console.log('liveMemory', livingMemory)
 		let message = `## LIVE Memory Trigger\n`
 		if(!livingMemory.id?.length){
 			const { bot_id: _llm_id, id: bot_id, type, } = biographer
