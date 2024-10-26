@@ -45,9 +45,16 @@ let awaitButton,
 /* page load */
 document.addEventListener('DOMContentLoaded', async event=>{
     /* load data */
-    await mLoadStart()
+    const messages = await mLoadStart()
     /* display page */
     mShowPage()
+    if(messages.length)
+        await mAddMessages(messages, {
+            bubbleClass: 'agent-bubble',
+            typeDelay: 10,
+            typewrite: true,
+        })
+
 })
 /* private functions */
 /**
@@ -212,7 +219,7 @@ async function mFetchHostedMembers(){
  * Fetches the greeting messages or start routine from the server.
  * @private
  * @requires mPageType
- * @returns {void}
+ * @returns {Message[]} - The response Message array.
  */
 async function mFetchStart(){
     await mSignupStatus()
@@ -261,14 +268,9 @@ async function mFetchStart(){
             messages.push(...greetings)
             break
     }
-    if(messages.length)
-        await mAddMessages(messages, {
-            bubbleClass: 'agent-bubble',
-            typeDelay: 10,
-            typewrite: true,
-        })
     if(input)
         chatSystem.appendChild(input)
+    return messages
 }
 /**
  * Initializes event listeners.
@@ -287,7 +289,7 @@ function mInitializeListeners(){
 /**
  * Determines page type and loads data.
  * @private
- * @returns {void}
+ * @returns {Message[]} - The response Message array.
  */
 async function mLoadStart(){
     /* assign page div variables */
@@ -315,7 +317,7 @@ async function mLoadStart(){
     /* fetch the greeting messages */
     mPageType = new URLSearchParams(window.location.search).get('type')
         ?? window.location.pathname.split('/').pop()
-    await mFetchStart()
+    return await mFetchStart()
 }
 /**
  * Scrolls overflow of system chat to bottom.
