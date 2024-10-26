@@ -55,21 +55,44 @@ class Bot {
 	/* public functions */
 	/**
 	 * Chat with the active bot.
+	 * @todo - deprecate avatar in favor of either botAgent or `this`
 	 * @param {String} message - The member request
 	 * @param {String} originalMessage - The original message
 	 * @param {Boolean} allowSave - Whether to save the conversation, defaults to `true`
-	 * @param {Number} processStartTime - The process start time
+	 * @param {Avatar} avatar - The Member Avatar instance
 	 * @returns {Promise<Conversation>} - The Conversation instance updated with the chat exchange
 	 */
-	async chat(message, originalMessage, allowSave=true, processStartTime=Date.now()){
+	async chat(message, originalMessage, allowSave=true, avatar){
 		if(this.isMyLife && !this.isAvatar)
 			throw new Error('Only Q, MyLife Corporate Intelligence, is available for non-member conversation.')
 		const Conversation = await this.getConversation()
 		Conversation.prompt = message
 		Conversation.originalPrompt = originalMessage
-		await mCallLLM(Conversation, allowSave, this.#llm, this.#factory, this) // mutates Conversation
+		await mCallLLM(Conversation, allowSave, this.#llm, this.#factory, avatar) // mutates Conversation
         /* frontend mutations */
 		return Conversation
+	}
+    /**
+     * Get collection items for this bot.
+     * @returns {Promise<Array>} - The collection items (no wrapper)
+     */
+	async collections(){
+		let type = this.type
+		switch(type){
+			case 'diary':
+			case 'journal':
+			case 'journaler':
+				type='entry'
+				break
+			case 'biographer':
+			case 'personal-biographer':
+				type = 'memory'
+				break
+			default:
+				break
+		}
+		const collections = ( await this.#factory.collections(type) )
+		return collections
 	}
 	/**
 	 * Retrieves `this` Bot instance.
@@ -103,12 +126,11 @@ class Bot {
 		return greetings
 	}
     /**
-     * Migrates Conversation from an old thread to a newly created (or identified) destination thread.
-     * @returns {Boolean} - Whether or not operation was successful
+     * Migrates Conversation from an old thread to a newly-created destination thread, observable in `this.Conversation`.
+     * @returns {void}
      */
 	async migrateChat(){
-		const migration = mMigrateChat(this, this.#llm, this.#factory)
-		return !!migration
+		await mMigrateChat(this, this.#llm)
 	}
     /**
      * Given an itemId, obscures aspects of contents of the data record. Obscure is a vanilla function for MyLife, so does not require intervening intelligence and relies on the factory's modular LLM.
@@ -144,7 +166,7 @@ class Bot {
 	 */
 	async setThread(thread_id){
 		if(!thread_id?.length)
-			thread_id = await mThread(this.#llm)
+			thread_id = ( await mThread(this.#llm) ).id
 		const { id, } = this
 		this.thread_id = thread_id
 		const bot = {
@@ -388,7 +410,7 @@ class BotAgent {
 		if(!Bot)
 			return false
         /* execute request */
-		await Bot.migrateChat()
+		await Bot.migrateChat() // no Conversation save
         /* respond request */
         return true
     }
@@ -1130,21 +1152,22 @@ async function mInitBots(avatarId, vectorstore_id, factory, llm){
 	return bots
 }
 /**
- * Migrates LLM thread/memory to new one, altering Conversation instance.
+ * Migrates LLM thread/memory to new one, altering Conversation instance when available.
  * @param {Bot} Bot - Bot instance
  * @param {LLMServices} llm - The LLMServices instance
+ * @param {Boolean} saveConversation - Whether to save the conversation immediately, defaults to `false`
  * @returns {Promise<Boolean>} - Whether or not operation was successful
  */
-async function mMigrateChat(Bot, llm){
+async function mMigrateChat(Bot, llm, saveConversation=false){
     /* constants and variables */
-	const { Conversation, id: bot_id, type: botType, } = Bot
-	if(!Conversation)
+	const { conversation, id: bot_id, thread_id, type: botType, } = Bot
+	if(!thread_id?.length)
 		return false
-    const { chatLimit=25, thread_id, } = Conversation
     let messages = await llm.messages(thread_id) // @todo - limit to 25 messages or modify request
     if(!messages?.length)
         return false
-    let disclaimer=`INFORMATIONAL ONLY **DO NOT PROCESS**\n`,
+    let chatLimit=25,
+		disclaimer=`INFORMATIONAL ONLY **DO NOT PROCESS**\n`,
         itemCollectionTypes='item',
         itemLimit=100,
         type='item'
@@ -1170,7 +1193,7 @@ async function mMigrateChat(Bot, llm){
         chatSummaryRegex = /^## [^\n]* CHAT SUMMARY\n/,
         itemSummary=`## ${ type.toUpperCase() } LIST\n`,
         itemSummaryRegex = /^## [^\n]* LIST\n/
-    const items = ( await avatar.collections(type) )
+    const items = ( await Bot.collections(type) )
         .sort((a, b)=>a._ts-b._ts)
         .slice(0, itemLimit)
     const itemList = items
@@ -1182,7 +1205,6 @@ async function mMigrateChat(Bot, llm){
         .slice(0, 512) // limit for metadata string field
     const metadata = {
         bot_id: bot_id,
-        conversation_id: Conversation.id,
     }
     /* prune messages source material */
     messages = messages
@@ -1224,13 +1246,14 @@ async function mMigrateChat(Bot, llm){
     if(!summaryMessages.length)
         return
     /* add messages to new thread */
-    Conversation.setThread( await mThread(llm, null, summaryMessages.reverse(), metadata) )
-    await Bot.setThread(Conversation.thread_id) // autosaves `thread_id`, no `await`
-	console.log('mMigrateChat::SUCCESS', Bot.thread_id, Conversation.inspect(true))
-    if(mAllowSave)
-        Conversation.save() // no `await`
-    else
-        console.log('mMigrateChat::BYPASS-SAVE', Conversation.thread_id)
+	const newThread = await mThread(llm, null, summaryMessages.reverse(), metadata)
+	if(!!conversation){
+	    conversation.setThread(newThread)
+		if(saveConversation)
+			conversation.save() // no `await`
+	}
+    await Bot.setThread(newThread.id) // autosaves `thread_id`, no `await`
+	console.log('BotAgent::mMigrateChat::thread_id evaluations', thread_id, newThread.id, Bot.thread_id, conversation?.thread_id)
 }
 /**
  * Gets or creates a new thread in LLM provider.

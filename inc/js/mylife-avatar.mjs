@@ -91,7 +91,6 @@ class Avatar extends EventEmitter {
         if(!message)
             throw new Error('No message provided in context')
         const originalMessage = message
-        let processStartTime = Date.now()
         this.backupResponse = {
             message: `I received your request to chat, and sent the request to the central intelligence, but no response was received. Please try again, as the issue is likely aberrant.`,
             type: 'system',
@@ -107,7 +106,7 @@ class Avatar extends EventEmitter {
                     + `\n**current-summary-in-database**:\n`
                     + summary
         }
-        const Conversation = await this.activeBot.chat(message, originalMessage, mAllowSave, processStartTime)
+        const Conversation = await this.activeBot.chat(message, originalMessage, mAllowSave, this)
         const responses = mPruneMessages(this.activeBotId, Conversation.getMessages() ?? [], 'chat', Conversation.processStartTime)
         /* respond request */
         const response = {

@@ -442,7 +442,7 @@ async function mRunFunctions(openai, run, factory, avatar){
                                 console.log('mRunFunctions()::getSummary::begin', itemId, avatar)
                                 if(avatar)
                                     avatar.backupResponse = {
-                                        message: `I'm sorry, I couldn't finding this summary. I believe the issue might have been temporary. Would you like me to try again?`,
+                                        message: `I'm sorry, I couldn't find this summary. I believe the issue might have been temporary. Would you like me to try again?`,
                                         type: 'system',
                                     }
                                 let { summary: _getSummary, title: _getSummaryTitle, } = item

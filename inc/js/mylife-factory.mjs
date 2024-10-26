@@ -240,8 +240,8 @@ class BotFactory extends EventEmitter{
 	}
     /**
      * Get member collection items.
-     * @param {string} type - The type of collection to retrieve, `false`-y = all.
-     * @returns {array} - The collection items with no wrapper.
+     * @param {String} type - The type of collection to retrieve, `false`-y = all
+     * @returns {Promise<Array>} - The collection items (no wrapper)
      */
 	async collections(type){
 		return await this.dataservices.collections(type)
