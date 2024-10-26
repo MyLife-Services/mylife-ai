@@ -434,7 +434,6 @@ class BotAgent {
 			?? this.#activeTeam
 	}
 	async summarize(fileId, fileName, processStartTime=Date.now()){
-		let responses = []
 		if(!fileId?.length && !fileName?.length)
 			return responses
 		let prompts = []
@@ -446,7 +445,8 @@ class BotAgent {
 		if(!this.#fileConversation)
 			this.#fileConversation = await this.conversationStart('file-summary', 'member-avatar', prompt, processStartTime)
 		this.#fileConversation.prompt = prompt
-		responses = await mCallLLM(this.#fileConversation, false, this.#llm, this.#factory)
+		await mCallLLM(this.#fileConversation, false, this.#llm, this.#factory)
+		const responses = this.#fileConversation.getMessages()
         return responses
 	}
 	/**

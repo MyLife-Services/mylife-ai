@@ -618,30 +618,32 @@ class Avatar extends EventEmitter {
      * @param {string} fileId 
      * @param {string} fileName 
      * @param {number} processStartTime 
-     * @returns {Object} - The response object { messages, success, error,}
+     * @returns {Object} - The response object { error, instruction, responses, success, }
      */
     async summarize(fileId, fileName, processStartTime=Date.now()){
         /* validate request */
+        let instruction,
+            responses = [],
+            success = false
         this.backupResponse = {
             message: `I received your request to summarize, but an error occurred in the process. Perhaps try again with another file.`,
             type: 'system',
         }
-        let success = false
         /* execute request */
-        responses = await this.#botAgent.summarize(fileId, fileName, processStartTime)
+        responses.push(...await this.#botAgent.summarize(fileId, fileName, processStartTime))
         /* respond request */
         if(!responses?.length)
-            responses = [this.backupResponse]
+            responses.push(this.backupResponse)
         else {
-            responses = mPruneMessage(this.avatar.id, responses, 'mylife-file-summary', processStartTime)
-            instructions = {
+            instruction = {
                 command: 'updateFileSummary',
                 itemId: fileId,
             }
+            responses = mPruneMessages(this.avatar.id, responses, 'mylife-file-summary', processStartTime)
             success = true
         }
         return {
-            instructions,
+            instruction,
             responses,
             success,
         }
