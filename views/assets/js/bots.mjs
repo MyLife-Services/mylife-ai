@@ -1211,10 +1211,10 @@ async function mReliveMemory(event){
         popupClose.click()
     toggleMemberInput(false, false, `Reliving memory with `)
     unsetActiveItem()
-    const { command, parameters, messages, success, } = await mReliveMemoryRequest(id, inputContent)
+    const { instruction, item, responses, success, } = await mReliveMemoryRequest(id, inputContent)
     if(success){
         toggleMemberInput(false, true)
-        addMessages(messages, { bubbleClass: 'relive-bubble' })
+        addMessages(responses, { bubbleClass: 'relive-bubble' })
         const input = document.createElement('div')
         input.classList.add('memory-input-container')
         input.id = `relive-memory-input-container_${ id }`

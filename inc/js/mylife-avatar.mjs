@@ -2083,19 +2083,17 @@ function mPruneMessages(bot_id, messageArray, type='chat', processStartTime=Date
  * @param {string} memberInput - The member input (or simply: NEXT, SKIP, etc.)
  * @param {BotAgent} BotAgent - The Bot Agent instance
  * @param {Avatar} Avatar - Member Avatar instance
- * @returns {Promise<object>} - The reliving memory object for frontend to execute
+ * @returns {Promise<object>} - The reliving memory object for frontend to execute: 
  */
 async function mReliveMemoryNarration(item, memberInput, BotAgent, Avatar){
-    const { id, } = item
     Avatar.livingMemory = await BotAgent.liveMemory(item, memberInput, Avatar)
     const { Conversation, } = Avatar.livingMemory
     const { bot_id, type, } = Conversation
-    /* frontend mutations */
-    const messages = Conversation.getMessages()
+    const responses = Conversation.getMessages()
         .map(message=>mPruneMessage(bot_id, message, type))
     const memory = {
-        id,
-        messages,
+        item,
+        responses,
         success: true,
     }
     return memory
