@@ -683,29 +683,9 @@ class Avatar extends EventEmitter {
      * @param {boolean} migrateThread - Whether to migrate the thread to the new bot, defaults to `true`
      * @returns {object} - The updated bot object
      */
-    async updateBotInstructions(id=this.activeBot.id, migrateThread=true){
-        let bot = mFindBot(this, id)
-            ?? this.activeBot
-        if(!bot)
-            throw new Error(`Bot not found: ${ id }`)
-        const { bot_id, flags='', interests='', thread_id, type, version=1.0, } = bot
-        /* check version */
-        const newestVersion = this.#factory.botInstructionsVersion(type)
-        if(newestVersion!=version){ // intentional loose match (string vs. number)
-            const _bot = { bot_id, flags, id, interests, type, }
-            const vectorstoreId = this.#vectorstoreId
-            const options = {
-                instructions: true,
-                model: true,
-                tools: true,
-                vectorstoreId,
-            }
-            /* save to && refresh bot from Cosmos */
-            bot = this.globals.sanitize( await this.#factory.updateBot(_bot, options) )
-            if(migrateThread && thread_id?.length)
-                await this.migrateChat(thread_id)
-        }
-        return mPruneBot(bot)
+    async updateBotInstructions(bot_id=this.activeBot.id){
+        const Bot = await this.#botAgent.updateBotInstructions(bot_id)
+        return Bot.bot
     }
     /**
      * Upload files to Member Avatar.
@@ -1906,18 +1886,6 @@ async function mExperienceStart(avatar, factory, experienceId, avatarExperienceV
     ]) // async construction
     experience.memberDialog = memberDialog
     experience.scriptDialog = scriptDialog
-}
-/**
- * Gets bot by id.
- * @module
- * @param {object} avatar - Avatar instance.
- * @param {string} id - Bot id
- * @returns {object} - Bot object
- */
-function mFindBot(avatar, id){
-    return avatar.bots
-        .filter(bot=>{ return bot.id==id })
-            ?.[0]
 }
 /**
  * Include help preamble to _LLM_ request, not outbound to member/guest.

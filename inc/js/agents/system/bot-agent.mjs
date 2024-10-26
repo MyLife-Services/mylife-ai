@@ -145,19 +145,18 @@ class Bot {
 	 * Updates a Bot instance's data.
 	 * @param {object} botData - The bot data to update
 	 * @param {object} botOptions - Options for updating
-	 * @returns 
+	 * @returns {Promise<Bot>} - The updated Bot instance
 	 */
 	async update(botData, botOptions={}){
 		/* validate request */
 		this.globals.sanitize(botData)
 		/* execute request */
-		botOptions.instructions = Object.keys(botData).some(key => this.#instructionNodes.has(key))
-		const bot = await mBotUpdate(botData, botOptions, this, this.#llm, this.#factory)
+		botOptions.instructions = botOptions.instructions
+			?? Object.keys(botData).some(key => this.#instructionNodes.has(key))
+		const { id, mbr_id, type, ...updatedNodes } = await mBotUpdate(botData, botOptions, this, this.#llm, this.#factory)
+		Object.assign(this, updatedNodes)
 		/* respond request */
-		return this.globals.sanitize(bot)
-	}
-	async save(){
-
+		return this
 	}
 	/**
 	 * Sets the thread id for the bot.
@@ -462,8 +461,36 @@ class BotAgent {
 		const Bot = this.#bots.find(bot=>bot.id===id)
 		if(!Bot)
 			throw new Error(`Bot not found with id: ${ id }`)
-		Bot.update(botData, botOptions)
+		await Bot.update(botData, botOptions)
 		return Bot
+	}
+	/**
+	 * Updates bot instructions and migrates thread by default.
+	 * @param {Guid} bot_id - The bot id
+	 * @param {Boolean} migrateThread - Whether to migrate the thread, defaults to `true`
+	 * @returns {Bot} - The updated Bot instance
+	 */
+	async updateBotInstructions(bot_id, migrateThread=true){
+		const Bot = this.bot(bot_id)
+		const { type, version=1.0, } = Bot
+        /* check version */
+        const newestVersion = this.#factory.botInstructionsVersion(type)
+        if(newestVersion!=version){
+			const { bot_id: _llm_id, id, } = Bot
+			const { llm_id=_llm_id, } = Bot
+            const _bot = { id, llm_id, type, }
+            const botOptions = {
+                instructions: true,
+                model: true,
+                tools: true,
+                vectorstoreId: this.#vectorstoreId,
+            }
+            await Bot.update(_bot, botOptions)
+            if(migrateThread)
+                if(!await Bot.migrateChat())
+					console.log(`thread migration failed for bot: ${ bot_id }`)
+        }
+        return Bot
 	}
     /* getters/setters */
 	/**
@@ -571,75 +598,6 @@ async function mAI_openai(botData, llm){
 		?? `_member_${ type }`
     const bot = await llm.createBot(botData)
 	return bot
-}
-/**
- * Validates and cleans bot object then updates or creates bot (defaults to new personal-avatar) in Cosmos and returns successful `bot` object, complete with conversation (including thread/thread_id in avatar) and gpt-assistant intelligence.
- * @todo Fix occasions where there will be no object_id property to use, as it was created through a hydration method based on API usage, so will be attached to mbr_id, but NOT avatar.id
- * @todo - Turn this into Bot class
- * @module
- * @param {Guid} avatarId - The Avatar id
- * @param {string} vectorstore_id - The Vectorstore id
- * @param {AgentFactory} factory - Agent Factory instance
- * @param {Avatar} avatar - Avatar object that will govern bot
- * @param {object} botData - Bot data object, can be incomplete (such as update)
- * @returns {Promise<Bot>} - Bot object
- */
-async function mBot(avatarId, vectorstore_id, factory, botData){
-    /* validation */
-    const { globals, isMyLife, mbr_id, newGuid, } = factory
-    const { id=newGuid, type, } = botData
-	console.log('BotAgent::mBot', avatarId, vectorstore_id, id, type, isMyLife)
-	throw new Error('mBot() not yet implemented')
-    if(!botType?.length)
-        throw new Error('Bot type required to create.')
-    bot.mbr_id = mbr_id /* constant */
-    bot.object_id = objectId
-        ?? avatarId /* all your bots belong to me */
-    bot.id =  botId // **note**: _this_ is a Cosmos id, not an openAI id
-    let originBot = avatar.bots.find(oBot=>oBot.id===botId)
-    if(originBot){ /* update bot */
-        const options = {}
-        const updatedBot = Object.keys(bot)
-            .reduce((diff, key) => {
-                if(bot[key]!==originBot[key])
-                    diff[key] = bot[key]
-                return diff
-            }, {})
-        /* create or update bot special properties */
-        const { thread_id, type, } = originBot // @stub - `bot_id` cannot be updated through this mechanic
-        if(!thread_id?.length && !avatar.isMyLife){
-            const excludeTypes = ['collection', 'library', 'custom'] // @stub - custom mechanic?
-            if(!excludeTypes.includes(type)){
-                const conversation = avatar.conversation(null, botId)
-                    ?? await avatar.createConversation('chat', null, botId)
-                updatedBot.thread_id = conversation.thread_id // triggers `factory.updateBot()`
-                console.log('Avatar::mBot::conversation created given NO thread_id', updatedBot.thread_id, conversation.inspect(true))
-            }
-        }
-        let updatedOriginBot
-        if(Object.keys(updatedBot).length){
-            updatedOriginBot = {...originBot, ...updatedBot} // consolidated update
-            const { bot_id, id, } = updatedOriginBot
-            updatedBot.bot_id = bot_id
-            updatedBot.id = id
-            updatedBot.type = type
-            const { interests, } = updatedBot
-            /* set options */
-            if(interests?.length){
-                options.instructions = true
-                options.model = true
-                options.tools = false /* tools not updated through this mechanic */
-            }
-            updatedOriginBot = await factory.updateBot(updatedBot, options)
-        }
-        originBot = mSanitize(updatedOriginBot ?? originBot)
-        avatar.bots[avatar.bots.findIndex(oBot=>oBot.id===botId)] = originBot
-    } else { /* create assistant */
-        bot = mSanitize( await factory.createBot(bot, vectorstore_id) )
-        avatar.bots.push(bot)
-    }
-    return originBot
-        ?? bot
 }
 /**
  * Creates bot and returns associated `bot` object.
@@ -890,13 +848,13 @@ function mBotInstructions(factory, botData={}){
  * @param {Bot} Bot - The Bot instance
  * @param {LLMServices} llm - The LLMServices instance
  * @param {AgentFactory} factory - Factory instance
- * @returns 
+ * @returns {Promise<Object>} - Allowed (and written) bot data object (dynamic construction): { id, type, ...anyNonRequired }
  */
 async function mBotUpdate(botData, options={}, Bot, llm, factory){
 	/* validate request */
 	if(!Bot)
 		throw new Error('Bot instance required to update bot')
-	const { bot_id, id, llm_id, metadata={}, type, vectorstoreId, } = Bot
+	const { bot_id, id, llm_id, metadata={}, type, vectorstoreId: bot_vectorstore_id, } = Bot
 	const _llm_id = llm_id
 	?? bot_id // @stub - deprecate bot_id
 	const {
@@ -911,6 +869,7 @@ async function mBotUpdate(botData, options={}, Bot, llm, factory){
 		instructions: updateInstructions=false,
 		model: updateModel=false,
 		tools: updateTools=false,
+		vectorstoreId=bot_vectorstore_id,
 	} = options
 	if(updateInstructions){
 		const instructionReferences = { ...Bot.instructionNodeValues, ...allowedBotData }
@@ -935,9 +894,8 @@ async function mBotUpdate(botData, options={}, Bot, llm, factory){
 		allowedBotData.llm_id = _llm_id
 		await llm.updateBot(allowedBotData)
 	}
-	botData = await factory.updateBot(allowedBotData)
-	/* respond request */
-	return botData
+	await factory.updateBot(allowedBotData)
+	return allowedBotData
 }
 /**
  * Sends Conversation instance with prompts for LLM to process, updating the Conversation instance before returning `void`.
@@ -1253,7 +1211,6 @@ async function mMigrateChat(Bot, llm, saveConversation=false){
 			conversation.save() // no `await`
 	}
     await Bot.setThread(newThread.id) // autosaves `thread_id`, no `await`
-	console.log('BotAgent::mMigrateChat::thread_id evaluations', thread_id, newThread.id, Bot.thread_id, conversation?.thread_id)
 }
 /**
  * Gets or creates a new thread in LLM provider.
