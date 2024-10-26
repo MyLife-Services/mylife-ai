@@ -538,16 +538,23 @@ class AgentFactory extends BotFactory {
 			id=this.newGuid,
 			keywords=[],
 			mbr_id=this.mbr_id,
-			summary,
 			title=`Untitled ${ defaultForm } ${ defaultType }`,
+		} = entry
+		let {
+			content,
+			summary,
 		} = entry
 		if(this.isMyLife)
 			throw new Error('System cannot store entries of its own')
 		let { name, } = entry
 		name = name
 			?? `${ defaultType }_${ form }_${ title.substring(0,64) }_${ mbr_id }`
+		summary = summary
+			?? content
 		if(!summary?.length)
 			throw new Error('entry summary required')
+		content = content
+			?? summary
 		/* assign default keywords */
 		if(!keywords.includes('entry'))
 			keywords.push('entry')
@@ -557,6 +564,7 @@ class AgentFactory extends BotFactory {
 			...entry,
 			...{
 			being,
+			content,
 			form,
 			id,
 			keywords,

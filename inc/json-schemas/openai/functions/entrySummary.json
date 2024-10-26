@@ -38,7 +38,7 @@
                 }
             },
             "summary": {
-                "description": "Generate `entry` summary from member input",
+                "description": "Generate `entry` summary from member content",
                 "type": "string"
             },
             "title": {
