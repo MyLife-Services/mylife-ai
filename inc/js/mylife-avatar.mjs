@@ -505,9 +505,7 @@ class Avatar extends EventEmitter {
         const { id, } = item
         if(!id)
             throw new Error(`item does not exist in member container: ${ iid }`)
-        const narration = await mReliveMemoryNarration(item, memberInput, this.#botAgent, this.#llmServices, this.#factory, this)
-        // include any required .map() pruning
-        console.log('reliveMemory::narration', narration)
+        const narration = await mReliveMemoryNarration(item, memberInput, this.#botAgent, this)
         return narration
     }
     /**
@@ -1126,10 +1124,20 @@ class Avatar extends EventEmitter {
     /**
      * Get the `active` reliving memory.
      * @getter
-     * @returns {object[]} - The active reliving memories.
+     * @returns {object[]} - The active reliving memories
      */
     get livingMemory(){
         return this.#livingMemory
+            ?? {}
+    }
+    /**
+     * Set the `active` reliving memory.
+     * @setter
+     * @param {Object} livingMemory - The new active reliving memory
+     * @returns {void}
+     */
+    set livingMemory(livingMemory){
+        this.#livingMemory = livingMemory
     }
     get registrationId(){
         return this.#factory.registrationId
@@ -2074,13 +2082,13 @@ function mPruneMessages(bot_id, messageArray, type='chat', processStartTime=Date
  * @param {object} item - The memory object
  * @param {string} memberInput - The member input (or simply: NEXT, SKIP, etc.)
  * @param {BotAgent} BotAgent - The Bot Agent instance
- * @param {Avatar} avatar - Member Avatar instance
+ * @param {Avatar} Avatar - Member Avatar instance
  * @returns {Promise<object>} - The reliving memory object for frontend to execute
  */
-async function mReliveMemoryNarration(item, memberInput, BotAgent, avatar){
+async function mReliveMemoryNarration(item, memberInput, BotAgent, Avatar){
     const { id, } = item
-    avatar.livingMemory = await BotAgent.liveMemory(item, memberInput, avatar.livingMemory)
-    const { Conversation, } = avatar.livingMemory
+    Avatar.livingMemory = await BotAgent.liveMemory(item, memberInput, Avatar)
+    const { Conversation, } = Avatar.livingMemory
     const { bot_id, type, } = Conversation
     /* frontend mutations */
     const messages = Conversation.getMessages()

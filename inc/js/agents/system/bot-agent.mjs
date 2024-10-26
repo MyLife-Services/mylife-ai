@@ -358,34 +358,33 @@ class BotAgent {
 	 * Begins or continues a living memory conversation.
 	 * @param {Object} item - Memory item from database
 	 * @param {String} memberInput - The member input (with instructions)
-	 * @param {Object} livingMemory - The living memory object: { Conversation, id, item, }
+	 * @param {Avatar} Avatar - The Avatar instance
 	 * @returns {Object} - The living memory object
 	 */
-	async liveMemory(item, memberInput='', livingMemory){
+	async liveMemory(item, memberInput='', Avatar){
 		const { biographer, } = this
-		let message = `## LIVE Memory\n`
-		if(!livingMemory){
+		const livingMemory = Avatar.livingMemory
+		console.log('liveMemory', livingMemory)
+		let message = `## LIVE Memory Trigger\n`
+		if(!livingMemory.id?.length){
 			const { bot_id: _llm_id, id: bot_id, type, } = biographer
 			const { llm_id=_llm_id, } = biographer
 			const messages = []
 			messages.push({
-				content: `## MEMORY SUMMARY, ID=${ item.id }\n## FOR REFERENCE ONLY\n${ item.summary }\n`,
+				content: `${ message }## MEMORY SUMMARY, ID=${ item.id }\n### FOR REFERENCE ONLY\n${ item.summary }\n`,
 				role: 'user',
 			})
-			memberInput = message + memberInput
 			const Conversation = await mConversationStart('memory', type, bot_id, null, llm_id, this.#llm, this.#factory, memberInput, messages)
 			Conversation.action = 'living'
-			livingMemory = {
-				Conversation,
-				id: this.#factory.newGuid,
-				item,
-			}
+			livingMemory.Conversation = Conversation
+			livingMemory.id = this.#factory.newGuid
+			livingMemory.item = item
 		}
 		const { Conversation, } = livingMemory
 		Conversation.prompt = memberInput?.trim()?.length
 			? memberInput
 			: message
-		await mCallLLM(Conversation, false, this.#llm, this.#factory)
+		await mCallLLM(Conversation, false, this.#llm, this.#factory, Avatar)
 		return livingMemory
 	}
     /**
@@ -432,7 +431,15 @@ class BotAgent {
 		this.#activeTeam = this.teams.find(team=>team.id===teamId)
 			?? this.#activeTeam
 	}
-	async summarize(fileId, fileName, processStartTime=Date.now()){
+	/**
+	 * Summarizes a file document.
+	 * @param {String} fileId - The file id
+	 * @param {String} fileName - The file name
+	 * @param {Number} processStartTime - The process start time, defaults to `Date.now()`
+	 * @param {Avatar} Avatar - The Avatar instance
+	 * @returns {Promise<Messages[]>} - The array of messages to respond with
+	 */
+	async summarize(fileId, fileName, processStartTime=Date.now(), Avatar){
 		if(!fileId?.length && !fileName?.length)
 			return responses
 		let prompts = []
@@ -444,7 +451,7 @@ class BotAgent {
 		if(!this.#fileConversation)
 			this.#fileConversation = await this.conversationStart('file-summary', 'member-avatar', prompt, processStartTime)
 		this.#fileConversation.prompt = prompt
-		await mCallLLM(this.#fileConversation, false, this.#llm, this.#factory)
+		await mCallLLM(this.#fileConversation, false, this.#llm, this.#factory, Avatar)
 		const responses = this.#fileConversation.getMessages()
         return responses
 	}

@@ -45,7 +45,7 @@ let awaitButton,
 /* page load */
 document.addEventListener('DOMContentLoaded', async event=>{
     /* load data */
-    const messages = await mLoadStart()
+    const { input, messages, } = await mLoadStart()
     /* display page */
     mShowPage()
     if(messages.length)
@@ -54,7 +54,8 @@ document.addEventListener('DOMContentLoaded', async event=>{
             typeDelay: 10,
             typewrite: true,
         })
-
+    if(input)
+        chatSystem.appendChild(input)
 })
 /* private functions */
 /**
@@ -219,7 +220,7 @@ async function mFetchHostedMembers(){
  * Fetches the greeting messages or start routine from the server.
  * @private
  * @requires mPageType
- * @returns {Message[]} - The response Message array.
+ * @returns {Object} - Fetch response object: { input, messages, }
  */
 async function mFetchStart(){
     await mSignupStatus()
@@ -268,9 +269,10 @@ async function mFetchStart(){
             messages.push(...greetings)
             break
     }
-    if(input)
-        chatSystem.appendChild(input)
-    return messages
+    return {
+        input,
+        messages,
+    }
 }
 /**
  * Initializes event listeners.

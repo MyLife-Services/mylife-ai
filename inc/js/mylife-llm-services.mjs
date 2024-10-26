@@ -541,17 +541,19 @@ async function mRunFunctions(openai, run, factory, avatar){
                             case 'update_summary':
                             case 'update summary':
                                 console.log('mRunFunctions()::updatesummary::begin', itemId)
-                                avatar.backupResponse = {
-                                    message: `I'm very sorry, an error occured before we could update your summary. Please try again as the problem is likely temporary.`,
-                                    type: 'system',
-                                }
+                                if(avatar)
+                                    avatar.backupResponse = {
+                                        message: `I'm very sorry, an error occured before we could update your summary. Please try again as the problem is likely temporary.`,
+                                        type: 'system',
+                                    }
                                 const { summary: updatedSummary, } = toolArguments
                                 await factory.updateItem({ id: itemId, summary: updatedSummary, })
-                                avatar.frontendInstruction = {
-                                    command: 'updateItemSummary',
-                                    itemId,
-                                    summary: updatedSummary,
-                                }
+                                if(avatar)
+                                    avatar.frontendInstruction = {
+                                        command: 'updateItemSummary',
+                                        itemId,
+                                        summary: updatedSummary,
+                                    }
                                 action=`confirm that summary update was successful`
                                 success = true
                                 confirmation.output = JSON.stringify({
@@ -560,10 +562,11 @@ async function mRunFunctions(openai, run, factory, avatar){
                                     success,
                                     summary: updatedSummary,
                                 })
-                                avatar.backupResponse = {
-                                    message: 'Your summary has been updated, please review and let me know if you would like to make any changes.',
-                                    type: 'system',
-                                }
+                                if(avatar)
+                                    avatar.backupResponse = {
+                                        message: 'Your summary has been updated, please review and let me know if you would like to make any changes.',
+                                        type: 'system',
+                                    }
                                 console.log('mRunFunctions()::updatesummary::end', itemId, updatedSummary)
                                 return confirmation
                             default:
