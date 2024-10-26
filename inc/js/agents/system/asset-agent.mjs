@@ -1,29 +1,31 @@
 //	imports
 import fs from 'fs'
 import mime from 'mime-types'
-import FormData from 'form-data'
-import axios from 'axios'
 //	module constants
-const { MYLIFE_EMBEDDING_SERVER_BEARER_TOKEN, MYLIFE_EMBEDDING_SERVER_FILESIZE_LIMIT, MYLIFE_EMBEDDING_SERVER_FILESIZE_LIMIT_ADMIN, MYLIFE_SERVER_MBR_ID: mylifeMbrId, } = process.env
-const bearerToken = MYLIFE_EMBEDDING_SERVER_BEARER_TOKEN
+const {
+	MYLIFE_EMBEDDING_SERVER_BEARER_TOKEN: bearerToken,
+	MYLIFE_EMBEDDING_SERVER_FILESIZE_LIMIT,
+	MYLIFE_EMBEDDING_SERVER_FILESIZE_LIMIT_ADMIN,
+	MYLIFE_SERVER_MBR_ID: mylifeMbrId,
+} = process.env
 const fileSizeLimit = parseInt(MYLIFE_EMBEDDING_SERVER_FILESIZE_LIMIT) || 1048576
 const fileSizeLimitAdmin = parseInt(MYLIFE_EMBEDDING_SERVER_FILESIZE_LIMIT_ADMIN) || 10485760
-class oAIAssetAssistant {
+class AssetAgent {
 	#globals
 	#llm
 	#mbr_id
 	#response
 	#vectorstoreId
 	#vectorstoreFileList=[] // openai vectorstore versions
-	constructor(mbr_id, globals, llm){
-		this.#mbr_id = mbr_id
-		this.#globals = globals
+	constructor(factory, llm){
+		this.#mbr_id = factory.mbr_id
+		this.#globals = factory.globals
 		this.#llm = llm
 	}
 	/**
 	 * Initializes the asset assistant by uploading the files to the vectorstore.
 	 * @param {string} vectorstoreId - The vectorstore id to upload the files into, if already exists (avatar would know).
-	 * @returns {Promise<oAIAssetAssistant>} - The initialized asset assistant instance.
+	 * @returns {Promise<AssetAgent>} - The initialized asset assistant instance.
 	 */
 	async init(vectorstoreId){
 		if(!vectorstoreId?.length)
@@ -143,5 +145,5 @@ class oAIAssetAssistant {
 			throw new Error(`Unsupported media type: ${ mimetype }. File type not allowed.`)
 	}
 }
-// exports
-export default oAIAssetAssistant
+/* exports */
+export default AssetAgent

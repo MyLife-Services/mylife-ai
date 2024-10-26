@@ -100,6 +100,7 @@ _apiRouter.post('/upload', upload)
 _apiRouter.post('/upload/:mid', upload)
 /* member routes */
 _memberRouter.use(memberValidation)
+_memberRouter.delete('/bots/:bid', bots)
 _memberRouter.delete('/items/:iid', deleteItem)
 _memberRouter.get('/', members)
 _memberRouter.get('/bots', bots)
@@ -123,17 +124,16 @@ _memberRouter.post('/bots/create', createBot)
 _memberRouter.post('/bots/activate/:bid', activateBot)
 _memberRouter.post('/category', category)
 _memberRouter.post('/migrate/bot/:bid', migrateBot)
-_memberRouter.post('/migrate/chat/:tid', migrateChat)
+_memberRouter.post('/migrate/chat/:bid', migrateChat)
 _memberRouter.post('/mode', interfaceMode)
 _memberRouter.post('/obscure/:iid', obscure)
 _memberRouter.post('/passphrase', passphraseReset)
-_memberRouter.post('/retire/bot/:bid', retireBot)
-_memberRouter.post('/retire/chat/:tid', retireChat)
+_memberRouter.post('/retire/chat/:bid', retireChat)
 _memberRouter.post('/summarize', summarize)
 _memberRouter.post('/teams/:tid', team)
 _memberRouter.post('/upload', upload)
 _memberRouter.put('/bots/:bid', bots)
-_memberRouter.put('/bots/system-update/:bid', updateBotInstructions)
+_memberRouter.put('/bots/version/:bid', updateBotInstructions)
 _memberRouter.put('/item/:iid', item)
 // Mount the subordinate routers along respective paths
 _Router.use('/members', _memberRouter.routes(), _memberRouter.allowedMethods())
@@ -155,6 +155,7 @@ function connectRoutes(_Menu){
  */
 async function memberValidation(ctx, next){
     const { locked=true, } = ctx.state
+    ctx.state.dateNow = Date.now()
     if(locked)
         ctx.redirect(`/?type=select`) // Redirect to /members if not authorized
     else

@@ -266,7 +266,7 @@ class MyLife extends Organization {	// form=server
 	 * @returns {boolean} - Whether or not member is logged in successfully.
 	 */
 	async challengeAccess(memberId, passphrase){
-		const challengeSuccessful = await this.factory.challengeAccess(memberId, passphrase)
+		const challengeSuccessful = await this.#avatar.challengeAccess(memberId, passphrase)
 		return challengeSuccessful
 	}
 	/**
@@ -277,7 +277,8 @@ class MyLife extends Organization {	// form=server
 	async datacore(mbr_id){
 		if(!mbr_id || mbr_id===this.mbr_id)
 			throw new Error('datacore cannot be accessed')
-		return await this.factory.datacore(mbr_id)
+		const core = this.globals.sanitize(await this.factory.datacore(mbr_id))
+		return core
 	}
 	/**
 	 * Submits and returns the journal or diary entry to MyLife via API.
@@ -377,7 +378,7 @@ class MyLife extends Organization {	// form=server
 			mbr_id,
 			name: `${ being }_${ title.substring(0,64) }_${ mbr_id }`,
 		}
-		const savedStory = this.globals.stripCosmosFields(await this.factory.summary(story))
+		const savedStory = this.globals.sanitize(await this.factory.summary(story))
 		return savedStory
 	}
 	/**

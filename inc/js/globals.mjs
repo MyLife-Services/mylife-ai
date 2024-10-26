@@ -1,6 +1,6 @@
 // imports
 import EventEmitter from 'events'
-import { Guid } from 'js-guid'	//	usage = Guid.newGuid().toString()
+import { Guid } from 'js-guid'
 /* constants */
 const mAiJsFunctions = {
 	changeTitle: {
@@ -37,6 +37,14 @@ const mAiJsFunctions = {
 					description: 'complete concatenated raw text content of member input(s) for this `entry`',
 					type: 'string'
 				},
+				form: {
+					description: 'Form of `entry` content, determine context from internal instructions',
+					enum: [
+						'diary',
+						'journal',
+					],
+					type: 'string'
+				},
 				keywords: {
 					description: 'Keywords most relevant to `entry`.',
 					items: {
@@ -69,6 +77,7 @@ const mAiJsFunctions = {
 			additionalProperties: false,
 			required: [
 			'content',
+			'form',
 			'keywords',
 			'mood',
 			'relationships',
@@ -197,17 +206,35 @@ const mAiJsFunctions = {
 		}
 	},
 }
-const mEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/	//	regex for email validation
+const mEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const mForbiddenCosmosFields = ['$', '_', ' ', '@', '#',]
 const mGuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i	//	regex for GUID validation
 const mOpenAIBotModel = process.env.OPENAI_MODEL_CORE_BOT
-	?? 'gpt-4o' // current MyLife OpenAI model for system on-demand and custom bots (personal-avatar may be different)
-// module classes
+	?? 'gpt-4o'
+/**
+ * Globals class holds all of the sensitive data and functionality. It exists as a singleton.
+ * @class
+ * @extends EventEmitter
+ * @todo - Since traced back to Maht Globals, this could be converted to the VM and hold that code
+ */
 class Globals extends EventEmitter {
 	constructor() {
-		//	essentially this is a coordinating class wrapper that holds all of the sensitive data and functionality; as such, it is a singleton, and should either _be_ the virtual server or instantiated on one at startup
 		super()
 	}
 	/* public functions */
+	/**
+	 * Chunk an array into smaller arrays and returns as an Array.
+	 * @param {Array} array - Array to chunk
+	 * @param {number} size - Size of chunks
+	 * @returns {Array} - Array of chunked arrays
+	 */
+	chunkArray(array, size) {
+		const result = []
+		for(let i = 0; i < array.length; i += size){
+			result.push(array.slice(i, i + size))
+		}
+		return result
+	}
 	/**
 	 * Clears a const array with nod to garbage collection.
 	 * @param {Array} a - the array to clear.
@@ -286,8 +313,23 @@ class Globals extends EventEmitter {
 		const regex = /^\d+\.\d+\.\d+$/
 		return typeof version === 'string' && regex.test(version)
 	}
-	stripCosmosFields(object){
-		return Object.fromEntries(Object.entries(object).filter(([k, v]) => !k.startsWith('_')))
+	/**
+	 * Sanitize an object by removing forbidden Cosmos fields and undefined/null values.
+	 * @param {object} object - Cosmos document to sanitize
+	 * @returns {object} - Sanitized data object
+	 */
+	sanitize(object){
+		if(!object || typeof object !== 'object')
+			throw new Error('Parameter requires an object')
+		const sanitizedData = Object.fromEntries(
+			Object.entries(object)
+				.filter(([key, value])=>
+					!mForbiddenCosmosFields.some(char => key.startsWith(char)) &&
+					value !== null &&
+					value !== undefined
+				)
+		)
+		return sanitizedData
 	}
 	sysId(_mbr_id){
 		if(!typeof _mbr_id==='string' || !_mbr_id.length || !_mbr_id.includes('|'))
@@ -300,7 +342,7 @@ class Globals extends EventEmitter {
 	toString(_obj){
 		return Object.entries(_obj).map(([k, v]) => `${k}: ${v}`).join(', ')
 	}
-	//	getters/setters
+	/*	getters/setters */
 	get currentOpenAIBotModel(){
 		return mOpenAIBotModel
 	}

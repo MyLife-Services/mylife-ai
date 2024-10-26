@@ -5,11 +5,10 @@ import vm from 'vm'
 import util from 'util'
 import { Guid } from 'js-guid'	//	usage = Guid.newGuid().toString()
 import { Avatar, Q, } from './mylife-avatar.mjs'
-import Dataservices from './mylife-data-service.js'
+import Dataservices from './mylife-dataservices.mjs'
 import { Member, MyLife } from './core.mjs'
 import {
 	extendClass_consent,
-	extendClass_contribution,
     extendClass_conversation,
 	extendClass_experience,
     extendClass_file,
@@ -26,7 +25,6 @@ const mBotInstructions = {}
 const mDefaultBotType = 'personal-avatar'
 const mExtensionFunctions = {
 	extendClass_consent: extendClass_consent,
-	extendClass_contribution: extendClass_contribution,
 	extendClass_conversation: extendClass_conversation,
 	extendClass_experience: extendClass_experience,
 	extendClass_file: extendClass_file,
@@ -42,78 +40,6 @@ const mExcludeProperties = {
 }
 const mGeneralBotId = 'asst_yhX5mohHmZTXNIH55FX2BR1m'
 const mLLMServices = new LLMServices()
-const mMyLifeTeams = [
-	{
-		active: true,
-		allowCustom: true,
-		allowedTypes: ['artworks', 'editor', 'idea', 'marketing'],
-		defaultTypes: ['artworks', 'idea',],
-		description: 'The Creative Team is dedicated to help you experience productive creativity sessions.',
-		id: '84aa50ca-fb64-43d8-b140-31d2373f3cd2',
-		name: 'creative',
-		title: 'Creative',
-	},
-	{
-		active: false,
-		allowCustom: false,
-		allowedTypes: ['fitness', 'health', 'insurance', 'medical', 'prescriptions', 'yoga', 'nutrition',],
-		defaultTypes: ['fitness', 'health', 'medical',],
-		description: 'The Health Team is dedicated to help you manage your health and wellness.',
-		id: '238da931-4c25-4868-928f-5ad1087a990b',
-		name: 'health',
-		title: 'Health',
-	},
-	{
-		active: true,
-		allowCustom: true,
-		allowedTypes: ['diary', 'journaler', 'personal-biographer',],
-		defaultTypes: ['personal-biographer',],
-		description: 'The Memoir Team is dedicated to help you document your life stories, experiences, thoughts, and feelings.',
-		id: 'a261651e-51b3-44ec-a081-a8283b70369d',
-		name: 'memoir',
-		title: 'Memoir',
-	},
-	{
-		active: false,
-		allowCustom: true,
-		allowedTypes: ['personal-assistant', 'idea', 'note', 'resume', 'scheduler', 'task',],
-		defaultTypes: ['personal-assistant', 'resume', 'scheduler',],
-		description: 'The Professional Team is dedicated to your professional success.',
-		id: '5b7c4109-4985-4d98-b59b-e2c821c3ea28',
-		name: 'professional',
-		title: 'Professional',
-	},
-	{
-		active: false,
-		allowCustom: true,
-		allowedTypes: ['connection', 'experience', 'social', 'relationship',],
-		defaultTypes: ['connection', 'relationship',],
-		description: 'The Social Team is dedicated to help you connect with others.',
-		id: 'e8b1f6d0-8a3b-4f9b-9e6a-4e3c5b7e3e9f',
-		name: 'social',
-		title: 'Social',
-	},
-	{
-		active: false,
-		allowCustom: true,
-		allowedTypes: ['note', 'poem', 'quote', 'religion',],
-		defaultTypes: ['quote', 'religion',],
-		description: 'The Spirituality Team is dedicated to help you creatively explore your spiritual side.',
-		id: 'bea7bb4a-a339-4026-ad1c-75f604dc3349',
-		name: 'sprituality',
-		title: 'Spirituality',
-	},
-	{
-		active: true,
-		allowCustom: true,
-		allowedTypes: ['data-ownership', 'investment', 'ubi',],
-		defaultTypes: ['ubi'],
-		description: 'The Universal Basic Income (UBI) Team is dedicated to helping you tailor your MyLife revenue streams based upon consensual access to your personal MyLife data.',
-		id: '8a4d7340-ac62-40f1-8c77-f17c68797925',
-		name: 'ubi',
-		title: 'UBI',
-	}
-]
 const mNewGuid = ()=>Guid.newGuid().toString()
 const mPath = './inc/json-schemas'
 const mReservedJSCharacters = [' ', '-', '!', '@', '#', '%', '^', '&', '*', '(', ')', '+', '=', '{', '}', '[', ']', '|', '\\', ':', ';', '"', "'", '<', '>', ',', '.', '?', '/', '~', '`']
@@ -242,26 +168,16 @@ class BotFactory extends EventEmitter{
 		return this
 	}
 	/**
-	 * Get a bot, either by id (when known) or bot-type (default=mDefaultBotType). If bot id is not found, then it cascades to the first entity of bot-type it finds, and if none found, and rules allow [in instances where there may be a violation of allowability], a new bot is created.
+	 * Get a bot, either by id (when known) or bot-type (default=mDefaultBotType). If bot id is not found, then it cascades to the first entity of bot-type it finds.
 	 * If caller is `MyLife` then bot is found or created and then activated via a micro-hydration.
 	 * @todo - determine if spotlight-bot is required for any animation, or a micro-hydrated bot is sufficient.
 	 * @public
-	 * @param {string} id - The bot id.
-	 * @param {string} type - The bot type.
-	 * @param {string} mbr_id - The member id.
+	 * @param {string} id - The bot id
+	 * @param {string} type - The bot type
+	 * @param {string} mbr_id - The member id
 	 * @returns {object} - The bot.
 	 */
 	async bot(id, type=mDefaultBotType, mbr_id){
-		if(this.isMyLife){ // MyLife server has no bots of its own, system agents perhaps (file, connector, etc) but no bots yet, so this is a micro-hydration
-			if(!mbr_id)
-				throw new Error('mbr_id required for BotFactory hydration')
-			const botFactory = await new BotFactory(mbr_id)
-				.init()
-			botFactory.bot = await botFactory.bot(id, type, mbr_id)
-			if(!botFactory?.bot) // create bot on member behalf
-				botFactory.bot = await botFactory.createBot({ type: type })
-			return botFactory
-		}
 		return ( await this.dataservices.getItem(id) )
 			?? ( await this.dataservices.getItemByField(
 					'bot',
@@ -270,7 +186,6 @@ class BotFactory extends EventEmitter{
 					undefined,
 					mbr_id
 				) )
-			?? ( await this.bots(undefined,type)?.[0] )
 	}
 	/**
 	 * Returns bot instruction set.
@@ -291,16 +206,16 @@ class BotFactory extends EventEmitter{
 			?? 1.0
 	}
 	/**
-	 * Gets a member's bots.
+	 * Gets a member's bots, or specific bot types.
 	 * @todo - develop bot class and implement hydrated instance
 	 * @public
-	 * @param {string} object_id - The object_id guid of avatar
-	 * @param {string} botType - The bot type
-	 * @returns {array} - The member's hydrated bots
+	 * @param {string} avatarId - The Avatarm id
+	 * @param {string} botType - The bot type (optional)
+	 * @returns {Object[]} - Array of bots
 	 */
-	async bots(object_id, botType){
-		const _params = object_id?.length
-			? [{ name: '@object_id', value:object_id }]
+	async bots(avatarId, botType){
+		const _params = avatarId?.length
+			? [{ name: '@object_id', value: avatarId }]
 			: botType?.length
 				? [{ name: '@bot_type', value: botType }]
 				: undefined
@@ -325,22 +240,19 @@ class BotFactory extends EventEmitter{
 	}
     /**
      * Get member collection items.
-     * @param {string} type - The type of collection to retrieve, `false`-y = all.
-     * @returns {array} - The collection items with no wrapper.
+     * @param {String} type - The type of collection to retrieve, `false`-y = all
+     * @returns {Promise<Array>} - The collection items (no wrapper)
      */
 	async collections(type){
 		return await this.dataservices.collections(type)
 	}
 	/**
-	 * 
-	 * @param {object} assistantData - The assistant data.
-	 * @param {string} vectorstoreId - The vectorstore id.
-	 * @returns {object} - The created bot.
+	 * Creates a bot in the database.
+	 * @param {object} botData - The bot data
+	 * @returns {object} - The created bot document
 	 */
-	async createBot(assistantData={ type: mDefaultBotType }, vectorstoreId){
-		const bot = await mCreateBot(this.#llmServices, this, assistantData, vectorstoreId)
-		if(!bot)
-			throw new Error('bot creation failed')
+	async createBot(botData){
+		const bot = await this.#dataservices.createBot(botData)
 		return bot
 	}
 	/**
@@ -458,8 +370,8 @@ class BotFactory extends EventEmitter{
 	}
 	/**
 	 * Gets a collection of stories of a certain format.
-	 * @param {string} form - The form of the stories to retrieve.
-	 * @returns {object[]} - The stories.
+	 * @param {string} form - The form of the stories to retrieve
+	 * @returns {object[]} - The stories
 	 */
 	async stories(form){
 		return await this.dataservices.getItemsByFields(
@@ -468,30 +380,13 @@ class BotFactory extends EventEmitter{
 		)
 	}
 	/**
-	 * Gets a MyLife Team by id.
-	 * @param {Guid} teamId - The Team id.
-	 * @returns {object} - The Team.
+	 * Updates bot data in the database.
+	 * @param {object} botData - The bot data to update
+	 * @returns {Promise<object>} - the bot document from the database
 	 */
-	team(teamId){
-		return mMyLifeTeams
-			.find(team=>team.id===teamId)
-	}
-	/**
-	 * Retrieves list of MyLife Teams.
-	 * @returns {object[]} - The array of MyLife Teams.
-	 */
-	teams(){
-		return mMyLifeTeams.filter(team=>team.active ?? false)
-	}
-	/**
-	 * Adds or updates a bot data in MyLife database. Note that when creating, pre-fill id.
-	 * @public
-	 * @param {object} bot - The bot data.
-	 * @param {object} options - Function options: `{ instructions: boolean, model: boolean, tools: boolean, vectorstoreId: string, }`.
-	 * @returns {object} - The Cosmos bot version.
-	 */
-	async updateBot(bot, options={}){
-		return await mUpdateBot(this, this.#llmServices, bot, options)
+	async updateBot(botData){
+		const bot = await this.#dataservices.updateBot(botData)
+		return bot
 	}
 	/* getters/setters */
 	/**
@@ -626,16 +521,6 @@ class AgentFactory extends BotFactory {
 		const response = await this.dataservices.pushItem(item)
 		return response
 	}
-	async datacore(mbr_id){
-		const core = await mDataservices.getItems(
-			'core',
-			undefined,
-			undefined,
-			undefined,
-			mbr_id,
-		)
-		return core?.[0]??{}
-	}
     /**
      * Delete an item from member container.
      * @param {Guid} id - The id of the item to delete.
@@ -645,23 +530,31 @@ class AgentFactory extends BotFactory {
 		return await this.dataservices.deleteItem(id)
 	}
 	async entry(entry){
+		const defaultForm = 'journal'
 		const defaultType = 'entry'
-		const { 
-			assistantType='journaler',
+		const {
 			being=defaultType,
-			form='journal',
+			form=defaultForm,
 			id=this.newGuid,
 			keywords=[],
-			mbr_id=(!this.isMyLife ? this.mbr_id : undefined),
-			summary,
-			title=`New ${ defaultType }`,
+			mbr_id=this.mbr_id,
+			title=`Untitled ${ defaultForm } ${ defaultType }`,
 		} = entry
-		if(!mbr_id) // only triggered if not MyLife server
-			throw new Error('mbr_id required for entry summary')
+		let {
+			content,
+			summary,
+		} = entry
+		if(this.isMyLife)
+			throw new Error('System cannot store entries of its own')
 		let { name, } = entry
-		name = name ?? `${ defaultType }_${ form }_${ title.substring(0,64) }_${ mbr_id }`
+		name = name
+			?? `${ defaultType }_${ form }_${ title.substring(0,64) }_${ mbr_id }`
+		summary = summary
+			?? content
 		if(!summary?.length)
 			throw new Error('entry summary required')
+		content = content
+			?? summary
 		/* assign default keywords */
 		if(!keywords.includes('entry'))
 			keywords.push('entry')
@@ -670,8 +563,8 @@ class AgentFactory extends BotFactory {
 		const _entry = {
 			...entry,
 			...{
-			assistantType,
 			being,
+			content,
 			form,
 			id,
 			keywords,
@@ -706,7 +599,7 @@ class AgentFactory extends BotFactory {
 		return avatar
 	}
 	/**
-	 * Generates via personal intelligence, nature of consent/protection around itemId or botId.
+	 * Generates via personal intelligence, nature of consent/protection around itemId or Bot id.
 	 * @todo - build out consent structure
 	 * @param {Guid} id - The id of the item to generate consent for.
 	 * @param {Guid} requesting_mbr_id - The id of the member requesting consent.
@@ -796,7 +689,6 @@ class AgentFactory extends BotFactory {
 		const defaultForm = 'memory'
 		const defaultType = 'story'
 		const {
-			assistantType='biographer',
 			being=defaultType,
 			form=defaultForm,
 			id=this.newGuid,
@@ -804,7 +696,7 @@ class AgentFactory extends BotFactory {
 			mbr_id=(!this.isMyLife ? this.mbr_id : undefined),
 			phaseOfLife='unknown',
 			summary,
-			title=`New ${ defaultType }`,
+			title=`Untitled ${ defaultForm } ${ defaultType }`,
 		} = story
 		if(!mbr_id) // only triggered if not MyLife server
 			throw new Error('mbr_id required for story summary')
@@ -819,7 +711,6 @@ class AgentFactory extends BotFactory {
 		const _story = { // add validated fields back into `story` object
 			...story,
 			...{
-				assistantType,
 				being,
 				form,
 				id,
@@ -922,15 +813,15 @@ class MyLifeFactory extends AgentFactory {
 	} // no init() for MyLife server
 	/* public functions */
 	/**
-	 * Overload for MyLifeFactory::bot() - Q is able to hydrate a bot instance on behalf of members.
+	 * MyLife factory is able to hydrate a BotFactory instance of a Member Avatar.
 	 * @public
 	 * @param {string} mbr_id - The member id
 	 * @returns {object} - The hydrated bot instance
 	 */
-	async bot(mbr_id){
-		const bot = await new BotFactory(mbr_id)
+	async avatarProxy(mbr_id){
+		const Bot = await new BotFactory(mbr_id)
 			.init()
-		return bot
+		return Bot
 	}
 	/**
 	 * Accesses Dataservices to challenge access to a member's account.
@@ -941,7 +832,7 @@ class MyLifeFactory extends AgentFactory {
 	 */
 	async challengeAccess(mbr_id, passphrase){
 		const caseInsensitive = true // MyLife server defaults to case-insensitive
-		const avatarProxy = await this.bot(mbr_id)
+		const avatarProxy = await this.avatarProxy(mbr_id)
 		const challengeSuccessful = await avatarProxy.challengeAccess(passphrase, caseInsensitive)
 		return challengeSuccessful
 	}
@@ -1024,6 +915,16 @@ class MyLifeFactory extends AgentFactory {
 	}
 	createItem(){
 		throw new Error('MyLife server cannot create items')
+	}
+	/**
+	 * 
+	 * @param {string} mbr_id - The member id
+	 * @returns {object} - The member's core data
+	 */
+	async datacore(mbr_id){
+		const core = ( await mDataservices.getItems('core', null, null, null, mbr_id) )
+			?.[0]
+		return core
 	}
 	deleteItem(){
 		throw new Error('MyLife server cannot delete items')
@@ -1108,19 +1009,6 @@ class MyLifeFactory extends AgentFactory {
 	}
 }
 // private module functions
-/**
- * Initializes openAI assistant and returns associated `assistant` object.
- * @module
- * @param {LLMServices} llmServices - OpenAI object
- * @param {object} bot - The assistand data object
- * @returns {object} - [OpenAI assistant object](https://platform.openai.com/docs/api-reference/assistants/object)
- */
-async function mAI_openai(llmServices, bot){
-    const { bot_name, type, } = bot
-	bot.name = bot_name
-		?? `My ${ type }`
-    return await llmServices.createBot(bot)
-}
 function assignClassPropertyValues(propertyDefinition){
 	switch (true) {
 		case propertyDefinition?.const!==undefined:	//	constants
@@ -1175,183 +1063,6 @@ async function mConfigureSchemaPrototypes(){ //	add required functionality as de
 		)
 		mSchemas[_className] = mExtendClass(mSchemas[_className])
 	}
-}
-/**
- * Creates bot and returns associated `bot` object.
- * @module
- * @private
- * @param {LLMServices} llm - OpenAI object
- * @param {AgentFactory} factory - Agent Factory object
- * @param {object} assistantData - Bot object
- * @param {string} avatarId - Avatar id
- * @returns {string} - Bot assistant id in openAI
-*/
-async function mCreateBotLLM(llm, assistantData){
-    const llmResponse = await mAI_openai(llm, assistantData)
-    return llmResponse.id
-}
-/**
- * Creates bot and returns associated `bot` object.
- * @todo - assistantData.name = botDbName should not be required, push logic to `llm-services`
- * @module
- * @async
- * @private
- * @param {LLMServices} llm - LLMServices Object contains methods for interacting with OpenAI
- * @param {BotFactory} factory - BotFactory object
- * @param {object} bot - Bot object, must include `type` property.
- * @returns {object} - Bot object
-*/
-async function mCreateBot(llm, factory, bot, vectorstoreId){
-	/* initial deconstructions */
-	const { bot_name: botName, description: botDescription, name: botDbName, type, } = bot
-	const { avatarId, } = factory
-	/* validation */
-	if(!avatarId)
-		throw new Error('avatar id required to create bot')
-	/* constants */
-	const bot_name = botName
-		?? `My ${ type }`
-	const description = botDescription
-		?? `I am a ${ type } for ${ factory.memberName }`
-	const { instructions, version, } = mCreateBotInstructions(factory, bot)
-	const model = process.env.OPENAI_MODEL_CORE_BOT
-		?? process.env.OPENAI_MODEL_CORE_AVATAR
-		?? 'gpt-4o'
-	const name = botDbName
-		?? `bot_${ type }_${ avatarId }`
-	const { tools, tool_resources, } = mGetAIFunctions(type, factory.globals, vectorstoreId)
-	const id = factory.newGuid
-	const assistantData = {
-		being: 'bot',
-		bot_name,
-		description,
-		id,
-		instructions,
-		metadata: {
-			externalId: id,
-			version: version.toString(),
-		},
-		model,
-		name,
-		object_id: avatarId,
-		provider: 'openai',
-		purpose: description,
-		tools,
-		tool_resources,
-		type,
-		version,
-	}
-	/* create in LLM */
-	const botId = await mCreateBotLLM(llm, assistantData) // create after as require model
-	if(!botId)
-		throw new Error('bot creation failed')
-	/* create in MyLife datastore */
-	assistantData.bot_id = botId
-	const assistant = await factory.dataservices.createBot(assistantData)
-	console.log(chalk.green(`bot created::${ type }`), assistant.id, assistant.bot_id, assistant.bot_name, )
-	return assistant
-}
-/**
- * Returns MyLife-version of bot instructions.
- * @module
- * @private
- * @param {BotFactory} factory - Factory object
- * @param {object} bot - Bot object
- * @returns {object} - minor 
- */
-function mCreateBotInstructions(factory, bot){
-	if(typeof bot!=='object' || !bot.type?.length)
-		throw new Error('bot object required, and  requires `type` property')
-	const { type=mDefaultBotType, } = bot
-    let {
-		instructions,
-		limit=8000,
-		version,
-	} = factory.botInstructions(type)
-    if(!instructions) // @stub - custom must have instruction loophole
-		throw new Error(`bot instructions not found for type: ${ type }`)
-    let {
-		general,
-		purpose='',
-		preamble='',
-		prefix='',
-		references=[],
-		replacements=[],
-		suffix='', // example: data privacy info
-		voice='',
-	} = instructions
-    /* compile instructions */
-    switch(type){
-		case 'diary':
-            instructions = purpose
-				+ preamble
-				+ prefix
-                + general
-				+ suffix
-				+ voice
-			break
-        case 'personal-avatar':
-            instructions = preamble
-                + general
-            break
-        case 'journaler':
-		case 'personal-biographer':
-            instructions = preamble
-                + purpose
-                + prefix
-                + general
-            break
-        default:
-            instructions = general
-            break
-    }
-    /* apply replacements */
-    replacements.forEach(replacement=>{
-        const placeholderRegExp = factory.globals.getRegExp(replacement.name, true)
-        const replacementText = eval(`bot?.${replacement.replacement}`)
-			?? eval(`factory?.${replacement.replacement}`)
-            ?? eval(`factory.core?.${replacement.replacement}`)
-            ?? replacement?.default
-            ?? '`unknown-value`'
-        instructions = instructions.replace(placeholderRegExp, _=>replacementText)
-    })
-    /* apply references */
-    references.forEach(_reference=>{
-        const _referenceText = _reference.insert
-        const replacementText = eval(`factory?.${_reference.value}`)
-            ?? eval(`bot?.${_reference.value}`)
-            ?? _reference.default
-            ?? '`unknown-value`'
-        switch(_reference.method??'replace'){
-            case 'append-hard':
-                const _indexHard = instructions.indexOf(_referenceText)
-                if (_indexHard !== -1) {
-                instructions =
-                    instructions.slice(0, _indexHard + _referenceText.length)
-                    + '\n'
-                    + replacementText
-                    + instructions.slice(_indexHard + _referenceText.length)
-                }
-                break
-            case 'append-soft':
-                const _indexSoft = instructions.indexOf(_referenceText);
-                if (_indexSoft !== -1) {
-                instructions =
-                      instructions.slice(0, _indexSoft + _referenceText.length)
-                    + ' '
-                    + replacementText
-                    + instructions.slice(_indexSoft + _referenceText.length)
-                }
-                break
-            case 'replace':
-            default:
-                instructions = instructions.replace(_referenceText, replacementText)
-                break
-        }
-    })
-	/* assess and validate limit */
-	console.log(chalk.blueBright('instructions length'), instructions.length, instructions)
-    return { instructions, version, }
 }
 function mExposedSchemas(factoryBlockedSchemas){
 	const _systemBlockedSchemas = ['dataservices','session']
@@ -1428,7 +1139,6 @@ constructor(obj){
 				eval(\`this.\#\${_key}=obj[_key]\`)
 			} catch(err){
 				eval(\`this.\${_key}=obj[_key]\`)
-				console.log(\`could not privatize \${_key}, public node created\`)
 			}
 		}
 		console.log('vm ${ _className } class constructed')
@@ -1476,69 +1186,6 @@ function mGenerateClassFromSchema(_schema) {
 	const _classCode = mGenerateClassCode(name, properties)
 	const _class = mCompileClass(name, _classCode)
 	return _class
-}
-/**
- * Retrieves any functions that need to be attached to the specific bot-type.
- * @todo - move to llmServices
- * @param {string} type - Type of bot.
- * @param {object} globals - Global functions for bot.
- * @param {string} vectorstoreId - Vectorstore id.
- * @returns {object} - OpenAi-ready object for functions { tools, tool_resources, }.
- */
-function mGetAIFunctions(type, globals, vectorstoreId){
-	let includeSearch=false,
-		tool_resources,
-		tools = []
-	switch(type){
-		case 'diary':
-		case 'journaler':
-			tools.push(
-				globals.getGPTJavascriptFunction('changeTitle'),
-				globals.getGPTJavascriptFunction('entrySummary'),
-			)
-			includeSearch = true
-			break
-		case 'personal-assistant':
-		case 'personal-avatar':
-			includeSearch = true
-			break
-		case 'personal-biographer':
-			tools.push(
-				globals.getGPTJavascriptFunction('changeTitle'),
-				globals.getGPTJavascriptFunction('getSummary'),
-				globals.getGPTJavascriptFunction('updateSummary'),
-				globals.getGPTJavascriptFunction('storySummary'),
-			)
-			includeSearch = true
-			break
-		default:
-			break
-	}
-	if(includeSearch){
-		const { tool_resources: gptResources, tools: gptTools, } = mGetGPTResources(globals, 'file_search', vectorstoreId)
-		tools.push(...gptTools)
-		tool_resources = gptResources
-	}
-	return {
-		tools,
-		tool_resources,
-	}
-}
-/**
- * Retrieves any tools and tool-resources that need to be attached to the specific bot-type.
- * @param {Globals} globals - Globals object.
- * @param {string} toolName - Name of tool.
- * @param {string} vectorstoreId - Vectorstore id.
- * @returns {object} - { tools, tool_resources, }.
- */
-function mGetGPTResources(globals, toolName, vectorstoreId){
-	switch(toolName){
-		case 'file_search':
-			const { tools, tool_resources, } = globals.getGPTFileSearchToolStructure(vectorstoreId)
-			return { tools, tool_resources, }
-		default:
-			throw new Error('tool name not recognized')
-	}
 }
 /**
  * Take help request about MyLife and consults appropriate engine for response.
@@ -1730,58 +1377,29 @@ function mSanitizeSchemaValue(_value) {
     return wasTrimmed ? _value[0] + trimmedStr + _value[0] : trimmedStr
 }
 /**
- * Updates bot in Cosmos, and if necessary, in LLM.
- * @param {AgentFactory} factory - Factory object
- * @param {LLMServices} llm - LLMServices object
- * @param {object} bot - Bot object, winnow via mBot in `mylife-avatar.mjs` to only updated fields
- * @param {object} options - Options object: { instructions: boolean, model: boolean, tools: boolean, vectorstoreId: string, }
- * @returns 
+ * Decouples team from modular reference.
+ * @param {object} team - Team object from modular codespace
+ * @returns {object} - Returns sanitized team object
  */
-async function mUpdateBot(factory, llm, bot, options={}){
-	/* constants */
-	const {
-		id, // no modifications
-		instructions: removeInstructions,
-		tools: removeTools,
-		tool_resources: removeResources,
-		type, // no modifications
-		...botData // extract member-driven bot data
-	} = bot
-	const {
-		instructions: updateInstructions=false,
-		model: updateModel=false,
-		tools: updateTools=false,
-		vectorstoreId,
-	} = options
-	if(!factory.globals.isValidGuid(id))
-		throw new Error('bot `id` required in bot argument: `{ id: guid }`')
-	if(updateInstructions){
-		const { instructions, version=1.0, } = mCreateBotInstructions(factory, bot)
-		botData.instructions = instructions
-		botData.metadata = botData.metadata ?? {}
-		botData.metadata.version = version.toString()
-		botData.version = version /* omitted from llm, but appears on updateBot */
-	}
-	if(updateTools){
-		const { tools, tool_resources, } = mGetAIFunctions(type, factory.globals, vectorstoreId)
-		botData.tools = tools
-		botData.tool_resources = tool_resources
-		console.log('mUpdateBot', botData.tools, botData.tool_resources, vectorstoreId)
-	}
-	if(updateModel)
-		botData.model = factory.globals.currentOpenAIBotModel
-	botData.id = id // validated
-	/* LLM updates */
-	const { bot_id, bot_name: name, instructions, tools, } = botData
-	if(bot_id?.length && (instructions || name || tools)){
-		botData.model = factory.globals.currentOpenAIBotModel // not dynamic
-		await llm.updateBot(botData)
-		const updatedLLMFields = Object.keys(botData)
-			.filter(key=>key!=='id' && key!=='bot_id') // strip mechanicals
-		console.log(chalk.green('mUpdateBot()::update in OpenAI'), id, bot_id, updatedLLMFields)
-	}
-	const updatedBot = await factory.dataservices.updateBot(botData)
-	return updatedBot
+function mTeam(team){
+    const {
+        allowCustom,
+        allowedTypes,
+        defaultTypes,
+        description,
+        id,
+        name,
+        title,
+    } = team
+    return {
+        allowCustom,
+        allowedTypes: [...allowedTypes],
+        defaultTypes: [...defaultTypes],
+        description,
+        id,
+        name,
+        title,
+    }
 }
 /* final constructs relying on class and functions */
 // server build: injects default factory into _server_ **MyLife** instance

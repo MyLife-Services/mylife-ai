@@ -11,11 +11,12 @@ import serve from 'koa-static'
 /* misc imports */
 import chalk from 'chalk'
 /* local service imports */
-import MyLife from './inc/js/mylife-agent-factory.mjs'
+import MyLife from './inc/js/mylife-factory.mjs'
 /** variables **/
-const version = '0.0.24'
+const version = '0.0.25'
 const app = new Koa()
-const port = process.env.PORT ?? '3000'
+const port = process.env.PORT
+	?? '3000'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const _Maht = await MyLife // Mylife is the pre-instantiated exported version of organization with very unique properties. MyLife class can protect fields that others cannot, #factory as first refactor will request
@@ -83,7 +84,13 @@ render(app, {
 	cache: false,
 	debug: false,
 })
-setInterval(checkForLiveAlerts, JSON.parse(process.env.MYLIFE_SYSTEM_ALERT_CHECK_INTERVAL ?? '60000'))
+setInterval(
+	checkForLiveAlerts,
+	JSON.parse(
+		process.env.MYLIFE_SYSTEM_ALERT_CHECK_INTERVAL
+			?? '60000'
+	)
+)
 /* upload directory */
 const uploadDir = path.join(__dirname, '.tmp')
 if(!fs.existsSync(uploadDir)){
@@ -92,7 +99,10 @@ if(!fs.existsSync(uploadDir)){
 app.context.MyLife = _Maht
 app.context.Globals = _Maht.globals
 app.context.menu = _Maht.menu
-app.keys = [process.env.MYLIFE_SESSION_KEY ?? `mylife-session-failsafe|${_Maht.newGuid()}`]
+app.keys = [
+	process.env.MYLIFE_SESSION_KEY
+		?? `mylife-session-failsafe|${_Maht.newGuid()}`
+]
 app.use(koaBody({
     multipart: true,
     formidable: {

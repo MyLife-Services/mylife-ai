@@ -216,23 +216,31 @@
 }
 .bot-title,
 .collections-title {
+    align-items: center;
 	color: aliceblue;
     display: flex;
-	flex: 1 0 auto;
+    flex: 0 0 70%;
     font-size: 0.8rem;
     font-weight: bold;
     max-height: 100%;
     overflow: hidden;
     overflow-wrap: break-word;
-    max-width: 70%;
+}
+.bot-title-name,
+.bot-title-type {
+    flex: 0 1 auto;
+    margin-right: 0.4rem;
 }
 .bot-title-name {
     color: aquamarine;
-    max-width: 50%;
+    flex-grow: 1;
 }
-.bot-title-type {
-    margin-right: 0.8rem;
-    max-width: 50%;
+.bot-title-version {
+    color: lightblue;
+    cursor: not-allowed;
+    flex: 0 0 auto;
+    font-size: 0.6rem;
+    margin-left: auto; /* Pushes the version div to the right end */
 }
 .mylife-widget.bots {
 	flex-direction: column;
@@ -242,6 +250,30 @@
 .publicity-toggle-view-icon {
     cursor: default;
     font-size: 1.25rem;
+}
+.retire-container {
+    align-items: center;
+    color: gray;
+    cursor: pointer;
+    display: flex;
+    font-size: 1.25rem;
+    justify-content: flex-end;
+    width: 100%;
+}
+.retire-icon {
+    display: flex;
+    margin: 0.1rem 0.3rem;
+}
+.retire-icon:hover {
+    color: red;
+    display: flex;
+    font-size: 1.6rem;
+    margin: 0 0.4rem;
+}
+.retire-text {
+    display: flex;
+    font-size: 1.1rem;
+    padding: 0;
 }
 .ticker {
 	background: radial-gradient(at top left, darkgray, black); /* Radial gradient background */
@@ -265,6 +297,26 @@
 .ticker span.no-animation {
     animation: none;
 	padding: 0;
+}
+.update-available {
+    align-items: flex-end;
+    background-color: rgb(255 0 123 / 50%);
+    border: thin solid rgb(255 157 190 / 66%);
+    border-radius: var(--border-radius);
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.3rem;
+}
+.update-available:hover {
+    align-items: flex-end;
+    background-color: rgba(255, 251, 0, 0.5);
+    border: thin solid rgba(255, 205, 222, 0.66);
+    border-radius: var(--border-radius);
+    color: black;
+    cursor: pointer;
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.3rem;
 }
 /* bot-collections */
 .collection {

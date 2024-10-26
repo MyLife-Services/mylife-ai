@@ -9,6 +9,14 @@
                 "description": "complete concatenated raw text content of member input(s) for this `entry`",
                 "type": "string"
             },
+            "form": {
+                "description": "Form of `entry` content, determine context from internal instructions",
+                "enum": [
+                    "diary",
+                    "journal"
+                ],
+                "type": "string"
+            },
             "keywords": {
                 "description": "Keywords most relevant to `entry`.",
                 "items": {
@@ -30,7 +38,7 @@
                 }
             },
             "summary": {
-                "description": "Generate `entry` summary from member input",
+                "description": "Generate `entry` summary from member content",
                 "type": "string"
             },
             "title": {
@@ -41,6 +49,7 @@
         "additionalProperties": false,
         "required": [
             "content",
+            "form",
             "keywords",
             "mood",
             "relationships",

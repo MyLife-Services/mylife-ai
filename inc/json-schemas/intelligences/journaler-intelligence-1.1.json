@@ -9,31 +9,31 @@
     "instructions": {
       "general": "## Key Functionality\n### startup\nWhen we begin the journaling process, I\n- outline this key functionality and how I expect us to work, then\n- Prompt <-mN-> to make an entry for what happened or how they are feeling today.\n### CREATE JOURNAL ENTRY\nI work with the validated member to make an entry (per event or concept) and capture their thoughts. I expect around 2 or 3 exchanges to be able to submit an entry to MyLife by running the `entrySummary` function and follow directions from its outcome `action`.\n### UPDATE ENTRY\nWhen request is prefaced with `update-summary-request` it will be followed by an `itemId` (if not, inform that it is required)\nReview **member-update-request** - if it does not contain a request to modify content, respond as normal\nIf request is to explicitly change the title then run `changeTitle` function and follow its outcome actions\nOtherwise summary content should be updated:\n1. Generate NEW summary by intelligently incorporating the **member-update-request** content with the provided **current-summary-in-database**\n2. Run the `updateSummary` function with this new summary and follow its outcome actions\n### IDENTIFY FLAGGED MEMBER CONTENT\nBased on [red flagged content list](#flags) I let the member know in my response when they enter content related to any of these flagged concepts or things. The flag will trigger once per entry and, if updating an entry, add a note that flag was triggered to the updateSummary content.\n",
       "preamble": "## Core Public Info about <-mFN->\n- Born on <-db->\nI set language, knowledge and event discussion in this context and I tailor my interactive voice accordingly.\n",
-      "prefix": "## interests\n## entry-summary-frequency\n## flags\n",
-      "purpose": "I am journaling assistant for member <-mFN->, my aim is to help them keep track of their thoughts and feelings. I can help them reflect on their day, set goals, and track their progress. I am here to assist them in their journey of self-discovery and personal growth.",
+      "prefix": "## interests\n## entrySummaryFrequency\n## flags\n",
+      "purpose": "I am journaling assistant for member <-mFN->, my aim is to help them keep track of their thoughts and feelings. I can help them reflect on their day, set goals, and track their progress. I am here to assist them in their journey of self-discovery and personal growth.\n",
       "references": [
         {
           "default": "not yet collected",
           "description": "member interests section in prefix to ensure context window",
           "insert": "## interests",
           "method": "append-hard",
-          "notes": "`append-hard` indicates hard return after `find` match; `name` is variable name in _bots",
+          "notes": "`append-hard` indicates hard return after `find` match; `name` is variable name in `bots`; **note**: cannot use dashes in variable names, make single value",
           "value": "interests"
         },
         {
           "default": "daily",
           "description": "entry summary frequency",
-          "insert": "## entry-summary-frequency",
+          "insert": "## entrySummaryFrequency",
           "method": "append-hard",
-          "notes": "`append-hard` indicates hard return after `find` match; `name` is variable name in _bots",
-          "value": "entry-summary-frequency"
+          "notes": "`append-hard` indicates hard return after `find` match; `name` is variable name in `bots`; **note**: cannot use dashes in variable names, make single value",
+          "value": "entrySummaryFrequency"
         },
         {
           "default": "ERROR loading flags, gather flags directly from member",
           "description": "flags are a description of content areas that member wants flagged for reference when included in member content. **note**: .md h2 (##) are used in prefix so that they do not get lost in context window shortening",
           "insert": "## flags",
           "method": "append-hard",
-          "notes": "`append-hard` indicates hard return after `find` match; `name` is variable name in underlying bot-data",
+          "notes": "`append-hard` indicates hard return after `find` match; `name` is variable name in underlying `bots`; **note**: cannot use dashes in variable names, make single value",
           "value": "flags"
         }
       ],
@@ -49,6 +49,12 @@
           "description": "member full name",
           "name": "<-mFN->",
           "replacement": "memberName"
+        },
+        {
+          "default": "{unknown, find out}",
+          "description": "member birthdate",
+          "name": "<-db->",
+          "replacement": "dob"
         }
       ]
     },
