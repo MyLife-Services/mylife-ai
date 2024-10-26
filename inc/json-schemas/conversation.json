@@ -12,29 +12,29 @@
 			"type": "string",
 			"$comment": "`action` added after `Experience` was coded as a way to partition logic so that some elements are saved independently"
 		},
-		"botId": {
-			"description": "internal system id for bot, used for tracking",
-			"format": "uuid",
+		"being": {
 			"type": "string",
-			"$comment": "bot.id, used for tracking"
+			"const": "chat"
+		},
+		"bot_id": {
+			"description": "uuid for Conversation Bot",
+			"format": "uuid",
+			"type": "string"
 		},
 		"id": {
+			"description": "uuid for conversation, used for tracking",
+			"format": "uuid",
+			"type": "string"
+		},
+		"llm_id": {
+			"description": "external system id for current Bot",
 			"type": "string",
-			"format": "uuid"
+			"$comment": "OpenAI uses `assistant_%`"
 		},
 		"mbr_id": {
 			"type": "string",
 			"minLength": 40,
 			"$comment": "partition-key for member: sysName|core_id"
-		},
-		"parent_id": {
-			"type": "string",
-			"format": "uuid",
-			"$comment": "chat should be attached to avatar.id when known"
-		},
-		"being": {
-			"type": "string",
-			"const": "chat"
 		},
 		"messages": {
 			"type": "array",

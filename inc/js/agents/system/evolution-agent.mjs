@@ -1,5 +1,4 @@
 //	imports
-import { _ } from 'ajv'
 import { EventEmitter } from 'events'
 /* module constants */
 const _phases = [
@@ -12,12 +11,12 @@ const _phases = [
 ]
 const _defaultPhase = _phases[0]
 /**
- * @class EvolutionAssistant
+ * @class EvolutionAgent
  * @extends EventEmitter
  * Handles the evolutionary process of an avatar, managing its growth and development through various phases, loosely but not solely correlated with timeline.
  * See notes at end for design principles and notes
  */
-export class EvolutionAssistant extends EventEmitter {
+export class EvolutionAgent extends EventEmitter {
     #avatar //  symbiotic avatar object
     #contributions = [] //  self-managed aray of contributions on behalf of embedded avatar; could postdirectly to avatar when required
     #phase //  create, init, develop, mature, maintain, retire
@@ -128,28 +127,28 @@ export class EvolutionAssistant extends EventEmitter {
  * Advance the phase of the Evolution Assistant. Logic is encapsulated to ensure that the phase is advanced only when appropriate, ergo, not every request _to_ advancePhase() will actually _do_ so. Isolates and privatizes logic to propose _advance_ to next phase.
  * @module
  * @emits {evo-agent-phase-change} - Emitted when the phase advances.
- * @param {EvolutionAssistant} _evoAgent - `this` Evolution Assistant.
+ * @param {EvolutionAgent} evoAgent - `this` Evolution Assistant.
  * @returns {string} The determined phase.
  * @todo Implement phase advancement logic for: develop, mature, maintain, retire.
 */
-async function mAdvancePhase(_evoAgent){  //  **note**: treat parameter `_evoAgent` as `read-only` for now
+async function mAdvancePhase(evoAgent){  //  **note**: treat parameter `evoAgent` as `read-only` for now
     const _proposal = { //  no need to objectify
-        contributions: _evoAgent.contributions,
-        phase: _evoAgent.phase,
+        contributions: evoAgent.contributions,
+        phase: evoAgent.phase,
         phaseChange: false
     }
-    switch(_evoAgent.phase) {
+    switch(evoAgent.phase) {
         case 'create':  //  initial creation of object, no data yet
         case 'init':    //  need initial basic data for categorical descriptions of underlying data object; think of this as the "seed" phase, where questions are as yet unfit nor personalized in any meaningful way to the underlying core human (or data object), so need to feel way around--questions here could really come from embedding db
             const _formalPhase = 'init'
-            if(!_evoAgent.categories.length)
-                return _evoAgent.phase
-            if(!_evoAgent.contributions.length < 3){    // too low, refresh
-                const contributionsPromises = mAssessData(_evoAgent)
-                    .map(_category => mGetContribution(_evoAgent, _category, _formalPhase)) // Returns array of promises
+            if(!evoAgent.categories.length)
+                return evoAgent.phase
+            if(!evoAgent.contributions.length < 3){    // too low, refresh
+                const contributionsPromises = mAssessData(evoAgent)
+                    .map(_category => mGetContribution(evoAgent, _category, _formalPhase)) // Returns array of promises
                 _proposal.contributions = await Promise.all(contributionsPromises)            }
             // alterations sent as proposal to be adopted (or not, albeit no current mechanism to reject) by instantiated evo-agent [only viable caller by module design]
-            _proposal.phase = (mEvolutionPhaseComplete(_evoAgent,_formalPhase))
+            _proposal.phase = (mEvolutionPhaseComplete(evoAgent,_formalPhase))
                 ? 'init'
                 : 'develop'
             _proposal.phaseChange = (_proposal.phase !== 'init')
@@ -162,50 +161,50 @@ async function mAdvancePhase(_evoAgent){  //  **note**: treat parameter `_evoAge
         case 'retire':  //  contributions have ceased with request to retire object; would never happen with core, but certainly can with any other spawned object; **note** not deletion or removal at this point, but rather a request to stop contributing to the object, lock it and archive; of course could be rehydrated at any time, but from cold state or colder
             break
         default:
-            //  throw new Error(`unknown phase: ${_evoAgent.phase}`)
+            //  throw new Error(`unknown phase: ${evoAgent.phase}`)
     }
     return _proposal
 }
 /**
  * Reviews properties of avatar and returns an array of three categories most in need of member Contributions.
  * @module
- * @param {EvolutionAssistant} _evoAgent - The avatar evoAgent whose data requires assessment.
+ * @param {EvolutionAgent} evoAgent - The avatar evoAgent whose data requires assessment.
  * @param {number} _numCategories - The number of categories to return. Defaults to 5. minimum 1, maximum 9.
  * @returns {Array} The top number categories requiring Contributions.
 */
-function mAssessData(_evoAgent, _numCategories) {
+function mAssessData(evoAgent, _numCategories) {
     const _defaultNumCategories = 5
     const _maxNumCategories = 9
     return [
-        ...mAssessNulls(_evoAgent),
-        ...mAssessNodes(_evoAgent)
+        ...mAssessNulls(evoAgent),
+        ...mAssessNodes(evoAgent)
             .slice(0, _numCategories || _defaultNumCategories)
     ]
         .slice(0, Math.min(_numCategories || _defaultNumCategories, _maxNumCategories))
 }
 /**
  * Asses nodes for categories to contribute to.
- * @param {EvolutionAssistant} _evoAgent 
+ * @param {EvolutionAgent} evoAgent 
  * @returns {Array} The categories to contribute to.
 */
-function mAssessNodes(_evoAgent){
-    return _evoAgent.categories
-    .filter(_category => _evoAgent?.[mFormatCategory(_category)])
+function mAssessNodes(evoAgent){
+    return evoAgent.categories
+    .filter(_category => evoAgent?.[mFormatCategory(_category)])
     .map(_category => mFormatCategory(_category))
-    .sort((a, b) => _evoAgent[a].length - _evoAgent[b].length)
+    .sort((a, b) => evoAgent[a].length - evoAgent[b].length)
 }
-function mAssessNulls(_evoAgent) {
-    return _evoAgent.categories
-        .filter(_category => !_evoAgent?.[mFormatCategory(_category)])
+function mAssessNulls(evoAgent) {
+    return evoAgent.categories
+        .filter(_category => !evoAgent?.[mFormatCategory(_category)])
         .map(_category => mFormatCategory(_category))
         .sort(() => Math.random() - 0.5)
 }
 /**
  * Assign listeners to a Contribution object.
- * @param {EvolutionAssistant} _evoAgent - `this` Evolution Assistant.
+ * @param {EvolutionAgent} evoAgent - `this` Evolution Assistant.
  * @param {Contribution} _contribution - The Contribution object to assign listeners to.
 */
-function mAssignContributionListeners(_evoAgent, _contribution) {
+function mAssignContributionListeners(evoAgent, _contribution) {
      // **note**: logging exact text of event for now, but could be more generic
     _contribution.on(
         'on-contribution-new',
@@ -229,14 +228,14 @@ function mAssignContributionListeners(_evoAgent, _contribution) {
 /**
  * Determines whether the given phase is complete.
  * @module
- * @param {EvolutionAssistant} _evoAgent - `this` Evolution Assistant.
+ * @param {EvolutionAgent} evoAgent - `this` Evolution Assistant.
  * @param {string} _phase - The phase to check for completion.
 */
-function mEvolutionPhaseComplete(_evoAgent,_phase) {
+function mEvolutionPhaseComplete(evoAgent,_phase) {
     switch (_phase) {
         case 'init':
             //  if category data nodes exist that have no data, return false
-            return (_evoAgent.categories)
+            return (evoAgent.categories)
         default:    //  such as `create`
             return true
     }
@@ -258,13 +257,13 @@ function mFormatCategory(_category) {
  * Digest a request to generate a new Contribution.
  * @module
  * @emits {on-contribution-new} - Emitted when a new Contribution is generated.
- * @param {EvolutionAssistant} _evoAgent - `this` Evolution Assistant.
+ * @param {EvolutionAgent} evoAgent - `this` Evolution Assistant.
  * @param {string} _category - The category to process.
  * @param {string} _phase - The phase to process.
  * @returns {Contribution} A new Contribution object.
 */
-async function mGetContribution(_evoAgent, _category, _phase) {
-    const _avatar = _evoAgent.avatar
+async function mGetContribution(evoAgent, _category, _phase) {
+    const _avatar = evoAgent.avatar
     _category = mFormatCategory(_category)
     // Process question and map to `new Contribution` class
     const _contribution = new (_avatar.factory.contribution)({
@@ -282,7 +281,7 @@ async function mGetContribution(_evoAgent, _category, _phase) {
         },
         responses: [],
     })
-    mAssignContributionListeners(_evoAgent, _contribution)
+    mAssignContributionListeners(evoAgent, _contribution)
     return await _contribution.init(_avatar.factory)   //  fires emitters
 }
 /**
@@ -290,47 +289,47 @@ async function mGetContribution(_evoAgent, _category, _phase) {
  * @module
  * @emits {_emit_text} - Emitted when an object is logged.
  * @param {string} _emit_text - The text to emit.
- * @param {EvolutionAssistant} _evoAgent - `this` Evolution Assistant.
+ * @param {EvolutionAgent} evoAgent - `this` Evolution Assistant.
  * @param {object} _object - The object to log, if not evoAgent.
 */
-function mLog(_emit_text,_evoAgent,_object) {
-    if(_emit_text) _evoAgent.emit(_emit_text, _object??_evoAgent) // incumbent upon EvoAgent to incorporate child emissions into self and _then_ emit here
+function mLog(_emit_text,evoAgent,_object) {
+    if(_emit_text) evoAgent.emit(_emit_text, _object??evoAgent) // incumbent upon EvoAgent to incorporate child emissions into self and _then_ emit here
 }
 /**
  * Process a Contribution. First update the Contribution object, determining if the Contribution stage is updated. Then evaluate Evolution phase for completeness and advancement.
  * @module
- * @param {EvolutionAssistant} _evoAgent - `this` Evolution Assistant.
+ * @param {EvolutionAgent} evoAgent - `this` Evolution Assistant.
  * @param {Array} _contributions - The contributions array.
  * @param {object} _current - Contribution object { category, contributionId, message }
  * @param {object} _proposed - Contribution object { category, contributionId, message }
  * @returns {object} The updated Contribution instantiation.
 */
-function mSetContribution(_evoAgent, _current, _proposed) {
+function mSetContribution(evoAgent, _current, _proposed) {
     /* update Contribution */
     if(_proposed?.contributionId){
-        _evoAgent.contributions
+        evoAgent.contributions
             .find(_contribution => _contribution.id === _proposed.contributionId)
             .update(_proposed) // emits avatar update event
     }
     /* evolve phase */
     if(_current?.category!==_proposed.category){
-        _evoAgent.emit('avatar-change-category', _current, _proposed)
+        evoAgent.emit('avatar-change-category', _current, _proposed)
         if(_current?.contributionId){
         /* @todo: verify that categories are changing */
-            const _currentContribution = _evoAgent.contributions
+            const _currentContribution = evoAgent.contributions
                 .find(_contribution => _contribution.id === _current.contributionId)
             console.log('evolution-assistant:mSetContribution():320', _currentContribution.inspect(true))
             if(_currentContribution.stage === 'prepared'){ // ready to process
                 // join array and submit for gpt-summarization
-                mSubmitContribution(_evoAgent, _contributions.responses.join('\n'))
+                mSubmitContribution(evoAgent, _contributions.responses.join('\n'))
                 // advance phase, write db, emit event
             }
         }
     }
 }
-async function mSubmitContribution(_evoAgent, _contribution) {
+async function mSubmitContribution(evoAgent, _contribution) {
     // emit to avatar => (session?) => datacore
     _contribution.emit('on-contribution-submitted', _contribution)
 }
 // exports
-export default EvolutionAssistant
+export default EvolutionAgent

@@ -11,7 +11,7 @@ import serve from 'koa-static'
 /* misc imports */
 import chalk from 'chalk'
 /* local service imports */
-import MyLife from './inc/js/mylife-agent-factory.mjs'
+import MyLife from './inc/js/mylife-factory.mjs'
 /** variables **/
 const version = '0.0.25'
 const app = new Koa()

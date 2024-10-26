@@ -1,5 +1,4 @@
 /* imports */
-import oAIAssetAssistant from './agents/system/asset-assistant.mjs'
 import {
 	upload as apiUpload,
 } from './api-functions.mjs'
@@ -36,11 +35,16 @@ async function alerts(ctx){
 	}
 }
 async function bots(ctx){
-	const { bid, } = ctx.params // botId sent in url path
+	const { bid, } = ctx.params // bot_id sent in url path
 	const { avatar } = ctx.state
-	const bot = ctx.request.body ?? {}
-	const { id, } = bot
+	const bot = ctx.request.body
+		?? {}
 	switch(ctx.method){
+		case 'DELETE': // retire bot
+			if(!ctx.Globals.isValidGuid(bid))
+				ctx.throw(400, `missing bot id`)
+			ctx.body = await avatar.retireBot(bid)
+			break
 		case 'POST': // create new bot
 			ctx.body = await avatar.createBot(bot)
 			break
@@ -52,11 +56,8 @@ async function bots(ctx){
 			if(bid?.length){ // specific bot
 				ctx.body = await avatar.getBot(ctx.params.bid)
 			} else {
-				const {
-					activeBotId,
-					prunedBots: bots,
-					mbr_id,
-				} = avatar
+				const { activeBotId, } = avatar
+				const bots = await avatar.getBots()
 				ctx.body = { // wrap bots
 					activeBotId,
 					bots,
@@ -104,14 +105,17 @@ async function challenge(ctx){
  * @property {Object[]} responses - Response messages from Avatar intelligence
  */
 async function chat(ctx){
-	const { botId, itemId, message, shadowId, } = ctx.request.body ?? {} /* body nodes sent by fe */
+	const { botId: bot_id, itemId, message, } = ctx.request.body
+		?? {} /* body nodes sent by fe */
 	if(!message?.length)
 			ctx.throw(400, 'missing `message` content')
-	const { avatar, dateNow=Date.now(), } = ctx.state
-	const { MemberSession, } = ctx.session
-	if(botId?.length && botId!==avatar.activeBotId)
-		throw new Error(`Bot ${ botId } not currently active; chat() requires active bot`)
-	const response = await avatar.chat(message, itemId, shadowId, dateNow, MemberSession)
+	const { avatar, } = ctx.state
+	const session = avatar.isMyLife
+		? ctx.session.MemberSession
+		: null
+	if(bot_id?.length && bot_id!==avatar.activeBotId)
+		throw new Error(`Bot ${ bot_id } not currently active; chat() requires active bot`)
+	const response = await avatar.chat(message, itemId, session)
 	ctx.body = response
 }
 async function collections(ctx){
@@ -156,7 +160,7 @@ async function greetings(ctx){
 	if(validateId?.length)
 		response.messages.push(...await avatar.validateRegistration(validateId))
 	else
-		response.messages.push(...await avatar.getGreeting(dynamic))
+		response.messages.push(...await avatar.greeting(dynamic))
 	response.success = response.messages.length > 0
 	ctx.body = response
 }
@@ -243,9 +247,9 @@ async function migrateBot(ctx){
 	ctx.body = await avatar.migrateBot(bid)
 }
 async function migrateChat(ctx){
-	const { tid, } = ctx.params
+	const { bid, } = ctx.params
 	const { avatar, } = ctx.state
-	ctx.body = await avatar.migrateChat(tid)
+	ctx.body = await avatar.migrateChat(bid)
 }
 /**
  * Given an itemId, obscures aspects of contents of the data record.
@@ -285,12 +289,8 @@ async function privacyPolicy(ctx){
  * @param {Koa} ctx - Koa Context object
  */
 async function retireBot(ctx){
-	const { avatar, } = ctx.state
-	const { bid, } = ctx.params // bot id
-	if(!ctx.Globals.isValidGuid(bid))
-		ctx.throw(400, `missing bot id`)
-	const response = await avatar.retireBot(bid)
-	ctx.body = response
+	ctx.method = 'DELETE'
+	return await this.bots(ctx)
 }
 /**
  * Direct request from member to retire a chat (via bot).
@@ -383,9 +383,9 @@ async function team(ctx){
  * @param {Koa} ctx - Koa Context object.
  * @returns {Object[]} - List of team objects.
  */
-function teams(ctx){
+async function teams(ctx){
 	const { avatar, } = ctx.state
-	ctx.body = avatar.teams()
+	ctx.body = await avatar.teams()
 }
 async function updateBotInstructions(ctx){
 	const { bid, } = ctx.params

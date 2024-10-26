@@ -24,7 +24,7 @@ import {
 import Globals from './globals.mjs'
 const mAvailableCollections = ['entry', 'experience', 'file', 'story'], // ['chat', 'conversation'],
     mAvailableMimeTypes = [],
-    mAvailableUploaderTypes = ['library', 'personal-avatar'],
+    mAvailableUploaderTypes = ['collections', 'personal-avatar'],
     botBar = document.getElementById('bot-bar'),
     mCollections = document.getElementById('collections-collections'),
     mCollectionsContainer = document.getElementById('collections-container'),
@@ -496,7 +496,7 @@ async function mSummarize(event){
     this.classList.remove('summarize-error', 'fa-file-circle-exclamation', 'fa-file-circle-question', 'fa-file-circle-xmark')
     this.classList.add('fa-compass', 'spin')
     /* fetch summary */
-    const { messages, success, } = await fetchSummary(fileId, fileName) // throws on console.error
+    const { instruction, responses, success, } = await fetchSummary(fileId, fileName) // throws on console.error
     /* visibility triggers */
     this.classList.remove('fa-compass', 'spin')
     if(success)
@@ -504,7 +504,9 @@ async function mSummarize(event){
     else
         this.classList.add('fa-file-circle-exclamation', 'summarize-error')
     /* print response */
-    addMessages(messages)
+    if(instruction?.length)
+        console.log('mSummarize::instruction', instruction)
+    addMessages(responses)
     setTimeout(_=>{
         this.addEventListener('click', mSummarize, { once: true })
         this.classList.add('fa-file-circle-question')
@@ -1303,12 +1305,12 @@ async function mRetireBot(event){
         if(mActiveBot.id===botId)
             setActiveBot()
         /* retire bot */
-        const url = window.location.origin + '/members/retire/bot/' + botId
+        const url = window.location.origin + '/members/bots/' + botId
         let response = await fetch(url, {
             headers: {
                 'Content-Type': 'application/json'
             },
-            method: 'POST',
+            method: 'DELETE',
         })
         if(!response.ok)
             throw new Error(`HTTP error! Status: ${response.status}`)
@@ -2331,7 +2333,7 @@ async function mUploadFiles(event){
     const { id, parentNode: uploadParent, } = this
     const type = mGlobals.HTMLIdToType(id)
     if(!mAvailableUploaderTypes.includes(type))
-        throw new Error(`Uploader type not found, upload function unavailable for this bot.`)
+        throw new Error(`Uploader "${ type }" not found, upload function unavailable for this bot.`)
     let fileInput
     try{
         console.log('mUploadFiles()::uploader', document.activeElement)
