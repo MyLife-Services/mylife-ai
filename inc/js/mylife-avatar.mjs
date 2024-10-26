@@ -11,6 +11,7 @@ const mAllowSave = JSON.parse(
         ?? 'false'
 )
 const mAvailableModes = ['standard', 'admin', 'evolution', 'experience', 'restoration']
+const mMigrateThreadOnVersionChange = false // hack currently to avoid thread migration on bot version change when it's not required, theoretically should be managed by Bot * Version
 /**
  * @class - Avatar
  * @extends EventEmitter
@@ -684,7 +685,7 @@ class Avatar extends EventEmitter {
      * @returns {object} - The updated bot object
      */
     async updateBotInstructions(bot_id=this.activeBot.id){
-        const Bot = await this.#botAgent.updateBotInstructions(bot_id)
+        const Bot = await this.#botAgent.updateBotInstructions(bot_id, mMigrateThreadOnVersionChange)
         return Bot.bot
     }
     /**
