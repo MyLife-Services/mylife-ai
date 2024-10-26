@@ -162,7 +162,7 @@ MyLife itself is an open-source project and, aside from LLM technologies at the 
 
 3. **Bot Functionality and Intelligence Management**
    - The application features a sophisticated bot system, capable of creating and managing different types of bots like personal assistants, biographers, health bots, etc.
-   - OpenAI's GPT-3 model is integrated for generating responses and interacting with users through bots, as observed in the `class-avatar-functions.mjs` and `mylife-agent-factory.mjs` files.
+   - OpenAI's GPT-3 model is integrated for generating responses and interacting with users through bots, as observed in the `mylife-avatar.mjs` and `mylife-factory.mjs` files.
 
 4. **Session Management**
    - Managed through the `MylifeMemberSession` class, handling user sessions, consents, and alerts.

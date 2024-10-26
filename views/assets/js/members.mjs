@@ -122,9 +122,9 @@ function clearSystemChat(){
  * @param {object} activeBot - The active bot.
  * @returns {void}
  */
-function decorateActiveBot(activeBot=activeBot()){
-    const { bot_name, id, purpose, type, } = activeBot
-    chatInputField.placeholder = `Type your message to ${ bot_name }...`
+function decorateActiveBot(){
+    const { id, name, } = activeBot()
+    chatInputField.placeholder = `Type your message to ${ name }...`
     // additional func? clear chat?
 }
 function escapeHtml(text) {
@@ -715,7 +715,7 @@ async function submit(message, hideMemberChat=true){
  * @returns {void}
  */
 async function mSubmitChat(message) {
-    const { action, itemId, shadowId, } = chatActiveItem.dataset
+    const { action, itemId, } = chatActiveItem.dataset
 	const url = window.location.origin + '/members'
     const { id: botId, } = activeBot()
 	const request = {
@@ -724,7 +724,6 @@ async function mSubmitChat(message) {
             itemId,
 			message,
 			role: 'member',
-            shadowId,
 		}
     const options = {
         method: 'POST',
@@ -764,13 +763,13 @@ async function mSubmitChat(message) {
  * @returns {void}
  */
 function toggleMemberInput(display=true, hidden=false, connectingText='Connecting with '){
-    const { bot_name, id, mbr_id, provider, purpose, type, } = activeBot()
+    const { id, name, } = activeBot()
     if(display){
         hide(awaitButton)
         awaitButton.classList.remove('slide-up')
         chatInput.classList.add('slide-up')
         chatInputField.style.height = 'auto'
-        chatInputField.placeholder = `type your message to ${ bot_name }...`
+        chatInputField.placeholder = `type your message to ${ name }...`
         chatInputField.value = null
         show(chatInput)
     } else {
@@ -778,7 +777,7 @@ function toggleMemberInput(display=true, hidden=false, connectingText='Connectin
         chatInput.classList.remove('fade-in')
         chatInput.classList.remove('slide-up')
         awaitButton.classList.add('slide-up')
-        awaitButton.innerHTML = connectingText + bot_name + '...'
+        awaitButton.innerHTML = connectingText + name + '...'
         show(awaitButton)
     }
     if(hidden){

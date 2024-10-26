@@ -24,13 +24,13 @@ import {
 import Globals from './globals.mjs'
 const mAvailableCollections = ['entry', 'experience', 'file', 'story'], // ['chat', 'conversation'],
     mAvailableMimeTypes = [],
-    mAvailableUploaderTypes = ['library', 'personal-avatar'],
+    mAvailableUploaderTypes = ['collections', 'personal-avatar'],
     botBar = document.getElementById('bot-bar'),
     mCollections = document.getElementById('collections-collections'),
     mCollectionsContainer = document.getElementById('collections-container'),
     mCollectionsUpload = document.getElementById('collections-upload'),
     mDefaultReliveMemoryButtonText = 'next',
-    mDefaultTeam = 'memoir',
+    mDefaultTeam = 'memory',
     mGlobals = new Globals(),
     passphraseCancelButton = document.getElementById(`personal-avatar-passphrase-cancel`),
     passphraseInput = document.getElementById(`personal-avatar-passphrase`),
@@ -158,9 +158,9 @@ async function setActiveBot(event, dynamic=false){
         throw new Error(`ERROR: failure to set active bot.`)
     if(initialActiveBot===mActiveBot)
         return // no change, no problem
-    const { id, } = mActiveBot
+    const { id, type, } = mActiveBot
     /* confirm via server request: set active bot */
-    const serverActiveId = await fetch(
+    const serverResponse = await fetch(
         '/members/bots/activate/' + id,
         {
             method: 'POST',
@@ -168,24 +168,21 @@ async function setActiveBot(event, dynamic=false){
                 'Content-Type': 'application/json'
             }
         })
-        .then(response => {
+        .then(response=>{
             if(!response.ok){
                 throw new Error(`HTTP error! Status: ${response.status}`)
             }
             return response.json()
         })
-        .then(response => {
-            return response.activeBotId
-        })
-        .catch(error => {
-            console.log('Error:', error)
-            alert('Server error setting active bot.')
+        .catch(error=>{
+            addMessage(`Server error setting active bot: ${ error.message }`)
             return
         })
     /* update active bot */
-    if(serverActiveId!==id){
+    const { activeBotId, activeBotVersion, version, } = serverResponse
+    if(activeBotId!==id){
         mActiveBot = initialActiveBot
-        throw new Error(`ERROR: server failed to set active bot.`)
+        addMessage('Server error setting active bot.')
     }
     /* update page bot data */
     const { activated=[], activatedFirst=Date.now(), } = mActiveBot
@@ -193,6 +190,17 @@ async function setActiveBot(event, dynamic=false){
     activated.push(Date.now()) // newest date is last to .pop()
     // dynamic = (Date.now()-activated.pop()) > (20*60*1000)
     mActiveBot.activated = activated
+    if(activeBotVersion!==version){
+        const botVersion = document.getElementById(`${ type }-title-version`)
+        if(botVersion){
+            botVersion.classList.add('update-available')
+            botVersion.dataset.botId = activeBotId
+            botVersion.dataset.currentVersion = activeBotVersion
+            botVersion.dataset.type = type
+            botVersion.dataset.updateVersion = version
+            botVersion.addEventListener('click', mUpdateBotVersion, { once: true })
+        }
+    }
     /* update page */
     mSpotlightBotBar()
     mSpotlightBotStatus()
@@ -235,7 +243,7 @@ async function updatePageBots(bots=mBots, includeGreeting=false, dynamic=false){
         throw new Error(`No bots provided to update page.`)
     if(mBots!==bots)
         mBots = bots
-    // await mUpdateTeams()
+    await mUpdateTeams()
     await mUpdateBotContainers()
     // mUpdateBotBar()
     if(includeGreeting)
@@ -260,6 +268,19 @@ function mBot(type){
 function mBotActive(id){
     return id===mActiveBot?.id
         ?? false
+}
+/**
+ * Request version update to bot.
+ * @param {Guid} botId - The bot id to update
+ * @returns {object} - Response from server { bot, success, }
+ */
+async function mBotVersionUpdate(botId){
+    const url = window.location.origin + '/members/bots/version/' + botId
+    const method = 'PUT'
+    const response = await fetch(url, { method, })
+    if(!response.ok)
+        throw new Error(`HTTP error! Status: ${response.status}`)
+    return await response.json()
 }
 /**
  * Request bot be created on server.
@@ -329,12 +350,16 @@ function mBotIcon(type){
 }
 /**
  * Create a functional collection item HTML div for the specified collection type.
+ * @example - collectionItem: { assistantType, filename, form, id, keywords, name, summary, title, type, }
  * @param {object} collectionItem - The collection item object, requires type.
  * @returns {HTMLDivElement} - The collection item.
  */
 function mCreateCollectionItem(collectionItem){
     /* collection item container */
-    const { assistantType, filename, form, id, keywords, name, summary, title, type, } = collectionItem
+    const { assistantType, filename, form, id, name, title, type, } = collectionItem
+    const iconType = assistantType
+        ?? form
+        ?? type
     const item = document.createElement('div')
     item.id = `collection-item_${ id }`
     item.name = `collection-item-${ type }`
@@ -344,7 +369,7 @@ function mCreateCollectionItem(collectionItem){
     itemIcon.id = `collection-item-icon_${ id }`
     itemIcon.name = `collection-item-icon-${ type }`
     itemIcon.classList.add('collection-item-icon', `${ type }-collection-item-icon`)
-    itemIcon.src = mBotIcon(assistantType)
+    itemIcon.src = mBotIcon(iconType)
     item.appendChild(itemIcon)
     /* name */
     const itemName = document.createElement('span')
@@ -471,7 +496,7 @@ async function mSummarize(event){
     this.classList.remove('summarize-error', 'fa-file-circle-exclamation', 'fa-file-circle-question', 'fa-file-circle-xmark')
     this.classList.add('fa-compass', 'spin')
     /* fetch summary */
-    const { messages, success, } = await fetchSummary(fileId, fileName) // throws on console.error
+    const { instruction, responses, success, } = await fetchSummary(fileId, fileName) // throws on console.error
     /* visibility triggers */
     this.classList.remove('fa-compass', 'spin')
     if(success)
@@ -479,7 +504,9 @@ async function mSummarize(event){
     else
         this.classList.add('fa-file-circle-exclamation', 'summarize-error')
     /* print response */
-    addMessages(messages)
+    if(instruction?.length)
+        console.log('mSummarize::instruction', instruction)
+    addMessages(responses)
     setTimeout(_=>{
         this.addEventListener('click', mSummarize, { once: true })
         this.classList.add('fa-file-circle-question')
@@ -507,12 +534,12 @@ function mCloseTeamPopup(event){
  * @returns {HTMLDivElement} - The bot thumb container.
  */
 function mCreateBotThumb(bot=getBot()){
-    const { bot_name, id, type, } = bot
+    const { id, name, type, } = bot
     /* bot-thumb container */
     const botThumbContainer = document.createElement('div')
     botThumbContainer.id = `bot-bar-container_${ id }`
     botThumbContainer.name = `bot-bar-container-${ type }`
-    botThumbContainer.title = bot_name
+    botThumbContainer.title = name
     botThumbContainer.addEventListener('click', setActiveBot)
     botThumbContainer.classList.add('bot-thumb-container')
     /* bot-thumb */
@@ -1184,10 +1211,10 @@ async function mReliveMemory(event){
         popupClose.click()
     toggleMemberInput(false, false, `Reliving memory with `)
     unsetActiveItem()
-    const { command, parameters, messages, success, } = await mReliveMemoryRequest(id, inputContent)
+    const { instruction, item, responses, success, } = await mReliveMemoryRequest(id, inputContent)
     if(success){
         toggleMemberInput(false, true)
-        addMessages(messages, { bubbleClass: 'relive-bubble' })
+        addMessages(responses, { bubbleClass: 'relive-bubble' })
         const input = document.createElement('div')
         input.classList.add('memory-input-container')
         input.id = `relive-memory-input-container_${ id }`
@@ -1264,6 +1291,64 @@ async function mReliveMemoryRequestStop(id){
     }
 }
 /**
+ * Request to retire an identified bot.
+ * @param {Event} event - The event object
+ * @returns {void}
+ */
+async function mRetireBot(event){
+    event.preventDefault()
+    event.stopPropagation()
+    try {
+        const { dataset, id, } = event.target
+        const { botId, type, } = dataset
+        /* reset active bot */
+        if(mActiveBot.id===botId)
+            setActiveBot()
+        /* retire bot */
+        const url = window.location.origin + '/members/bots/' + botId
+        let response = await fetch(url, {
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            method: 'DELETE',
+        })
+        if(!response.ok)
+            throw new Error(`HTTP error! Status: ${response.status}`)
+        response = await response.json()
+        addMessages(response.responses)
+    } catch(err) {
+        console.log('Error posting bot data:', err)
+        addMessage(`Error posting bot data: ${err.message}`)
+    }
+}
+/**
+ * Retires chat thread on server and readies for a clean one.
+ * @param {Event} event - The event object
+ * @returns {void}
+ */
+async function mRetireChat(event){
+    event.preventDefault()
+    event.stopPropagation()
+    try {
+        const { dataset, id, } = event.target
+        const { botId, type, } = dataset
+        const url = window.location.origin + '/members/retire/chat/' + botId
+        let response = await fetch(url, {
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            method: 'POST',
+        })
+        if(!response.ok)
+            throw new Error(`HTTP error! Status: ${response.status}`)
+        response = await response.json()
+        addMessages(response.responses)
+    } catch(err) {
+        console.log('Error posting bot data:', err)
+        addMessage(`Error posting bot data: ${err.message}`)
+    }
+}
+/**
  * Set Bot data on server.
  * @param {Object} bot - bot object
  * @returns {object} - response from server
@@ -1301,28 +1386,39 @@ async function mSetBot(bot){
  * @returns {void}
  */
 function mSetAttributes(bot=mActiveBot, botContainer){
-    const { activated=[], activeFirst, bot_id: botId, bot_name: botName, dob, id, interests, mbr_id, narrative, privacy, provider, purpose, thread_id: threadId, type, updates, } = bot
-    const memberHandle = mGlobals.getHandle(mbr_id)
-    const bot_name = botName
-        ?? `${ memberHandle + '_' + type }`
-    const thread_id = threadId
-        ?? ''
+    const {
+        activated=[],
+        activeFirst,
+        bot_name='Anonymous',
+        dob,
+        flags,
+        id: bot_id,
+        interests,
+        name,
+        narrative,
+        privacy,
+        type,
+        updates,
+        version
+    } = bot
     /* attributes */
+    const botName = name
+        ?? bot_name
     const attributes = [
         { name: 'activated', value: activated },
-        { name: 'active', value: mBotActive(id) },
+        { name: 'active', value: mBotActive(bot_id) },
         { name: 'activeFirst', value: activeFirst },
-        { name: 'bot_id', value: botId },
-        { name: 'bot_name', value: bot_name },
-        { name: 'id', value: id },
+        { name: 'bot_id', value: bot_id },
+        { name: 'bot_name', value: botName },
+        { name: 'id', value: bot_id },
         { name: 'initialized', value: Date.now() },
-        { name: 'mbr_handle', value: memberHandle },
-        { name: 'mbr_id', value: mbr_id },
-        { name: 'thread_id', value: thread_id },
         { name: 'type', value: type },
+        { name: 'version', value: version },
     ]
     if(dob)
         attributes.push({ name: 'dob', value: dob })
+    if(flags)
+        attributes.push({ name: 'flags', value: flags })
     if(interests)
         attributes.push({ name: 'interests', value: interests })
     if(narrative)
@@ -1347,17 +1443,17 @@ function mSetAttributes(bot=mActiveBot, botContainer){
  * @private
  * @requires mActiveBot - active bot object, but can be undefined without error.
  * @param {object} bot - The bot object.
- * @returns {object} - Determined status.
+ * @returns {void}
  */
 function mSetStatusBar(bot, botContainer){
     const { dataset, } = botContainer
-    const { id, type, } = dataset
-    const { bot_id, bot_name, thread_id, type: botType, } = bot
+    const { id, type, version, } = dataset
+    const { id: botId, name, type: botType, version: botVersion, } = bot
     const botStatusBar = document.getElementById(`${ type }-status`)
     if(!type || !botType==type || !botStatusBar)
         return
     const response = {
-        name: bot_name,
+        name,
         status: 'unknown',
         type: type.split('-').pop(),
     }
@@ -1369,7 +1465,7 @@ function mSetStatusBar(bot, botContainer){
             botIcon.classList.add('active')
             response.status = 'active'
             break
-        case ( bot_id?.length>0 ): // online
+        case ( name?.length>0 ): // online
             botIcon.classList.remove('active', 'offline', 'error')
             botIcon.classList.add('online')
             response.status = 'online'
@@ -1392,7 +1488,10 @@ function mSetStatusBar(bot, botContainer){
     const botTitleName = document.getElementById(`${ type }-title-name`)
     if(botTitleName)
         botTitleName.textContent = response.name
-    return response
+    /* version */
+    const botVersionElement = document.getElementById(`${ type }-title-version`)
+    if(botVersionElement)
+        botVersionElement.textContent = mVersion(version)
 }
 /**
  * Sets collection item content on server.
@@ -1607,20 +1706,20 @@ function mTeamSelect(event){
  */
 async function mToggleBotContainers(event){
     event.stopPropagation()
-    // add turn for first time clicked on collection header it refreshes from server, then from there you need to click
     const botContainer = this
     const element = event.target
     const { dataset, id, } = botContainer
     const itemIdSnippet = element.id.split('-').pop()
     switch(itemIdSnippet){
         case 'name':
-            // @todo: double-click to edit in place
+        case 'title':
+        case 'titlebar':
+            mOpenStatusDropdown(this)
             break
         case 'icon':
-        case 'title':
+        case 'type':
             if(dataset?.status && !(['error', 'offline', 'unknown'].includes(dataset.status)))
                 await setActiveBot(dataset?.id ?? id, true)
-            mOpenStatusDropdown(this)
             break
         case 'status':
         case 'type':
@@ -1629,6 +1728,10 @@ async function mToggleBotContainers(event){
             break
         case 'update':
         case 'upload':
+            break
+        case 'version':
+            console.log('Version:', dataset.version, 'check version against server', mTeams)
+            break
         default:
             break
     }
@@ -1948,6 +2051,7 @@ function mUpdateBotContainerAddenda(botContainer){
                     /* update mBot */
                     const bot = mBot(id)
                     bot.bot_name = bot_name
+                    bot.name = bot_name
                 } else {
                     dataset.bot_name = localVars.bot_name
                 }
@@ -1968,16 +2072,21 @@ function mUpdateBotContainerAddenda(botContainer){
                 })
             }
         }
+        /* retirements */
+        const retireChatButton = document.getElementById(`${ type }-retire-chat`)
+        if(retireChatButton){
+            retireChatButton.dataset.botId = id
+            retireChatButton.dataset.type = type
+            retireChatButton.addEventListener('click', mRetireChat)
+        }
+        const retireBotButton = document.getElementById(`${ type }-retire-bot`)
+        if(retireBotButton){
+            retireBotButton.dataset.botId = id
+            retireBotButton.dataset.type = type
+            retireBotButton.addEventListener('click', mRetireBot)
+        }
         switch(type){
-            case 'diary':
-                // add listener on `diary-start` button
-                const diaryStart = document.getElementById('diary-start')
-                if(diaryStart)
-                    diaryStart.addEventListener('click', mStartDiary)
-                break
-            case 'journaler':
-            case 'personal-biographer':
-                break
+            case 'avatar':
             case 'personal-avatar':
                 /* attach avatar listeners */
                 /* set additional data attributes */
@@ -1995,9 +2104,38 @@ function mUpdateBotContainerAddenda(botContainer){
                         hide(tutorialButton)
                 }
                 break
+            case 'biographer':
+            case 'journaler':
+            case 'personal-biographer':
+                break
+            case 'diary':
+                // add listener on `diary-start` button
+                const diaryStart = document.getElementById('diary-start')
+                if(diaryStart)
+                    diaryStart.addEventListener('click', mStartDiary)
+                break
             default:
                 break
         }
+}
+/**
+ * Updates bot version on server.
+ * @param {Event} event - The event object
+ * @returns {void}
+ */
+async function mUpdateBotVersion(event){
+    event.stopPropagation()
+    const { classList, dataset,} = event.target
+    const { botId, currentVersion, updateVersion, } = dataset
+    if(currentVersion==updateVersion)
+        return
+    const updatedVersion = await mBotVersionUpdate(botId)
+    if(updatedVersion?.success){
+        const { version, } = updatedVersion.bot
+        dataset.currentVersion = version
+        event.target.textContent = mVersion(version)
+        classList.remove('update-available')
+    }
 }
 /**
  * Update the identified collection with provided specifics.
@@ -2177,7 +2315,7 @@ async function mUpdateTeams(identifier=mDefaultTeam){
     mTeamName.dataset.description = description
     mTeamName.innerText = `${ title ?? name } Team`
     mTeamName.title = description
-    mTeamName.addEventListener('click', mCreateTeamSelect)
+    // @stub mTeamName.addEventListener('click', mCreateTeamSelect)
     mTeamAddMemberIcon.addEventListener('click', mCreateTeamMemberSelect)
     hide(mTeamPopup)
     show(mTeamHeader)
@@ -2195,7 +2333,7 @@ async function mUploadFiles(event){
     const { id, parentNode: uploadParent, } = this
     const type = mGlobals.HTMLIdToType(id)
     if(!mAvailableUploaderTypes.includes(type))
-        throw new Error(`Uploader type not found, upload function unavailable for this bot.`)
+        throw new Error(`Uploader "${ type }" not found, upload function unavailable for this bot.`)
     let fileInput
     try{
         console.log('mUploadFiles()::uploader', document.activeElement)
@@ -2243,6 +2381,16 @@ function mUploadFilesInputRemove(fileInput, uploadParent, uploadButton){
     if(fileInput && uploadParent.contains(fileInput))
         uploadParent.removeChild(fileInput)
     uploadButton.disabled = false
+}
+/**
+ * Versions per frontend.
+ * @param {string} version - The version to format
+ * @returns {string} - The formatted version
+ */
+function mVersion(version){
+    version = version.toString()
+    version = `v.${ version?.includes('.') ? version : `${ version }.0` ?? '1.0' }`
+    return version
 }
 /* exports */
 // @todo - export combine of fetchBots and updatePageBots

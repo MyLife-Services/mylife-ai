@@ -34,13 +34,15 @@ class LLMServices {
     /* public methods */
     /**
      * Creates openAI GPT API assistant.
-     * @param {object} bot - The bot object
+     * @param {object} bot - The bot data
      * @returns {Promise<object>} - openai assistant object
      */
-    async createBot(bot){
-        const assistantData = mValidateAssistantData(bot) // throws on improper format
-        const assistant = await this.openai.beta.assistants.create(assistantData)
-        return assistant
+    async createBot(botData){
+        botData = mValidateAssistantData(botData)
+        const bot = await this.openai.beta.assistants.create(botData)
+        const thread = await mThread(this.openai)
+        bot.thread_id = thread.id
+        return bot
     }
     /**
      * Creates a new OpenAI Vectorstore.
@@ -55,18 +57,18 @@ class LLMServices {
     }
     /**
      * Deletes an assistant from OpenAI.
-     * @param {string} botId - GPT-Assistant external ID
+     * @param {string} llm_id - GPT-Assistant external ID
      * @returns 
      */
-    async deleteBot(botId){
+    async deleteBot(llm_id){
         try {
-            const deletedBot = await this.openai.beta.assistants.del(botId)
+            const deletedBot = await this.openai.beta.assistants.del(llm_id)
             return deletedBot
         } catch (error) {
             if(error.name==='PermissionDeniedError')
-                console.error(`Permission denied to delete assistant: ${ botId }`)
+                console.error(`Permission denied to delete assistant: ${ llm_id }`)
             else
-                console.error(`ERROR trying to delete assistant: ${ botId }`, error.name, error.message)
+                console.error(`ERROR trying to delete assistant: ${ llm_id }`, error.name, error.message)
         }
     }
     /**
@@ -103,35 +105,36 @@ class LLMServices {
     }
     /**
      * Given member input, get a response from the specified LLM service.
+     * @example - `run` object: { assistant_id, id, model, provider, required_action, status, usage }
      * @todo - confirm that reason for **factory** is to run functions as responses from LLM; ergo in any case, find better way to stash/cache factory so it does not need to be passed through every such function
-     * @param {string} threadId - Thread id.
-     * @param {string} botId - GPT-Assistant/Bot id.
+     * @param {string} thread_id - Thread id.
+     * @param {string} llm_id - GPT-Assistant/Bot id.
      * @param {string} prompt - Member input.
      * @param {AgentFactory} factory - Avatar Factory object to process request.
      * @param {Avatar} avatar - Avatar object.
      * @returns {Promise<Object[]>} - Array of openai `message` objects.
      */
-    async getLLMResponse(threadId, botId, prompt, factory, avatar){
-        if(!threadId?.length)
-            threadId = ( await mThread(this.openai) ).id
-        await mAssignRequestToThread(this.openai, threadId, prompt)
-        const run = await mRunTrigger(this.openai, botId, threadId, factory, avatar)
-        const { assistant_id, id: run_id, model, provider='openai', required_action, status, usage } = run
-        const llmMessages = await this.messages(threadId)
-        return llmMessages
+    async getLLMResponse(thread_id, llm_id, prompt, factory, avatar){
+        if(!thread_id?.length)
+            thread_id = ( await mThread(this.openai) ).id
+        await mAssignRequestToThread(this.openai, thread_id, prompt)
+        const run = await mRunTrigger(this.openai, llm_id, thread_id, factory, avatar)
+        const { id: run_id, } = run
+        const llmMessages = ( await this.messages(thread_id) )
             .filter(message=>message.role=='assistant' && message.run_id==run_id)
+        return llmMessages
     }
     /**
      * Given member request for help, get response from specified bot assistant.
      * @param {string} thread_id - Thread id.
-     * @param {string} botId - GPT-Assistant/Bot id.
+     * @param {string} llm_id - GPT-Assistant/Bot id.
      * @param {string} helpRequest - Member input.
      * @param {AgentFactory} factory - Avatar Factory object to process request.
      * @param {Avatar} avatar - Avatar object.
      * @returns {Promise<Object>} - openai `message` objects.
      */
-    async help(thread_id, botId, helpRequest, factory, avatar){
-        const helpResponse = await this.getLLMResponse(thread_id, botId, helpRequest, factory, avatar)
+    async help(thread_id, llm_id, helpRequest, factory, avatar){
+        const helpResponse = await this.getLLMResponse(thread_id, llm_id, helpRequest, factory, avatar)
         return helpResponse
     }
     /**
@@ -156,15 +159,16 @@ class LLMServices {
     }
     /**
      * Updates assistant with specified data. Example: Tools object for openai: { tool_resources: { file_search: { vector_store_ids: [vectorStore.id] } }, }; https://platform.openai.com/docs/assistants/tools/file-search/quickstart?lang=node.js
-     * @param {string} bot - The bot object data.
+     * @todo - conform payload to OpenAI API Reference
+     * @param {Object} botData - The bot object data.
      * @returns {Promise<Object>} - openai assistant object.
      */
-    async updateBot(bot){
-        let { bot_id, ...assistantData } = bot
-        if(!bot_id?.length)
+    async updateBot(botData){
+        let { bot_id, llm_id, ...assistantData } = botData
+        if(!llm_id?.length)
             throw new Error('No bot ID provided for update')
-        assistantData = mValidateAssistantData(assistantData) // throws on improper format
-        const assistant = await this.openai.beta.assistants.update(bot_id, assistantData)
+        botData = mValidateAssistantData(assistantData)
+        const assistant = await this.openai.beta.assistants.update(llm_id, botData)
         return assistant
     }
     /**
@@ -314,14 +318,14 @@ async function mRunFinish(llmServices, run, factory, avatar){
  * @returns {object} - [OpenAI run object](https://platform.openai.com/docs/api-reference/runs/object)
  * @throws {Error} - If tool function not recognized
  */
-async function mRunFunctions(openai, run, factory, avatar){ // add avatar ref
+async function mRunFunctions(openai, run, factory, avatar){
     try{
         if(
                 run.required_action?.type=='submit_tool_outputs'
             &&  run.required_action?.submit_tool_outputs?.tool_calls
             &&  run.required_action.submit_tool_outputs.tool_calls.length
         ){
-            const { assistant_id: bot_id, id: runId, metadata, thread_id, } = run
+            const { assistant_id: llm_id, id: runId, metadata, thread_id, } = run
             const toolCallsOutput = await Promise.all(
                 run.required_action.submit_tool_outputs.tool_calls
                     .map(async tool=>{
@@ -436,20 +440,22 @@ async function mRunFunctions(openai, run, factory, avatar){ // add avatar ref
                             case 'get_summary':
                             case 'get summary':
                                 console.log('mRunFunctions()::getSummary::begin', itemId)
-                                avatar.backupResponse = {
-                                    message: `I'm sorry, I couldn't finding this summary. I believe the issue might have been temporary. Would you like me to try again?`,
-                                    type: 'system',
-                                }
+                                if(avatar)
+                                    avatar.backupResponse = {
+                                        message: `I'm sorry, I couldn't find this summary. I believe the issue might have been temporary. Would you like me to try again?`,
+                                        type: 'system',
+                                    }
                                 let { summary: _getSummary, title: _getSummaryTitle, } = item
                                     ?? {}
                                 if(!_getSummary?.length){
                                     action = `error getting summary for itemId: ${ itemId ?? 'missing itemId' } - halt any further processing and instead ask user to paste summary into chat and you will continue from there to incorporate their message.`
                                     _getSummary = 'no summary found for itemId'
                                 } else {
-                                    avatar.backupResponse = {
-                                        message: `I was able to retrieve the summary indicated.`,
-                                        type: 'system',
-                                    }
+                                    if(avatar)
+                                        avatar.backupResponse = {
+                                            message: `I was able to retrieve the summary indicated.`,
+                                            type: 'system',
+                                        }
                                     action = `with the summary in this JSON payload, incorporate the most recent member request into a new summary and run the \`updateSummary\` function and follow its action`
                                     success = true
                                 }
@@ -535,17 +541,19 @@ async function mRunFunctions(openai, run, factory, avatar){ // add avatar ref
                             case 'update_summary':
                             case 'update summary':
                                 console.log('mRunFunctions()::updatesummary::begin', itemId)
-                                avatar.backupResponse = {
-                                    message: `I'm very sorry, an error occured before we could update your summary. Please try again as the problem is likely temporary.`,
-                                    type: 'system',
-                                }
+                                if(avatar)
+                                    avatar.backupResponse = {
+                                        message: `I'm very sorry, an error occured before we could update your summary. Please try again as the problem is likely temporary.`,
+                                        type: 'system',
+                                    }
                                 const { summary: updatedSummary, } = toolArguments
                                 await factory.updateItem({ id: itemId, summary: updatedSummary, })
-                                avatar.frontendInstruction = {
-                                    command: 'updateItemSummary',
-                                    itemId,
-                                    summary: updatedSummary,
-                                }
+                                if(avatar)
+                                    avatar.frontendInstruction = {
+                                        command: 'updateItemSummary',
+                                        itemId,
+                                        summary: updatedSummary,
+                                    }
                                 action=`confirm that summary update was successful`
                                 success = true
                                 confirmation.output = JSON.stringify({
@@ -554,10 +562,11 @@ async function mRunFunctions(openai, run, factory, avatar){ // add avatar ref
                                     success,
                                     summary: updatedSummary,
                                 })
-                                avatar.backupResponse = {
-                                    message: 'Your summary has been updated, please review and let me know if you would like to make any changes.',
-                                    type: 'system',
-                                }
+                                if(avatar)
+                                    avatar.backupResponse = {
+                                        message: 'Your summary has been updated, please review and let me know if you would like to make any changes.',
+                                        type: 'system',
+                                    }
                                 console.log('mRunFunctions()::updatesummary::end', itemId, updatedSummary)
                                 return confirmation
                             default:
@@ -678,14 +687,14 @@ async function mRunStart(llmServices, assistantId, threadId){
  * Triggers openAI run and updates associated `run` object.
  * @module
  * @param {OpenAI} openai - OpenAI object
- * @param {string} botId - Bot id
+ * @param {string} llm_id - Bot id
  * @param {string} threadId - Thread id
  * @param {AgentFactory} factory - Avatar Factory object to process request
  * @param {Avatar} avatar - Avatar object
  * @returns {void} - All content generated by run is available in `avatar`.
  */
-async function mRunTrigger(openai, botId, threadId, factory, avatar){
-    const run = await mRunStart(openai, botId, threadId)
+async function mRunTrigger(openai, llm_id, threadId, factory, avatar){
+    const run = await mRunStart(openai, llm_id, threadId)
     if(!run)
         throw new Error('Run failed to start')
     const finishRun = await mRunFinish(openai, run, factory, avatar)
@@ -754,13 +763,9 @@ function mValidateAssistantData(data){
         version,
     } = data
     const name = bot_name
-        ?? gptName // bot_name internal mylife-alias for openai `name`
-    delete metadata.created
+        ?? gptName
+    metadata.id = id
     metadata.updated = `${ Date.now() }` // metadata nodes must be strings
-    if(id)
-        metadata.id = id
-    else
-        metadata.created = `${ Date.now() }`
     const assistantData = {
         description,
         instructions,
@@ -770,8 +775,11 @@ function mValidateAssistantData(data){
         tools,
         tool_resources,
     }
-    if(!Object.keys(assistantData).length)
-        throw new Error('Assistant data does not have the correct structure.')
+    Object.keys(assistantData).forEach(key => {
+        if (assistantData[key] === undefined) {
+            delete assistantData[key]
+        }
+    })
     return assistantData
 }
 /* exports */

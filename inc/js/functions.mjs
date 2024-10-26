@@ -1,5 +1,4 @@
 /* imports */
-import oAIAssetAssistant from './agents/system/asset-assistant.mjs'
 import {
 	upload as apiUpload,
 } from './api-functions.mjs'
@@ -19,7 +18,12 @@ async function about(ctx){
 function activateBot(ctx){
 	const { avatar, } = ctx.state
 	avatar.activeBotId = ctx.params.bid
-	ctx.body = { activeBotId: avatar.activeBotId }
+	const { activeBotId, activeBotVersion, activeBotNewestVersion, } = avatar
+	ctx.body = {
+		activeBotId,
+		activeBotVersion,
+		version: activeBotNewestVersion,
+	}
 }
 async function alerts(ctx){
 	// @todo: put into ctx the _type_ of alert to return, system use dataservices, member use personal
@@ -31,11 +35,16 @@ async function alerts(ctx){
 	}
 }
 async function bots(ctx){
-	const { bid, } = ctx.params // botId sent in url path
+	const { bid, } = ctx.params // bot_id sent in url path
 	const { avatar } = ctx.state
-	const bot = ctx.request.body ?? {}
-	const { id, } = bot
+	const bot = ctx.request.body
+		?? {}
 	switch(ctx.method){
+		case 'DELETE': // retire bot
+			if(!ctx.Globals.isValidGuid(bid))
+				ctx.throw(400, `missing bot id`)
+			ctx.body = await avatar.retireBot(bid)
+			break
 		case 'POST': // create new bot
 			ctx.body = await avatar.createBot(bot)
 			break
@@ -45,18 +54,13 @@ async function bots(ctx){
 		case 'GET':
 		default:
 			if(bid?.length){ // specific bot
-				ctx.body = await avatar.bot(ctx.params.bid)
+				ctx.body = await avatar.getBot(ctx.params.bid)
 			} else {
-				const {
-					activeBotId,
-					bots: awaitBots,  // **note**: bots needs await
-					mbr_id,
-				} = avatar
-				const bots = await awaitBots
+				const { activeBotId, } = avatar
+				const bots = await avatar.getBots()
 				ctx.body = { // wrap bots
 					activeBotId,
 					bots,
-					mbr_id,
 				}
 			}
 			break
@@ -94,25 +98,24 @@ async function challenge(ctx){
 	ctx.body = !MemberSession.locked
 }
 /**
- * Chat with the member's avatar.
- * @todo - deprecate threadId in favor of thread_id
+ * Chat with the Member or System Avatar's intelligence.
  * @param {Koa} ctx - Koa Context object
  * @returns {object} - The response from the chat in `ctx.body`
  * @property {object} instruction - Instructionset for the frontend to execute (optional)
  * @property {Object[]} responses - Response messages from Avatar intelligence
  */
 async function chat(ctx){
-	const { botId, itemId, message, shadowId, } = ctx.request.body ?? {} /* body nodes sent by fe */
+	const { botId: bot_id, itemId, message, } = ctx.request.body
+		?? {} /* body nodes sent by fe */
 	if(!message?.length)
 			ctx.throw(400, 'missing `message` content')
-	const { avatar, MemberSession, } = ctx.state
-	const { isMyLife, thread_id, } = MemberSession
-	let conversation
-	if(isMyLife && !thread_id?.length){
-		conversation = await avatar.createConversation('system', undefined, botId, true) // pushes to this.#conversations in Avatar
-		MemberSession.thread_id = conversation.thread_id
-	}
-	const response = await avatar.chat(message, botId, MemberSession.thread_id, itemId, shadowId, conversation)
+	const { avatar, } = ctx.state
+	const session = avatar.isMyLife
+		? ctx.session.MemberSession
+		: null
+	if(bot_id?.length && bot_id!==avatar.activeBotId)
+		throw new Error(`Bot ${ bot_id } not currently active; chat() requires active bot`)
+	const response = await avatar.chat(message, itemId, session)
 	ctx.body = response
 }
 async function collections(ctx){
@@ -157,7 +160,7 @@ async function greetings(ctx){
 	if(validateId?.length)
 		response.messages.push(...await avatar.validateRegistration(validateId))
 	else
-		response.messages.push(...await avatar.getGreeting(dynamic))
+		response.messages.push(...await avatar.greeting(dynamic))
 	response.success = response.messages.length > 0
 	ctx.body = response
 }
@@ -244,9 +247,9 @@ async function migrateBot(ctx){
 	ctx.body = await avatar.migrateBot(bid)
 }
 async function migrateChat(ctx){
-	const { tid, } = ctx.params
+	const { bid, } = ctx.params
 	const { avatar, } = ctx.state
-	ctx.body = await avatar.migrateChat(tid)
+	ctx.body = await avatar.migrateChat(bid)
 }
 /**
  * Given an itemId, obscures aspects of contents of the data record.
@@ -286,23 +289,19 @@ async function privacyPolicy(ctx){
  * @param {Koa} ctx - Koa Context object
  */
 async function retireBot(ctx){
-	const { avatar, } = ctx.state
-	const { bid, } = ctx.params // bot id
-	if(!ctx.Globals.isValidGuid(bid))
-		ctx.throw(400, `missing bot id`)
-	const response = await avatar.retireBot(bid)
-	ctx.body = response
+	ctx.method = 'DELETE'
+	return await this.bots(ctx)
 }
 /**
- * Direct request from member to retire a conversation/chat/thread.
+ * Direct request from member to retire a chat (via bot).
  * @param {Koa} ctx - Koa Context object
  */
 async function retireChat(ctx){
 	const { avatar, } = ctx.state
-	const { tid, } = ctx.params // thread_id
-	if(!tid?.length)
-		ctx.throw(400, `missing thread id`)
-	const response = await avatar.retireChat(tid)
+	const { bid, } = ctx.params
+	if(!bid?.length)
+		ctx.throw(400, `missing bot id`)
+	const response = await avatar.retireChat(bid)
 	ctx.body = response
 }
 /**
@@ -384,18 +383,20 @@ async function team(ctx){
  * @param {Koa} ctx - Koa Context object.
  * @returns {Object[]} - List of team objects.
  */
-function teams(ctx){
+async function teams(ctx){
 	const { avatar, } = ctx.state
-	ctx.body = avatar.teams()
+	ctx.body = await avatar.teams()
 }
 async function updateBotInstructions(ctx){
-	const { botId, } = ctx.request.body
+	const { bid, } = ctx.params
+	if(!bid?.length)
+		ctx.throw(400, `missing bot id`)
 	const { avatar, } = ctx.state
-	let success = false
-	const bot = await avatar.updateBot(botId, { instructions: true, model: true, tools: true, })
-	if(bot)
-		success = true
-	ctx.body = { bot, success, }
+	const bot = await avatar.updateBotInstructions(bid)
+	ctx.body = {
+		bot,
+		success: !!bot,
+	}
 }
 /**
  * Proxy for uploading files to the API.

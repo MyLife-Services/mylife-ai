@@ -249,12 +249,15 @@ class Dataservices {
      * @returns {array} - The collection items with no wrapper.
      */
 	async collections(type){
-		if(type==='experience') // corrections
+		/* validate request */
+		if(type==='experience')
 			type = 'lived-experience'
-		if(type?.length && this.#collectionTypes.includes(type))
-			return await this.getItems(type)
-		else
-			return Promise.all([
+		if(type==='memory')
+			type = 'story'
+		/* execute request */
+		const response = type?.length && this.#collectionTypes.includes(type)
+			? await this.getItems(type)
+			: await Promise.all([
 				this.collectionConversations(),
 				this.collectionEntries(),
 				this.collectionLivedExperiences(),
@@ -272,6 +275,8 @@ class Dataservices {
 					console.log('mylife-data-service::collections() error', err)
 					return []
 				})
+		/* respond request */
+		return response
 	}
 	/**
 	 * Creates a new bot in the database.
@@ -283,14 +288,11 @@ class Dataservices {
 		const { id, type, } = bot
 		if(!type?.length)
 			throw new Error('ERROR::createBot::Bot `type` required.')
-		if(!id?.length)
+		if(!this.globals.isValidGuid(id))
 			bot.id = this.globals.newGuid
-		bot.being = 'bot' // no mods
+		bot.being = 'bot'
 		/* create bot */
 		return await this.pushItem(bot)
-	}
-	async datacore(mbr_id){
-		return await this.getItem(mbr_id)
 	}
     /**
      * Delete an item from member container.
@@ -306,9 +308,7 @@ class Dataservices {
 		let success=false
 		if(bSuppressError){
 			try{
-				const response = await this.datamanager.deleteItem(id)
-				console.log('mylife-data-service::deleteItem() response', response)
-				success = response?.id===id
+				success = await this.datamanager.deleteItem(id)
 			} catch(err){
 				console.log('mylife-data-service::deleteItem() ERROR', err.code) // NotFound
 			}
@@ -444,16 +444,16 @@ class Dataservices {
 	 * @async
 	 * @public
 	 * @param {string} being 
-	 * @param {string} _field - Field name to match.
-	 * @param {string} _value - Value to match.
+	 * @param {string} field - Field name to match.
+	 * @param {string} value - Value to match.
 	 * @param {string} container_id - The container name to use, overriding default.
 	 * @param {string} _mbr_id - The member id to use, overriding default.
 	 * @returns {Promise<object>} An object (initial of arrau) matching the query parameters.
 	 */
-	async getItemByField(being, _field, _value, container_id, _mbr_id=this.mbr_id){
+	async getItemByField(being, field, value, container_id, _mbr_id=this.mbr_id){
 		const _item =  await this.getItemByFields(
 			being,
-			[{ name: `@${_field}`, value: _value }],
+			[{ name: `@${field}`, value: value }],
 			container_id,
 			_mbr_id,
 		)
@@ -464,15 +464,15 @@ class Dataservices {
 	 * @async
 	 * @public
 	 * @param {string} being 
-	 * @param {array} _fields - Array of name/value pairs to select, format: [{name: `@${_field}`, value: _value}],
+	 * @param {array} fields - Array of name/value pairs to select, format: [{name: `@${field}`, value: value}],
 	 * @param {string} container_id - The container name to use, overriding default.
 	 * @param {string} _mbr_id - The member id to use, overriding default.
 	 * @returns {Promise<object>} An object (initial of arrau) matching the query parameters.
 	 */
-	async getItemByFields(being, _fields, container_id, _mbr_id=this.mbr_id){
+	async getItemByFields(being, fields, container_id, _mbr_id=this.mbr_id){
 		const _items =  await this.getItemsByFields(
 			being,
-			_fields,
+			fields,
 			container_id,
 			_mbr_id,
 		)
@@ -523,16 +523,16 @@ class Dataservices {
 	 * @async
 	 * @public
 	 * @param {string} being - The type of items to retrieve.
-	 * @param {array} _fields - Array of name/value pairs to select, format: [{name: `@${_field}`, value: _value}],
+	 * @param {array} fields - Array of name/value pairs to select, format: [{name: `@${field}`, value: value}],
 	 * @param {string} container_id - The container name to use, overriding default.
 	 * @param {string} _mbr_id - The member id to use, overriding default.
 	 * @returns {Promise<Array>} An array of items matching the query parameters.
 	 */
-	async getItemsByFields(being, _fields, container_id, _mbr_id=this.mbr_id){
+	async getItemsByFields(being, fields, container_id, _mbr_id=this.mbr_id){
 		const _items =  await this.getItems(
 			being, 
 			undefined,
-			_fields, 
+			fields, 
 			container_id,
 			_mbr_id,
 		)
@@ -580,7 +580,7 @@ class Dataservices {
 	 * @returns {Promise<Object>} The result of the patch operation.
 	 */
 	async patchItem(id, data){ // path Embedded in data
-		return await this.datamanager.patchItem(id , data)
+		return await this.datamanager.patchItem(id, data)
 	}
     /**
      * Pushes a new item to the data manager
@@ -649,15 +649,18 @@ class Dataservices {
 		return await this.datamanager.testPartitionKey(mbr_id)
 	}
 	/**
-	 * Sets a bot in the database. Performs logic to reduce the bot to the minimum required data, as Mongo/Cosmos has a limitation of 10 patch items in one batch array.
-	 * @param {object} bot - The bot object to set.
-	 * @returns {object} - The bot object.
+	 * Sets a bot in the database.
+	 * @param {object} botData - The bot data to update
+	 * @returns {object} - The bot document
 	 */
-	async updateBot(bot){
-		const { id, type: discardType, ...botUpdates } = bot
-		if(!Object.keys(botUpdates))
-			return bot
-		return await this.patch(bot.id, botUpdates)
+	async updateBot(botData){
+		const { id, type: discardType='avatar', ...updateBotData } = botData
+		if(!Object.keys(updateBotData).length)
+			return botData
+		if(updateBotData.bot_name?.length)
+			updateBotData.name = `bot_${ discardType }_${ updateBotData.bot_name }_${ id }`
+		botData = await this.patch(id, updateBotData)
+		return botData
 	}
 	/**
 	 * Returns the registration record by Id.

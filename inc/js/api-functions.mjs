@@ -148,6 +148,7 @@ async function keyValidation(ctx){
     ctx.status = 200 // OK
     if(ctx.method === 'HEAD') return
     const { mbr_id } = ctx.state
+    // @todo - may not reflect data core any longer
     const memberCore = await ctx.MyLife.datacore(mbr_id)
     const { updates, interests, birth: memberBirth, birthDate: memberBirthDate, fullName, names, nickname } = memberCore
     const birth = (Array.isArray(memberBirth) && memberBirth.length)

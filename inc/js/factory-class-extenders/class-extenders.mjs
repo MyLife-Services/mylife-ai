@@ -1,8 +1,3 @@
-import { EventEmitter } from 'events'
-import {
-    mGetQuestions,
-    mUpdateContribution,
-} from './class-contribution-functions.mjs'
 import {
     mSaveConversation,
 } from './class-conversation-functions.mjs'
@@ -38,113 +33,44 @@ function extendClass_consent(originClass, referencesObject) {
     return Consent
 }
 /**
- * Extends the `Contribution` class.
- * @param {*} originClass - The class to extend.
- * @param {Object} referencesObject - The references to extend the class with, factory, llm, etc.
- * @returns {Contribution} - The `Contribution` extended class definition.
- */
-function extendClass_contribution(originClass, referencesObject) {
-    class Contribution extends originClass {
-        #emitter = new EventEmitter()
-        #factory
-        #llm = referencesObject?.openai
-        constructor(_obj) {
-            super(_obj)
-        }
-        /* public functions */
-        /**
-         * Initialize a contribution.
-         * @async
-         * @public
-         * @param {object} _factory - The factory instance.
-         */
-        async init(_factory){
-            this.#factory = _factory
-            this.request.questions = await mGetQuestions(this, this.#llm) // generate question(s) from cosmos or openAI
-            this.id = this.factory.newGuid
-            this.status = 'prepared'
-            this.emit('on-contribution-new',this)
-            return this
-        }
-        async allow(_request){
-            //	todo: evolve in near future, but is currently only a pass-through with some basic structure alluding to future functionality
-            return true
-        }
-        /**
-         * Convenience proxy for emitter.
-         * @param {string} _eventName - The event to emit.
-         * @param {any} - The event(s) to emit.
-         * @returns {void}
-         */
-        emit(_eventName, ...args){
-            this.#emitter.emit(_eventName, ...args)
-        }
-        /**
-         * Convenience proxy for listener.
-         * @param {string} _eventName - The event to emit.
-         * @param {function} _listener - The event listener functionality.
-         * @returns {void}
-         */
-        on(_eventName, _listener){
-            this.#emitter.on(_eventName, _listener)
-        }
-        /**
-         * Updates `this` with incoming contribution data.
-         * @param {object} _contribution - Contribution data to incorporate 
-         * @returns {void}
-         */
-        update(_contribution){
-            mUpdateContribution(this, _contribution) // directly modifies `this`, no return
-        }
-        /*  getters/setters */
-        /**
-         * Get the factory instance.
-         * @returns {object} MyLife Factory instance
-         */
-        get factory(){
-            return this.#factory
-        }
-        get memberView(){
-            return this.inspect(true)
-        }
-        get openai(){
-            return this.#llm
-        }
-        get questions(){
-            return this?.questions??[]
-        }
-        /* private functions */
-    }
-    return Contribution
-}
-/**
  * Extends the `Conversation` class.
  * @param {*} originClass - The class to extend.
  * @param {Object} referencesObject - The references to extend the class with, factory, llm, etc.
  * @returns {Conversation} - The `Conversation` extended class definition.
  */
-function extendClass_conversation(originClass, referencesObject) {
+function extendClass_conversation(originClass, referencesObject){
     class Conversation extends originClass {
+        #bot_id
         #factory
+        #id
+        #llm_id
         #messages = []
+        #run_id
+        #runs = new Set()
         #saved = false
         #thread
         #threads = new Set()
         /**
-         * 
-         * @param {Object} obj - The object to construct the conversation from.
-         * @param {AgentFactory} factory - The factory instance.
-         * @param {Object} thread - The thread instance.
-         * @param {Guid} bot_id - The initial active bot id (can mutate)
+         * Constructor for Conversation class.
+         * @param {Object} obj - Data object for construction
+         * @param {AgentFactory} factory - The factory instance
+         * @param {Guid} bot_id - The initial active bot MyLife `id`
+         * @param {String} llm_id - The initial active LLM `id`
+         * @param {Object} thread - The related thread instance
+         * @returns {Conversation} - The constructed conversation instance
          */
-        constructor(obj, factory, thread, bot_id){
+        constructor(obj, factory, bot_id, llm_id, thread){
             super(obj)
             this.#factory = factory
             this.#thread = thread
-            this.bot_id = bot_id
+            this.#id = this.#factory.newGuid
+            if(factory.globals.isValidGuid(bot_id))
+                this.#bot_id = bot_id
+            if(llm_id?.length)
+                this.#llm_id = llm_id
             this.form = this.form
-                ?? 'system'
-            this.name = `conversation_${this.#factory.mbr_id}`
+                ?? 'system-avatar'
+            this.name = `conversation_${ this.#factory.mbr_id }`
             this.type = this.type
                 ?? 'chat'
         }
@@ -174,10 +100,19 @@ function extendClass_conversation(originClass, referencesObject) {
          * @returns {Object[]} - The updated messages array.
          */
         addMessages(messages){
-            messages
-                .sort((mA, mB) => mA.created_at - mB.created_at)
-                .forEach(message => this.addMessage(message))
+            messages.forEach(message => this.addMessage(message))
             return this.messages
+        }
+        /**
+         * Adds a run/execution/receipt id to the conversation archive.
+         * @param {String} run_id - The run id to add
+         * @returns {void}
+         */
+        addRun(run_id){
+            if(run_id?.length){
+                this.#runs.add(run_id)
+                this.#run_id = run_id
+            }
         }
         /**
          * Adds a thread id to the conversation archive
@@ -190,13 +125,30 @@ function extendClass_conversation(originClass, referencesObject) {
         /**
          * Get the message by id, or defaults to last message added.
          * @public
-         * @param {Guid} messageId - The message id.
-         * @returns {object} - The openai `message` object.
+         * @param {Guid} messageId - The message id
+         * @returns {Message} - The `Message` instance
          */
-        async getMessage(messageId){
-            return messageId && this.messages?.[0]?.id!==messageId
-                ? this.messages.find(message=>message.id===messageId)
+        getMessage(messageId){
+            const Message = messageId?.length
+                ? this.getMessages().find(message=>message.id===messageId)
                 : this.message
+            return Message
+        }
+        /**
+         * Get the messages for the conversation.
+         * @public
+         * @param {boolean} agentOnly - Whether or not to get only agent messages
+         * @param {string} run_id - The run id to get messages for
+         * @param {string} thread_id - The thread id to get messages for (optional)
+         * @returns {Message[]} - The messages array
+         */
+        getMessages(agentOnly=true, run_id=this.run_id, thread_id){
+            let messages = thread_id?.length
+                ? this.#messages.filter(message=>message.thread_id===thread_id)
+                : this.#messages.filter(message=>message.run_id===run_id)
+            if(agentOnly)
+                messages = messages.filter(message => ['member', 'user'].indexOf(message.role) < 0)
+            return messages
         }
         /**
          * Removes a thread id from the conversation archive
@@ -206,6 +158,11 @@ function extendClass_conversation(originClass, referencesObject) {
         removeThread(thread_id){
             this.#threads.delete(thread_id)
         }
+        /**
+         * Sets the thread instance for the conversation.
+         * @param {object} thread - The thread instance
+         * @returns {void}
+         */
         setThread(thread){
             const { id: thread_id, } = thread
             if(thread_id?.length && thread_id!=this.thread_id){
@@ -213,38 +170,66 @@ function extendClass_conversation(originClass, referencesObject) {
                 this.#thread = thread
             }
         }
+        /**
+         * Saves the conversation to the MyLife Database.
+         * @async
+         * @returns {void}
+         */
         async save(){
-            if(!this.isSaved) // create new MyLife conversation
-                await mSaveConversation(this.#factory, this)
-            // @todo: no need to await
-            const messages = this.messages.map(_msg=>_msg.micro)
-            const dataUpdate = await this.#factory.dataservices.patch(
-                this.id,
-                { messages, }
-            )
-            this.#saved = true
-            return this
+            this.#saved = await mSaveConversation(this, this.#factory)
         }
         //  public getters/setters
         /**
-         * Get the id {Guid} of the conversation's bot.
+         * Get the id {Guid} of the conversation's active bot.
          * @getter
          * @returns {Guid} - The bot id.
          */
-        get botId(){
-            return this.bot_id
+        get bot_id(){
+            return this.#bot_id
         }
         /**
-         * Set the id {Guid} of the conversation's bot.
+         * Set the id {Guid} of the conversation's active bot.
          * @setter
          * @param {Guid} bot_id - The bot id.
          * @returns {void}
          */
-        set botId(bot_id){
-            this.bot_id = bot_id
+        set bot_id(bot_id){
+            if(!this.#factory.globals.isValidGuid(bot_id))
+                throw new Error(`Invalid bot_id: ${ bot_id }`)
+            this.#bot_id = bot_id
         }
+        /**
+         * Get the generated Guid `id` of the Conversation instance.
+         * @getter
+         * @returns {Guid} - The conversation id
+         */
+        get id(){
+            return this.#id
+        }
+        /**
+         * Whether or not the conversation has _ever_ been saved.
+         * @getter
+         * @returns {boolean} - Whether or not the conversation has _ever_ been saved
+         */
         get isSaved(){
             return this.#saved
+        }
+        /**
+         * Get the `id` {String} of the conversation's active LLM.
+         * @getter
+         * @returns {String} - The llm id
+         */
+        get llm_id(){
+            return this.#llm_id
+        }
+        /**
+         * Sets the `id` {String} of the conversation's active LLM.
+         * @getter
+         * @returns {String} - The llm id
+         */
+        set llm_id(llm_id){
+            if(!llm_id?.length)
+                this.#llm_id = llm_id
         }
         /**
          * Get the most recently added message.
@@ -264,6 +249,9 @@ function extendClass_conversation(originClass, referencesObject) {
          */
         get mostRecentDialog(){
             return this.message.content
+        }
+        get run_id(){
+            return this.#run_id
         }
         get thread(){
             return this.#thread
@@ -462,8 +450,19 @@ function extendClass_message(originClass, referencesObject) {
         get message(){
             return this
         }
+        /**
+         * Get the message in micro format for storage.
+         * @returns {object} - The message in micro format
+         */
         get micro(){
-            return { content: this.content, role: this.role ?? 'user' }
+            return {
+                content: this.content,
+                created_at: this.created_at
+                    ?? Date.now(),
+                id: this.id,
+                role: this.role
+                    ?? 'system'
+            }
         }
     }
     return Message
@@ -471,7 +470,6 @@ function extendClass_message(originClass, referencesObject) {
 /* exports */
 export {
 	extendClass_consent,
-    extendClass_contribution,
     extendClass_conversation,
     extendClass_experience,
     extendClass_file,

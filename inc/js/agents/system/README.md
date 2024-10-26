@@ -2,11 +2,15 @@
 
 The MyLife system incorporates a suite of specialized assistants, each designed to augment various aspects of the avatars within the platform. These assistants follow consistent coding protocols and are currently intended exclusively for integration with avatars, enhancing their functionality and interactivity.
 
-- **Asset-Assistant (File Handler)**: This assistant manages file-related operations, ensuring efficient handling, storage, and retrieval of files within the system. It acts as a central hub for file management tasks, streamlining the process of dealing with various file formats and data types.
+- **Asset-Agent**: (File Handler) This agent manages file-related operations, ensuring efficient handling, storage, and retrieval of files within the system. It acts as a central hub for file management tasks, streamlining the process of dealing with various file formats and data types.
 
-- **Evolution-Assistant**: Central to the avatar's developmental journey, the Evolution Assistant orchestrates the growth and maturation of avatars. It guides avatars through different phases of evolution, from creation to retirement, tailoring the development process according to the avatar's specific needs and contexts.
+- **Bot-Agent**: (Bot Handler) One of the most fundamental agents available, represents an object that manages the menagerie of Bots allocated to the current member's team. Also manages Teams.
+
+- **Collections-Agent**: (Lists Handler) This agent manages collections for mass operations.
 
 - **DOM-Assistant**: The Document Object Model (DOM) Assistant is pivotal in managing and manipulating the structure of data and documents within the system. It plays a key role in ensuring the data is organized and accessible in a way that is both efficient and intuitive.
+
+- **Evolution-Assistant**: Central to the avatar's developmental journey, the Evolution Assistant orchestrates the growth and maturation of avatars. It guides avatars through different phases of evolution, from creation to retirement, tailoring the development process according to the avatar's specific needs and contexts.
 
 - **Preferences-Assistant**: This assistant is dedicated to personalizing user experiences by managing and adapting to user preferences. It ensures that avatars can cater to individual tastes and requirements, making interactions more tailored and relevant.
 
