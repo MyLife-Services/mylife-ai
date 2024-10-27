@@ -702,16 +702,6 @@ class Avatar extends EventEmitter {
             success: true,
         }
     }
-    /**
-     * Validate registration id.
-     * @todo - move to MyLife only avatar variant.
-     * @param {Guid} validationId - The registration id.
-     * @returns {Promise<Object[]>} - Array of system messages.
-     */
-    async validateRegistration(validationId){
-        const { messages, registrationData, success, } = await mValidateRegistration(this.activeBot, this.#factory, validationId)
-        return messages
-    }
     /* getters/setters */
     /**
      * Get the active bot. If no active bot, return this as default chat engine.
@@ -1330,6 +1320,16 @@ class Q extends Avatar {
         }
         return this.#hostedMembers
     }
+    /**
+     * Validate registration id.
+     * @param {Guid} validationId - The registration id
+     * @returns {Promise<Object>} - Response object: { error, instruction, registrationData, responses, success, }
+     */
+    async validateRegistration(validationId){
+        const Bot = this.avatar
+        const response = await mValidateRegistration(Bot.id, this.#factory, validationId)
+        return response
+    }
     /* getters/setters */
     /**
      * Get the "avatar's" being, or more precisely the name of the being (affiliated object) the evatar is emulating.
@@ -1434,15 +1434,22 @@ async function mCast(factory, cast){
     }))
     return cast
 }
-function mCreateSystemMessage(activeBot, message, factory){
-    if(!(message instanceof factory.message)){
-        const { id: bot_id, thread_id, } = activeBot
-        const content = message?.content ?? message?.message ?? message
-        message = new (factory.message)({
+/**
+ * Creates frontend system message from message String/Object.
+ * @param {Guid} bot_id - The bot id
+ * @param {String|Message} message - The message to be pruned
+ * @param {*} factory 
+ * @returns 
+ */
+function mCreateSystemMessage(bot_id, message, messageClassDefinition){
+    if(!(message instanceof messageClassDefinition)){
+        const content = message?.content
+            ?? message?.message
+            ?? message
+        message = new messageClassDefinition({
             being: 'message',
             content,
             role: 'assistant',
-            thread_id,
             type: 'system'
         })
     }
@@ -2159,39 +2166,48 @@ function mValidateMode(_requestedMode, _currentMode){
 /**
  * Validate provided registration id.
  * @private
- * @param {object} activeBot - The active bot object.
+ * @param {object} bot_id - The active bot object.
  * @param {AgentFactory} factory - AgentFactory object.
  * @param {Guid} validationId - The registration id.
- * @returns {Promise<object>} - The validation result: { messages, success, }.
+ * @returns {Promise<Object>} - The validation result: { registrationData, responses, success, }.
  */
-async function mValidateRegistration(activeBot, factory, validationId){
-    /* validate structure */
+async function mValidateRegistration(bot_id, factory, validationId){
+    /* validate request */
     if(!factory.globals.isValidGuid(validationId))
         throw new Error('FAILURE::validateRegistration()::Invalid validation id.')
-    /* validate validationId */
-    let message,
-        registrationData = { id: validationId },
-        success = false
-    const registration = await factory.validateRegistration(validationId)
-    const messages = []
     const failureMessage = `I\'m sorry, but I\'m currently unable to validate your registration id:<br />${ validationId }.<br />I\'d be happy to talk with you more about MyLife, but you may need to contact member support to resolve this issue.`
-    /* determine eligibility */
+    if(!factory.isMyLife)
+        throw new Error('FAILURE::validateRegistration()::Registration can only be validated by MyLife.')
+    let message,
+        registrationData = {
+            id: validationId
+        },
+        success = false
+    const responses = []
+    /* execute request */
+    const registration = await factory.validateRegistration(validationId)
     if(registration){
         const { avatarName, being, email: registrationEmail, humanName, } = registration
         const eligible = being==='registration'
             && factory.globals.isValidEmail(registrationEmail)
         if(eligible){
             const successMessage = `Hello and _thank you_ for your registration, ${ humanName }!\nI'm Q, the ai-representative for MyLife, and I'm excited to help you get started, so let's do the following:\n1. Verify your email address\n2. set up your account\n3. get you started with your first MyLife experience!\n<br />\n<br />Let me walk you through the process.<br />In the chat below, please enter the email you registered with and hit the <b>submit</b> button!`
-            message = mCreateSystemMessage(activeBot, successMessage, factory)
-            registrationData.avatarName = avatarName ?? humanName ?? 'My AI-Agent'
+            message = mCreateSystemMessage(bot_id, successMessage, factory.message)
+            registrationData.avatarName = avatarName
+                ?? humanName
+                ?? 'My AI-Agent'
             registrationData.humanName = humanName
             success = true
         }
     }
-    if(!message)
-        message = mCreateSystemMessage(activeBot, failureMessage, factory)
-    messages.push(message)
-    return { registrationData, messages, success, }
+    message = message
+        ?? mCreateSystemMessage(bot_id, failureMessage, factory.message)
+    responses.push(message)
+    return {
+        registrationData,
+        responses,
+        success,
+    }
 }
 /* exports */
 export {

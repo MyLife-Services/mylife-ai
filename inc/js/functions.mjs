@@ -155,13 +155,10 @@ async function greetings(ctx){
 	let { dyn: dynamic, } = ctx.request.query
 	if(typeof dynamic==='string')
 		dynamic = JSON.parse(dynamic)
-	const { avatar, } = ctx.state
-	let response = { success: false, messages: [], }
-	if(validateId?.length)
-		response.messages.push(...await avatar.validateRegistration(validateId))
-	else
-		response.messages.push(...await avatar.greeting(dynamic))
-	response.success = response.messages.length > 0
+	const { avatar: Avatar, } = ctx.state
+	const response = validateId?.length
+		? await Avatar.validateRegistration(validateId)
+		: await Avatar.greetings(dynamic)
 	ctx.body = response
 }
 /**

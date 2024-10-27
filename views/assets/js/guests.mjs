@@ -194,8 +194,8 @@ async function mFetchGreetings(dynamic=false){
         + query
     try {
         const response = await fetch(url)
-        const { messages, success, } = await response.json()
-        return messages
+        const { responses, success, } = await response.json()
+        return responses
     } catch(error) {
         return [`Error: ${ error.message }`, `Please try again. If this persists, check back with me later or contact support.`]
     }
