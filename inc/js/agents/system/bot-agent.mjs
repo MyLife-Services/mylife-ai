@@ -2,7 +2,8 @@
 const mBot_idOverride = process.env.OPENAI_MAHT_GPT_OVERRIDE
 const mDefaultBotTypeArray = ['personal-avatar', 'avatar']
 const mDefaultBotType = mDefaultBotTypeArray[0]
-const mDefaultGreetings = []
+const mDefaultGreeting = 'Hello! If you need to know how to get started, just ask!'
+const mDefaultGreetings = ['Welcome to MyLife! I am here to help you!']
 const mDefaultTeam = 'memory'
 const mRequiredBotTypes = ['personal-avatar']
 const mTeams = [
@@ -28,16 +29,19 @@ class Bot {
 	#collectionsAgent
 	#conversation
 	#factory
+	#initialGreeting
+	#greetings
 	#instructionNodes = new Set()
 	#llm
+	#type
 	constructor(botData, llm, factory){
-		const { id=factory.newGuid, type=mDefaultBotType, } = botData
 		this.#factory = factory
 		this.#llm = llm
-		botData = this.globals.sanitize(botData)
-		Object.assign(this, botData)
-		this.id = id
-		this.type = type
+		const { greeting=mDefaultGreeting, greetings=mDefaultGreetings, type=mDefaultBotType, ..._botData } = botData
+		this.#greetings = greetings
+		this.#initialGreeting = greeting
+		this.#type = type
+		Object.assign(this, this.globals.sanitize(_botData))
 		switch(type){
 			case 'diary':
 			case 'journal':
@@ -117,13 +121,17 @@ class Bot {
 	/**
 	 * Retrieves a greeting message from the active bot.
 	 * @param {Boolean} dynamic - Whether to use dynamic greetings (`true`) or static (`false`)
-	 * @param {LLMServices} llm - OpenAI object
-	 * @param {AgentFactory} factory - Agent Factory object
-	 * @returns {Array} - The greeting message(s) string array in order of display
+	 * @param {String} greetingPrompt - The prompt for the dynamic greeting
+	 * @returns {String} - The greeting message string
 	 */
-	async getGreeting(dynamic=false, llm, factory){
-		const greetings =  await mBotGreeting(dynamic, this, llm, factory)
-		return greetings
+	async greeting(dynamic=false, greetingPrompt='Greet me and tell me briefly what we did last'){
+		if(!this.llm_id)
+			throw new Error('Bot initialized incorrectly: missing `llm_id` from database')
+		const greetings = dynamic
+			? await mBotGreetings(this.thread_id, this.llm_id, greetingPrompt, this.#llm, this.#factory)
+			: this.greetings
+		const greeting = greetings[Math.floor(Math.random() * greetings.length)]
+		return greeting
 	}
     /**
      * Migrates Conversation from an old thread to a newly-created destination thread, observable in `this.Conversation`.
@@ -199,6 +207,9 @@ class Bot {
 	get globals(){
 		return this.#factory.globals
 	}
+	get greetings(){
+		return this.#greetings
+	}
 	get instructionNodes(){
 		return this.#instructionNodes
 	}
@@ -238,6 +249,9 @@ class Bot {
 			version,
 		}
 		return microBot
+	}
+	get type(){
+		return this.#type
 	}
 }
 /**
@@ -348,11 +362,11 @@ class BotAgent {
     /**
      * Get a static or dynamic greeting from active bot.
      * @param {boolean} dynamic - Whether to use LLM for greeting
-     * @returns {Messages[]} - The greeting message(s) string array in order of display
+     * @returns {String} - The greeting message from the active Bot
      */
     async greeting(dynamic=false){
-        const greetings = await this.activeBot.getGreeting(dynamic, this.#llm, this.#factory)
-        return greetings
+        const greeting = await this.activeBot.greeting(dynamic)
+        return greeting
     }
 	/**
 	 * Begins or continues a living memory conversation.
@@ -414,13 +428,38 @@ class BotAgent {
     }
 	/**
 	 * Sets the active bot for the BotAgent.
+	 * @async
 	 * @param {Guid} bot_id - The Bot id
-	 * @returns {void}
+	 * @param {Boolean} dynamic - Whether to use dynamic greetings, defaults to `false`
+     * @returns {object} - Activated Response object: { bot_id, greeting, success, version, versionUpdate, }
 	 */
-	setActiveBot(bot_id=this.avatar?.id){
+	async setActiveBot(bot_id=this.avatar?.id, dynamic=false){
+		let greeting,
+			success=false,
+			version=0.0,
+			versionUpdate=0.0
 		const Bot = this.#bots.find(bot=>bot.id===bot_id)
-		if(Bot)
-			this.#activeBot = Bot
+		success = !!Bot
+		if(!success)
+			return
+		this.#activeBot = Bot
+		dynamic = dynamic && !this.#factory.isMyLife
+		if(this.#factory.isMyLife)
+			bot_id = null
+		else {
+			const { id, type, version: versionCurrent, } = Bot
+			bot_id = id
+			version = versionCurrent
+			versionUpdate = this.#factory.botInstructionsVersion(type)
+		}
+		greeting = await Bot.greeting(dynamic, `Greet member while thanking them for selecting you`)
+		return {
+			bot_id,
+			greeting,
+			success,
+			version,
+			versionUpdate,
+		}
 	}
 	/**
 	 * Sets the active team for the BotAgent if `teamId` valid.
@@ -566,6 +605,9 @@ class BotAgent {
 	get globals(){
 		return this.#factory.globals
 	}
+	get greetings(){
+		return this.#activeBot.greetings
+	}
 	/**
 	 * Returns whether BotAgent is employed by MyLife (`true`) or Member (`false`).
 	 * @getter
@@ -622,7 +664,7 @@ async function mBotCreate(avatarId, vectorstore_id, botData, llm, factory){
 	const { type, } = botData
 	if(!avatarId?.length || !type?.length)
 		throw new Error('avatar id and type required to create bot')
-	const { instructions, version=1.0, } = mBotInstructions(factory, botData)
+	const { greetings, instructions, version=1.0, } = mBotInstructions(factory, botData)
 	const model = process.env.OPENAI_MODEL_CORE_BOT
 		?? process.env.OPENAI_MODEL_CORE_AVATAR
 		?? 'gpt-4o'
@@ -655,11 +697,11 @@ async function mBotCreate(avatarId, vectorstore_id, botData, llm, factory){
 		version,
 	}
 	/* create in LLM */
-	const { id: bot_id, thread_id, } = await mBotCreateLLM(validBotData, llm)
-	if(!bot_id?.length)
+	const { id: llm_id, thread_id, } = await mBotCreateLLM(validBotData, llm)
+	if(!llm_id?.length)
 		throw new Error('bot creation failed')
 	/* create in MyLife datastore */
-	validBotData.bot_id = bot_id
+	validBotData.llm_id = llm_id
 	validBotData.thread_id = thread_id
 	botData = await factory.createBot(validBotData) // repurposed incoming botData
 	const _Bot = new Bot(botData, llm, factory)
@@ -709,41 +751,20 @@ async function mBotDelete(bot_id, BotAgent, llm, factory){
 	return true
 }
 /**
- * Returns set of Greeting messages, dynamic or static
- * @param {boolean} dynamic - Whether to use dynamic greetings
- * @param {Bot} Bot - The bot instance
+ * Returns set of dynamically generated Greeting messages.
+ * @module
+ * @param {String} thread_id - The thread id
+ * @param {Guid} llm_id - The bot id
+ * @param {String} greetingPrompt - The prompt for the greeting
  * @param {LLMServices} llm - OpenAI object
  * @param {AgentFactory} factory - Agent Factory object
- * @returns {Promise<Message[]>} - The array of messages to respond with
+ * @returns {Promise<Array>} - The array of string messages to respond with
  */
-async function mBotGreeting(dynamic=false, Bot, llm, factory){
-    const { bot_id, bot_name, id, greetings=[], greeting, thread_id, } = Bot
-    const failGreetings = [
-		`Hello! I'm concerned that there is something wrong with my instruction-set, as I was unable to find my greetings, but let's see if I can get back online.`,
-		`How can I be of help today?`
-	]
-	const greetingPrompt = factory.isMyLife
-		? `Greet this new visitor and let them know that you are here to help them understand MyLife and the MyLife platform. Begin by asking them about something that's important to them so I can demonstrate how MyLife will assist.`
-		: `Where did we leave off, or how do we start?`
-    const botGreetings = greetings?.length
-        ? greetings
-        : greeting
-            ? [greeting]
-            : failGreetings
-    let messages = !dynamic
-        ? botGreetings
-        : await llm.getLLMResponse(thread_id, bot_id, greetingPrompt, factory)
-    if(!messages?.length)
-        messages = failGreetings
-    messages = messages
-        .map(message=>new (factory.message)({
-            being: 'message',
-            content: message,
-            thread_id,
-            role: 'assistant',
-            type: 'greeting'
-        }))
-    return messages
+async function mBotGreetings(thread_id, llm_id, greetingPrompt=`Greet me enthusiastically`, llm, factory){
+	let responses = await llm.getLLMResponse(thread_id, llm_id, greetingPrompt, factory)
+		?? [mDefaultGreetings]
+	responses = llm.extractResponses(responses)
+    return responses
 }
 /**
  * Returns MyLife-version of bot instructions.
@@ -755,6 +776,8 @@ async function mBotGreeting(dynamic=false, Bot, llm, factory){
 function mBotInstructions(factory, botData={}){
 	const { type=mDefaultBotType, } = botData
     let {
+		greeting,
+		greetings,
 		instructions,
 		limit=8000,
 		version,
@@ -797,6 +820,9 @@ function mBotInstructions(factory, botData={}){
             instructions = general
             break
     }
+	/* greetings */
+	greetings = greetings
+		?? [greeting]
     /* apply replacements */
     replacements.forEach(replacement=>{
         const placeholderRegExp = factory.globals.getRegExp(replacement.name, true)
@@ -806,6 +832,7 @@ function mBotInstructions(factory, botData={}){
             ?? replacement?.default
             ?? '`unknown-value`'
         instructions = instructions.replace(placeholderRegExp, _=>replacementText)
+		greetings = greetings.map(greeting=>greeting.replace(placeholderRegExp, _=>replacementText))
     })
     /* apply references */
     references.forEach(_reference=>{
@@ -842,6 +869,7 @@ function mBotInstructions(factory, botData={}){
         }
     })
 	const response = {
+		greetings,
 		instructions,
 		version,
 	}
@@ -1097,7 +1125,7 @@ function mGetGPTResources(globals, toolName, vectorstoreId){
 async function mInit(BotAgent, bots, factory, llm){
 	const { avatarId, vectorstoreId, } = BotAgent
 	bots.push(...await mInitBots(avatarId, vectorstoreId, factory, llm))
-	BotAgent.setActiveBot()
+	BotAgent.setActiveBot(null, false)
 }
 /**
  * Initializes active bots based upon criteria.

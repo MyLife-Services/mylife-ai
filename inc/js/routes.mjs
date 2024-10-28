@@ -5,7 +5,6 @@ import {
     activateBot,
     alerts,
     bots,
-    category,
     challenge,
     chat,
     collections,
@@ -122,7 +121,6 @@ _memberRouter.post('/', chat)
 _memberRouter.post('/bots', bots)
 _memberRouter.post('/bots/create', createBot)
 _memberRouter.post('/bots/activate/:bid', activateBot)
-_memberRouter.post('/category', category)
 _memberRouter.post('/migrate/bot/:bid', migrateBot)
 _memberRouter.post('/migrate/chat/:bid', migrateChat)
 _memberRouter.post('/mode', interfaceMode)

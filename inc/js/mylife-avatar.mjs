@@ -361,11 +361,16 @@ class Avatar extends EventEmitter {
     /**
      * Get a static or dynamic greeting from active bot.
      * @param {boolean} dynamic - Whether to use LLM for greeting
-     * @returns {Array} - The greeting message(s) string array in order of display
+     * @returns {Object} - The greeting Response object: { responses, success, }
      */
     async greeting(dynamic=false){
-        const greetings = mPruneMessages(this.#botAgent.activeBotId, await this.#botAgent.greeting(dynamic), 'greeting')
-        return greetings
+        const responses = []
+        const greeting = await this.#botAgent.greeting(dynamic)
+        responses.push(mPruneMessage(this.activeBotId, greeting, 'greeting'))
+        return {
+            responses,
+            success: true,
+        }
     }
     /**
      * Request help about MyLife. **caveat** - correct avatar should have been selected prior to calling.
@@ -608,6 +613,16 @@ class Avatar extends EventEmitter {
         return response
     }
     /**
+     * Activate a specific Bot.
+     * @param {Guid} bot_id - The bot id
+     * @returns {object} - Activated Response object: { bot_id, greeting, success, version, versionUpdate, }
+     */
+    async setActiveBot(bot_id){
+        const dynamic = false
+        const response = await this.#botAgent.setActiveBot(bot_id, dynamic)
+        return response
+    }
+    /**
      * Gets the list of shadows.
      * @returns {Object[]} - Array of shadow objects.
      */
@@ -718,24 +733,6 @@ class Avatar extends EventEmitter {
      */
     get activeBotId(){
         return this.#botAgent.activeBotId
-    }
-    /**
-     * Set the active bot id. If not match found in bot list, then defaults back to this.id (avatar).
-     * @setter
-     * @param {string} bot_id - The requested bot id
-     * @returns {void}
-     */
-    set activeBotId(bot_id){
-        this.#botAgent.setActiveBot(bot_id)
-    }
-    get activeBotNewestVersion(){
-        const { type, } = this.activeBot
-        const newestVersion = this.#factory.botInstructionsVersion(type)
-        return newestVersion
-    }
-    get activeBotVersion(){
-        const { version=1.0, } = this.activeBot
-        return version
     }
     /**
      * Get the age of the member.
@@ -1219,6 +1216,20 @@ class Q extends Avatar {
         throw new Error('System avatar cannot create bots.')
     }
     /**
+     * OVERLOADED: Get MyLife static greeting with identifying information stripped.
+     * @returns {Object} - The greeting Response object: { responses, success, }
+     */
+    async greeting(){
+        let responses = []
+        const greeting = await this.avatar.greeting(false)
+        responses.push(mPruneMessage(null, greeting, 'greeting'))
+        responses.forEach(response=>delete response.activeBotId)
+        return {
+            responses,
+            success: true,
+        }
+    }
+    /**
      * OVERLOADED: Given an itemId, obscures aspects of contents of the data record. Obscure is a vanilla function for MyLife, so does not require intervening intelligence and relies on the factory's modular LLM. In this overload, we invoke a micro-avatar for the member to handle the request on their behalf, with charge-backs going to MyLife as the sharing and api is a service.
      * @public
      * @param {string} mbr_id - The member id
@@ -1230,17 +1241,21 @@ class Q extends Avatar {
         const updatedSummary = await botFactory.obscure(iid)
         return updatedSummary
     }
+    
     /* overload rejections */
     /**
      * OVERLOADED: Q refuses to execute.
      * @public
      * @throws {Error} - MyLife avatar cannot upload files.
      */
+    async setActiveBot(){
+        throw new Error('MyLife System Avatars cannot be externally set')
+    }
     summarize(){
-        throw new Error('MyLife avatar cannot summarize files.')
+        throw new Error('MyLife System Avatar cannot summarize files')
     }
     upload(){
-        throw new Error('MyLife avatar cannot upload files.')
+        throw new Error('MyLife System Avatar cannot upload files.')
     }
     /* public methods */
     /**
@@ -1326,8 +1341,7 @@ class Q extends Avatar {
      * @returns {Promise<Object>} - Response object: { error, instruction, registrationData, responses, success, }
      */
     async validateRegistration(validationId){
-        const Bot = this.avatar
-        const response = await mValidateRegistration(Bot.id, this.#factory, validationId)
+        const response = await mValidateRegistration(this.activeBotId, this.#factory, validationId)
         return response
     }
     /* getters/setters */
@@ -2041,7 +2055,7 @@ function mPruneMessage(activeBotId, message, type='chat', processStartTime=Date.
     let agent='server',
         content='',
         response_time=Date.now()-processStartTime
-    const { content: messageContent, } = message
+    const { content: messageContent=message, } = message
     const rSource = /【.*?\】/gs
     const rLines = /\n{2,}/g
     content = Array.isArray(messageContent)

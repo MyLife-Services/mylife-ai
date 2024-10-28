@@ -160,51 +160,39 @@ async function setActiveBot(event, dynamic=false){
         return // no change, no problem
     const { id, type, } = mActiveBot
     /* confirm via server request: set active bot */
-    const serverResponse = await fetch(
+    let response = await fetch(
         '/members/bots/activate/' + id,
-        {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        })
-        .then(response=>{
-            if(!response.ok){
-                throw new Error(`HTTP error! Status: ${response.status}`)
-            }
-            return response.json()
-        })
-        .catch(error=>{
-            addMessage(`Server error setting active bot: ${ error.message }`)
-            return
-        })
-    /* update active bot */
-    const { activeBotId, activeBotVersion, version, } = serverResponse
-    if(activeBotId!==id){
-        mActiveBot = initialActiveBot
-        addMessage('Server error setting active bot.')
-    }
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+    if(!response.ok)
+        throw new Error(`HTTP error! Status: ${ response.status }`)
+    response = await response.json()
+    const { bot_id, greeting='Danger Will Robinson! No greeting was received from the server', success=false, version, versionUpdate, } = response
+    if(!success)
+        throw new Error(`Server unsuccessful at setting active bot.`)
     /* update page bot data */
     const { activated=[], activatedFirst=Date.now(), } = mActiveBot
     mActiveBot.activatedFirst = activatedFirst
     activated.push(Date.now()) // newest date is last to .pop()
-    // dynamic = (Date.now()-activated.pop()) > (20*60*1000)
     mActiveBot.activated = activated
-    if(activeBotVersion!==version){
+    if(versionUpdate!==version){
         const botVersion = document.getElementById(`${ type }-title-version`)
         if(botVersion){
             botVersion.classList.add('update-available')
-            botVersion.dataset.botId = activeBotId
-            botVersion.dataset.currentVersion = activeBotVersion
+            botVersion.dataset.botId = bot_id
+            botVersion.dataset.currentVersion = version
             botVersion.dataset.type = type
-            botVersion.dataset.updateVersion = version
+            botVersion.dataset.updateVersion = versionUpdate
             botVersion.addEventListener('click', mUpdateBotVersion, { once: true })
         }
     }
     /* update page */
-    mSpotlightBotBar()
     mSpotlightBotStatus()
-    mGreeting(dynamic)
+    addMessage(greeting)
     decorateActiveBot(mActiveBot)
 }
 /**
@@ -243,11 +231,10 @@ async function updatePageBots(bots=mBots, includeGreeting=false, dynamic=false){
         throw new Error(`No bots provided to update page.`)
     if(mBots!==bots)
         mBots = bots
-    await mUpdateTeams()
+    await mUpdateTeams() // sets `mActiveBot`
     await mUpdateBotContainers()
-    // mUpdateBotBar()
     if(includeGreeting)
-        mGreeting(dynamic)
+        addMessage(mActiveBot.greeting)
 }
 /* private functions */
 /**
@@ -1075,49 +1062,6 @@ function mFindCheckbox(element, searchParent=true){
                 return result
         }
     }
-}
-/**
- * Paints bot-greeting to column
- * @private
- * @requires mActiveBot
- * @param {boolean} dynamic - Whether or not to add event listeners for dynamic greeting.
- * @returns {void}
- */
-function mGreeting(dynamic=false){
-    const greeting = Array.isArray(mActiveBot.greeting)
-        ?   mActiveBot.greeting
-        :   [
-                mActiveBot?.greeting
-            ?? mActiveBot?.description
-            ?? mActiveBot?.purpose
-            ]
-    if(!greeting.length)
-        throw new Error(`No bot-greeting provided.`)
-    /* bot-greeting routine */
-    setTimeout(() => { // Set a timeout for 1 second to wait for the first line to be fully painted
-        // Set another timeout for 7.5 seconds to add the second message
-        const timerId = setTimeout(addIntroductionMessage, 7500)
-        /* add listeners */
-        window.addEventListener('mousemove', addIntroductionMessage, { once: true })
-        window.addEventListener('click', addIntroductionMessage, { once: true })
-        window.addEventListener('focus', addIntroductionMessage, { once: true })
-        window.addEventListener('scroll', addIntroductionMessage, { once: true })
-        /* local timeout functions */
-        function addIntroductionMessage() { // Clear the 7.5 seconds timeout if any event is triggered
-            clearTimeout(timerId)
-            greeting.forEach(_greeting =>{
-                addMessage(_greeting)
-            })
-            cleanupListeners()
-        }
-        /* cleanup */
-        function cleanupListeners() {
-            window.removeEventListener('mousemove', addIntroductionMessage)
-            window.removeEventListener('click', addIntroductionMessage)
-            window.removeEventListener('focus', addIntroductionMessage)
-            window.removeEventListener('scroll', addIntroductionMessage)
-        }
-    }, 1000)
 }
 /**
  * Toggle submit button for input passphrase.

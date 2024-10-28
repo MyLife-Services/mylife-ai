@@ -8,22 +8,19 @@ async function about(ctx){
 	await ctx.render('about')
 }
 /**
- * Activate a bot for the member
- * @module
+ * Activate a specific Bot.
  * @public
- * @api no associated view
- * @param {object} ctx Koa Context object
- * @returns {object} Koa Context object
+ * @async
+ * @param {object} ctx - Koa Context object
+ * @returns {object} - Activated Response object: { bot_id, greeting, success, version, versionUpdate, }
  */
-function activateBot(ctx){
-	const { avatar, } = ctx.state
-	avatar.activeBotId = ctx.params.bid
-	const { activeBotId, activeBotVersion, activeBotNewestVersion, } = avatar
-	ctx.body = {
-		activeBotId,
-		activeBotVersion,
-		version: activeBotNewestVersion,
-	}
+async function activateBot(ctx){
+	const { bid, } = ctx.params
+	if(!ctx.Globals.isValidGuid(bid))
+		ctx.throw(400, `missing bot id`)
+	const { avatar: Avatar, } = ctx.state
+	const response =await Avatar.setActiveBot(bid)
+	ctx.body = response
 }
 async function alerts(ctx){
 	// @todo: put into ctx the _type_ of alert to return, system use dataservices, member use personal
@@ -34,52 +31,55 @@ async function alerts(ctx){
 		ctx.body = await ctx.state.MemberSession.alerts(ctx.request.body)
 	}
 }
+/**
+ * Manage bots for the member.
+ * @param {Koa} ctx - Koa Context object
+ * @returns {object} - Koa Context object
+ */
 async function bots(ctx){
 	const { bid, } = ctx.params // bot_id sent in url path
-	const { avatar } = ctx.state
+	const { avatar: Avatar, } = ctx.state
 	const bot = ctx.request.body
 		?? {}
 	switch(ctx.method){
 		case 'DELETE': // retire bot
 			if(!ctx.Globals.isValidGuid(bid))
 				ctx.throw(400, `missing bot id`)
-			ctx.body = await avatar.retireBot(bid)
+			ctx.body = await Avatar.retireBot(bid)
 			break
 		case 'POST': // create new bot
-			ctx.body = await avatar.createBot(bot)
+			ctx.body = await Avatar.createBot(bot)
 			break
 		case 'PUT': // update bot
-			ctx.body = await avatar.updateBot(bot)
+			ctx.body = await Avatar.updateBot(bot)
 			break
 		case 'GET':
 		default:
 			if(bid?.length){ // specific bot
-				ctx.body = await avatar.getBot(ctx.params.bid)
+				ctx.body = await Avatar.getBot(ctx.params.bid)
 			} else {
-				const { activeBotId, } = avatar
-				const bots = await avatar.getBots()
+				const bots = await Avatar.getBots()
+				let { activeBotId, greeting, } = Avatar
+				if(!activeBotId){
+					const { bot_id, greeting: activeGreeting } = await Avatar.setActiveBot()
+					activeBotId = bot_id
+					greeting = activeGreeting
+				}
 				ctx.body = { // wrap bots
 					activeBotId,
 					bots,
+					greeting,
 				}
 			}
 			break
 	}
 }
-function category(ctx){ // sets category for avatar
-	ctx.state.category = ctx.request.body
-	const { avatar, } = ctx.state
-	avatar.setActiveCategory(ctx.state.category)
-	ctx.body = avatar.category
-}
 /**
  * Challenge the member session with a passphrase.
- * @module
  * @public
  * @async
- * @api - No associated view
  * @param {Koa} ctx - Koa Context object
- * @returns {object} Koa Context object
+ * @returns {object} - Koa Context object
  * @property {object} ctx.body - The result of the challenge.
  */
 async function challenge(ctx){
@@ -99,6 +99,8 @@ async function challenge(ctx){
 }
 /**
  * Chat with the Member or System Avatar's intelligence.
+ * @public
+ * @async
  * @param {Koa} ctx - Koa Context object
  * @returns {object} - The response from the chat in `ctx.body`
  * @property {object} instruction - Instructionset for the frontend to execute (optional)
@@ -132,8 +134,8 @@ async function createBot(ctx){
 }
 /**
  * Delete an item from collection via the member's avatar.
- * @async
  * @public
+ * @async
  * @param {object} ctx - Koa Context object
  * @returns {boolean} - Under `ctx.body`, status of deletion.
  */
@@ -145,10 +147,11 @@ async function deleteItem(ctx){
 	ctx.body = await avatar.deleteItem(iid)
 }
 /**
- * Get greetings for this bot/active bot.
- * @todo - move dynamic system responses to a separate function (route /system)
- * @param {Koa} ctx - Koa Context object.
- * @returns {object} - Greetings response message object: { success: false, messages: [], }.
+ * Get greetings for active situation.
+ * @public
+ * @async
+ * @param {Koa} ctx - Koa Context object
+ * @returns {object} - Greetings response message object: { responses, success, }
  */
 async function greetings(ctx){
 	const { vld: validateId, } = ctx.request.query
@@ -156,13 +159,15 @@ async function greetings(ctx){
 	if(typeof dynamic==='string')
 		dynamic = JSON.parse(dynamic)
 	const { avatar: Avatar, } = ctx.state
-	const response = validateId?.length
+	const response = validateId?.length && Avatar.isMyLife
 		? await Avatar.validateRegistration(validateId)
-		: await Avatar.greetings(dynamic)
+		: await Avatar.greeting(dynamic)
 	ctx.body = response
 }
 /**
  * Request help about MyLife.
+ * @public
+ * @async
  * @param {Koa} ctx - Koa Context object, body={ request: string|required, mbr_id, type: string, }.
  * @returns {object} - Help response message object.
  */
@@ -176,8 +181,8 @@ async function help(ctx){
 }
 /**
  * Index page for the application.
- * @async
  * @public
+ * @async
  * @param {object} ctx - Koa Context object
  */
 async function index(ctx){
@@ -414,7 +419,6 @@ export {
 	activateBot,
 	alerts,
 	bots,
-	category,
 	challenge,
 	chat,
 	collections,
