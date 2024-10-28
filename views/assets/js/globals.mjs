@@ -49,13 +49,56 @@ class Datamanager {
                 break
         }
     }
-    async fetchAlerts(){
+    /* private functions */
+    async #fetch(url='', options){
+        let response
         try {
-            console.log('Datamanager::fetchAlerts()::url', this.#url)
-            const response = await fetch(`${this.#url}/alerts`)
+            url = url.startsWith('/')
+                ? url
+                : `/${url}`
+            url = this.#url + url
+            response = await fetch(url, options)
+            if(!response.ok)
+                throw new Error('Network response was not ok')
+            switch(response.status){
+                case 500:
+                    console.error('Datamanager::fetch()::error')
+                    break
+                case 401:
+                    console.error('Datamanager::fetch()::unauthorized')
+                    break
+                default:
+                    break
+            }
+            response = await response.json()
         } catch(e) {
-            console.error('Datamanager::fetchAlerts()::error', e)
+            const errorMessage = e.message
+            console.error('Datamanager::fetch()::failure', errorMessage)
+            response = {
+                error: errorMessage,
+                message: errorMessage,
+                success: false
+            }
         }
+        return response
+    }
+    /* public functions */
+    async alerts(){
+        const url = `alerts`
+        const responses = await this.#fetch(url)
+        responses.forEach(response=>mAlertCreate(response))
+        return responses
+    }
+    async greetings(dynamic=false){
+        const url = `greetings?dyn=${ dynamic }`
+        const response = await this.#fetch(url)
+        const responses = ( response?.responses ?? [] )
+            .map(response=>response.message)
+        return responses
+    }
+    async signupStatus(){
+        const response = await this.#fetch('signup')
+        return response
     }
 }
 class Globals {
@@ -102,7 +145,8 @@ class Globals {
             mToggleHelpSubmit()
         }
         mLoginButton.addEventListener('click', this.loginLogout, { once: true })
-        mFetchAlerts() // no `await`
+        /* fetch data */
+        await this.datamanager.alerts()
     }
     /* public functions */
 	/**
@@ -292,6 +336,9 @@ class Globals {
         return undashedString.replace(/ /g, '-').toLowerCase()
     }
     /* getters/setters */
+    get datamanager(){
+        return mDatamanager
+    }
     get mainContent(){
         return mMainContent
     }
@@ -461,60 +508,55 @@ function mCreateTutorialLauncher(){
     tutorialLauncher.addEventListener('click', mLaunchTutorial, { once: true })
     return tutorialLauncher
 }
-async function mFetchAlerts(){
-    const alerts = await mDatamanager.fetchAlerts()
-    alerts
-        .forEach(alert=>createAlert(alert))
-    function alertUrgencyClass(urgency) {
-        switch(urgency) {
+/* alerts */
+function mAlertCreate(alertData){
+    const systemAlertContainer = document.getElementById('system-alert-container')
+    const _id = alertData.id
+    /* individual alert box */
+    const systemAlertBox = document.createElement('div')
+    systemAlertBox.id = `alert-${_id}`
+    systemAlertBox.name = systemAlertBox.id
+    systemAlertBox.classList.add('alert-box')
+    systemAlertContainer.appendChild(systemAlertBox)
+    /* alert box content */
+    const systemAlertContent = document.createElement('div')
+    systemAlertContent.id = `alert-content-${_id}`
+    systemAlertContent.name = systemAlertContent.id
+    systemAlertContent.classList.add('alert-content')
+    systemAlertContent.textContent = alertData.content
+    if(alertData.urgency?.length){
+        let urgency = ''
+        switch(alertData.urgency.toLowerCase()) {
             case 'low':
-                return 'alert-low'
+                urgency = 'alert-low'
+                break
             case 'medium':
-                return 'alert-medium'
+                urgency = 'alert-medium'
+                break
             case 'high':
-                return 'alert-high'
+                urgency = 'alert-high'
+                break
             default:
-                return ''
+                break
         }
+        systemAlertContent.classList.add(alertUrgencyClass(urgency))
     }
-    function createAlert(alertData) {
-        const systemAlertContainer = document.getElementById('system-alert-container');
-        const _id = alertData.id;
-        /* individual alert box */
-        const systemAlertBox = document.createElement('div');
-        systemAlertBox.id = `alert-${_id}`;
-        systemAlertBox.name = systemAlertBox.id;
-        systemAlertBox.classList.add('alert-box');
-        systemAlertContainer.appendChild(systemAlertBox);
-        /* alert box content */
-        const systemAlertContent = document.createElement('div');
-        systemAlertContent.id = `alert-content-${_id}`;
-        systemAlertContent.name = systemAlertContent.id;
-        systemAlertContent.classList.add('alert-content');
-        systemAlertContent.textContent = alertData.content;
-        if(alertData.urgency?.length) {
-            systemAlertContent.classList.add(alertUrgencyClass(alertData.urgency));
-        }
-        systemAlertBox.appendChild(systemAlertContent);
-        /* alert box close */
-        const systemAlertClose = document.createElement('div');
-        systemAlertClose.id = `alert-close-${_id}`;
-        systemAlertClose.name = systemAlertClose.id;
-        if (alertData.dismissable) {
-            systemAlertClose.classList.add('alert-close', 'fa', 'fa-times');
-            systemAlertClose.onclick = function() {
-                hideAlert(systemAlertBox)
-            };
-        }
-        systemAlertBox.appendChild(systemAlertClose);
-        showAlert(systemAlertBox);
-        // Auto-hide the alert
-        setTimeout(() => { hideAlert(systemAlertBox) }, 22000);
+    systemAlertBox.appendChild(systemAlertContent)
+    /* alert box close */
+    const systemAlertClose = document.createElement('div')
+    systemAlertClose.id = `alert-close-${_id}`
+    systemAlertClose.name = systemAlertClose.id
+    if(alertData.dismissable){
+        systemAlertClose.classList.add('alert-close', 'fa', 'fa-times')
+        systemAlertClose.onclick = ()=>mAlertHide(systemAlertBox)
     }
-    function hideAlert(systemAlert) {
+    systemAlertBox.appendChild(systemAlertClose)
+    mShowAlert(systemAlertBox)
+    setTimeout(()=>mAlertHide(systemAlertBox), 22000)
+    function mAlertHide(systemAlert) {
         systemAlert.classList.add('alert-hide')
     }
-    function showAlert(systemAlert) {
+    function mShowAlert(systemAlert) {
         systemAlert.classList.remove('alert-hide')
     }
 }

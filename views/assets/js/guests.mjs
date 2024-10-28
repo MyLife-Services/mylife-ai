@@ -178,29 +178,6 @@ function mCreateChallengeElement(){
     return challengeInput
 }
 /**
- * Fetches the greeting messages from the server. The greeting object from server: { error, messages, success, }
- * @private
- * @param {boolean} dynamic - Whether or not greeting should be dynamically generated (true) or static (false).
- * @returns {Promise<Message[]>} - The response Message array.
- */
-async function mFetchGreetings(dynamic=false){
-    let query = window.location.search
-        ? window.location.search + '&'
-        : '?'
-    dynamic = `dyn=${ dynamic }&`
-    query += dynamic
-    let url = window.location.origin
-        + '/greeting'
-        + query
-    try {
-        const response = await fetch(url)
-        const { responses, success, } = await response.json()
-        return responses
-    } catch(error) {
-        return [`Error: ${ error.message }`, `Please try again. If this persists, check back with me later or contact support.`]
-    }
-}
-/**
  * Fetches the hosted members from the server.
  * @private
  * @returns {Promise<MemberList[]>} - The response Member List { id, name, } array.
@@ -219,11 +196,15 @@ async function mFetchHostedMembers(){
 /**
  * Fetches the greeting messages or start routine from the server.
  * @private
+ * @requires mGlobals
  * @requires mPageType
  * @returns {Object} - Fetch response object: { input, messages, }
  */
 async function mFetchStart(){
-    await mSignupStatus()
+    const isSignedUp = await mGlobals.datamanager.signupStatus()
+    !isSignedUp
+        ? retract(signupSuccess)
+        : mSignupSuccess()
     const messages = []
     let input // HTMLDivElement containing input element
     switch(mPageType){
@@ -261,12 +242,7 @@ async function mFetchStart(){
             }
             break
         default:
-            const greetings = ( await mFetchGreetings() )
-                .map(greeting=>
-                    greeting?.message
-                        ?? greeting
-                )
-            messages.push(...greetings)
+            messages.push(...await mGlobals.datamanager.greetings())
             break
     }
     return {
@@ -319,7 +295,8 @@ async function mLoadStart(){
     /* fetch the greeting messages */
     mPageType = new URLSearchParams(window.location.search).get('type')
         ?? window.location.pathname.split('/').pop()
-    return await mFetchStart()
+    const startObject = await mFetchStart()
+    return startObject
 }
 /**
  * Scrolls overflow of system chat to bottom.
@@ -363,15 +340,7 @@ function mShowPage(){
         show(chatUser)
     else
         hide(chatUser)
-}
-async function mSignupStatus(){
-    const response = await fetch('/signup')
-    if(!response.ok)
-        throw new Error('Network response was not ok')
-    const isSignedUp = await response.json()
-    !isSignedUp
-        ? retract(signupSuccess)
-        : mSignupSuccess()
+    console.log('guests::mShowPage::shown')
 }
 function mSignupSuccess(){
     retract(signupForm)
