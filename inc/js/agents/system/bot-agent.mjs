@@ -664,7 +664,7 @@ async function mBotCreate(avatarId, vectorstore_id, botData, llm, factory){
 	const { type, } = botData
 	if(!avatarId?.length || !type?.length)
 		throw new Error('avatar id and type required to create bot')
-	const { greetings, instructions, version=1.0, } = mBotInstructions(factory, botData)
+	const { greeting, greetings, instructions, version=1.0, } = mBotInstructions(factory, botData)
 	const model = process.env.OPENAI_MODEL_CORE_BOT
 		?? process.env.OPENAI_MODEL_CORE_AVATAR
 		?? 'gpt-4o'
@@ -679,6 +679,8 @@ async function mBotCreate(avatarId, vectorstore_id, botData, llm, factory){
 		being: 'bot',
 		bot_name,
 		description,
+		greeting,
+		greetings,
 		id,
 		instructions,
 		metadata: {
