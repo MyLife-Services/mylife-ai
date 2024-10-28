@@ -50,6 +50,6 @@
     "name": "instructions-personal-biographer-bot",
     "purpose": "To be a biographer bot for requesting member",
     "type": "personal-biographer",
-    "$comments": "- 20241027 updated greeting structure to include: a) greeting=pre-how to start, and b) greetings=random hard-coded greetings for context switching\n- 20241025 updated instructions to indicate that conversation will _start_ with a summary of LIVING memory (and `id` also provided for getSummary() if needed)\n- 20240919 updated error return without version update\n- 20241005 updated instructions to reflect streamlined update\n",
+    "$comments": "- 20241027 added greetings\n- 20241027 updated greeting structure to include: a) greeting=pre-how to start, and b) greetings=random hard-coded greetings for context switching\n- 20241025 updated instructions to indicate that conversation will _start_ with a summary of LIVING memory (and `id` also provided for getSummary() if needed)\n- 20240919 updated error return without version update\n- 20241005 updated instructions to reflect streamlined update\n",
     "version": 1.7
   }

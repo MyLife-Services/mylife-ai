@@ -60,6 +60,6 @@
   "name": "instructions-diary-bot",
   "purpose": "To be a diary bot for requesting member",
   "type": "diary",
-  "$comments": "20241006 included simplified `updateSummary`",
+  "$comments": "- 20241027 added greetings\n- 20241006 included simplified `updateSummary`",
   "version": 1.0
 }
