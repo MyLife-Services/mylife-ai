@@ -6,9 +6,10 @@ const mHelpInitiatorContent = {
     membership: `I'll do my best to assist with a "membership" request. Please type in your question or issue below and click "Send" to get started.`,
     tutorial: `The tutorial is a great place to start! Click this button to launch or re-run the tutorial:`,
 }
-const mNewGuid = () => crypto.randomUUID()
+const mNewGuid = ()=>crypto.randomUUID()
 /* module variables */
 let mActiveHelpType, // active help type, currently entire HTMLDivElement
+    mDatamanager,
     mHelpAwait,
     mHelpClose,
     mHelpContainer,
@@ -31,10 +32,37 @@ let mActiveHelpType, // active help type, currently entire HTMLDivElement
     mNavigationHelpIcon,
     mSidebar
 /* class definitions */
+class Datamanager {
+    #url
+    /**
+     * Creates a new Datamanager.
+     * @param {String} type - The type of user, defaults to 'guest'
+     */
+    constructor(type='guest'){
+        this.#url = window.location.origin
+        switch(type){
+            case 'member':
+                this.#url += '/member'
+                break
+            case 'guest':
+            default:
+                break
+        }
+    }
+    async fetchAlerts(){
+        try {
+            console.log('Datamanager::fetchAlerts()::url', this.#url)
+            const response = await fetch(`${this.#url}/alerts`)
+        } catch(e) {
+            console.error('Datamanager::fetchAlerts()::error', e)
+        }
+    }
+}
 class Globals {
     #uuid = mNewGuid()
     constructor(){
         if(!mLoaded){
+            mDatamanager = new Datamanager()
             mLoginButton = document.getElementById('navigation-login-logout-button')
             mLoginContainer = document.getElementById('navigation-login-logout')
             mMainContent = document.getElementById('main-content')
@@ -56,9 +84,10 @@ class Globals {
             mNavigationHelpIcon = document.getElementById('navigation-help-icon')
             mSidebar = document.getElementById('sidebar')
             this.init()
+            mLoaded = true
         }
     }
-    init(){
+    async init(){
         /* global visibility settings */
         this.hide(mHelpContainer)
         /* assign event listeners */
@@ -73,6 +102,7 @@ class Globals {
             mToggleHelpSubmit()
         }
         mLoginButton.addEventListener('click', this.loginLogout, { once: true })
+        mFetchAlerts() // no `await`
     }
     /* public functions */
 	/**
@@ -431,6 +461,63 @@ function mCreateTutorialLauncher(){
     tutorialLauncher.addEventListener('click', mLaunchTutorial, { once: true })
     return tutorialLauncher
 }
+async function mFetchAlerts(){
+    const alerts = await mDatamanager.fetchAlerts()
+    alerts
+        .forEach(alert=>createAlert(alert))
+    function alertUrgencyClass(urgency) {
+        switch(urgency) {
+            case 'low':
+                return 'alert-low'
+            case 'medium':
+                return 'alert-medium'
+            case 'high':
+                return 'alert-high'
+            default:
+                return ''
+        }
+    }
+    function createAlert(alertData) {
+        const systemAlertContainer = document.getElementById('system-alert-container');
+        const _id = alertData.id;
+        /* individual alert box */
+        const systemAlertBox = document.createElement('div');
+        systemAlertBox.id = `alert-${_id}`;
+        systemAlertBox.name = systemAlertBox.id;
+        systemAlertBox.classList.add('alert-box');
+        systemAlertContainer.appendChild(systemAlertBox);
+        /* alert box content */
+        const systemAlertContent = document.createElement('div');
+        systemAlertContent.id = `alert-content-${_id}`;
+        systemAlertContent.name = systemAlertContent.id;
+        systemAlertContent.classList.add('alert-content');
+        systemAlertContent.textContent = alertData.content;
+        if(alertData.urgency?.length) {
+            systemAlertContent.classList.add(alertUrgencyClass(alertData.urgency));
+        }
+        systemAlertBox.appendChild(systemAlertContent);
+        /* alert box close */
+        const systemAlertClose = document.createElement('div');
+        systemAlertClose.id = `alert-close-${_id}`;
+        systemAlertClose.name = systemAlertClose.id;
+        if (alertData.dismissable) {
+            systemAlertClose.classList.add('alert-close', 'fa', 'fa-times');
+            systemAlertClose.onclick = function() {
+                hideAlert(systemAlertBox)
+            };
+        }
+        systemAlertBox.appendChild(systemAlertClose);
+        showAlert(systemAlertBox);
+        // Auto-hide the alert
+        setTimeout(() => { hideAlert(systemAlertBox) }, 22000);
+    }
+    function hideAlert(systemAlert) {
+        systemAlert.classList.add('alert-hide')
+    }
+    function showAlert(systemAlert) {
+        systemAlert.classList.remove('alert-hide')
+    }
+}
 /**
  * Fetches shadows from the server.
  * @private
@@ -684,5 +771,5 @@ function mToggleHelpSubmit(event){
     else
         mShow(mHelpInputSubmit)
 }
-/* export */
+/* exports */
 export default Globals

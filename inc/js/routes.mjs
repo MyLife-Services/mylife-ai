@@ -164,7 +164,7 @@ async function memberValidation(ctx, next){
                 message: 'Your MyLife Member Session has timed out and is no longer valid. Please log in again.',
                 redirectUrl
             }
-        } else // Use a standard server-side redirect for regular requests
+        } else
             ctx.redirect(redirectUrl)
     } else
         await next() // Proceed to the next middleware if authorized
