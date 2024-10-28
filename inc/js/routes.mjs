@@ -154,9 +154,19 @@ function connectRoutes(_Menu){
 async function memberValidation(ctx, next){
     const { locked=true, } = ctx.state
     ctx.state.dateNow = Date.now()
-    if(locked)
-        ctx.redirect(`/?type=select`) // Redirect to /members if not authorized
-    else
+    const redirectUrl = `/?type=select`
+    if(locked){
+        const isAjax = ctx.get('X-Requested-With') === 'XMLHttpRequest' || ctx.is('json')
+        if(isAjax){
+            ctx.status = 401
+            ctx.body = {
+                alert: true,
+                message: 'Your MyLife Member Session has timed out and is no longer valid. Please log in again.',
+                redirectUrl
+            }
+        } else // Use a standard server-side redirect for regular requests
+            ctx.redirect(redirectUrl)
+    } else
         await next() // Proceed to the next middleware if authorized
 }
 /**
@@ -164,7 +174,7 @@ async function memberValidation(ctx, next){
  * @param {object} ctx Koa context object
  * @returns {boolean} false if member session is locked, true if registered and unlocked
  */
-function status(ctx){	//	currently returns reverse "locked" status, could send object with more info
+function status(ctx){ //	currently returns reverse "locked" status, could send object with more info
 	ctx.body = !ctx.state.locked
 }
 /**
