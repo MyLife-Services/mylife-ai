@@ -362,11 +362,9 @@ async function signup(ctx) {
     }
 }
 async function summarize(ctx){
-	const { avatar, } = ctx.state
+	const { avatar: Avatar, } = ctx.state
 	const { fileId, fileName, } = ctx.request.body
-	if(avatar.isMyLife)
-		throw new Error('Only logged in members may summarize text')
-	ctx.body = await avatar.summarize(fileId, fileName)
+	ctx.body = await Avatar.summarize(fileId, fileName)
 }
 /**
  * Get a specified team, its details and bots, by id for the member.

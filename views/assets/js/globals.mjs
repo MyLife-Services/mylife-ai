@@ -106,22 +106,38 @@ class Datamanager {
         const responses = await this.#fetch(url)
         return responses
     }
-    async signupStatus(){
-        const response = await this.#fetch('signup')
-        return response
-    }
-    async submitChat(message){
+    /**
+     * MyLife function to obscure an item summary
+     * @param {Guid} itemId - The item ID
+     * @returns {Object} - The item object: { id, summary, etc. }
+     */
+    async obscure(itemId){
+        const url = `/members/obscure/${ itemId }`
         const options = {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                message,
-                role: 'user',
-            }),
         }
-        const response = await this.#fetch(undefined, options)
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    async signupStatus(){
+        const response = await this.#fetch('signup')
+        return response
+    }
+    async submitChat(chatData, useMemberRoute=false){
+        const url = useMemberRoute
+            ? `/members/`
+            : `/`
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(chatData),
+        }
+        const response = await this.#fetch(url, options)
         return response
     }
     async submitPassphrase(passphrase, mbr_id){
@@ -147,6 +163,28 @@ class Datamanager {
         }
         const { success, } = await this.#fetch(url, options)
         return success
+    }
+    /**
+     * Fetches the summary for a specified file.
+     * @public
+     * @param {string} fileId - The file ID
+     * @param {string} fileName - The file name
+     * @returns {Promise<object>} - The Summary response
+     */
+    async summary(fileId, fileName){
+        const url = `/members/summarize`
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                fileId,
+                fileName,
+            }),
+        }
+        const response = await this.#fetch(url, options)
+        return response
     }
 }
 class Globals {

@@ -370,7 +370,11 @@ async function mSubmitInput(event, message){
 	event.preventDefault()
     hide(chatUser)
     show(awaitButton)
-	const { responses, success, } = await mGlobals.datamanager.submitChat(message)
+    const chatData = {
+        message,
+        role: 'user',
+    }
+	const { responses, success, } = await mGlobals.datamanager.submitChat(chatData)
 	responses.forEach(gptMessage=>{
 		mAddMessage(gptMessage.message)
 	})

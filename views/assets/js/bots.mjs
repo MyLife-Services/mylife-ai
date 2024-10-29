@@ -7,10 +7,8 @@ import {
     decorateActiveBot,
     experiences,
     expunge,
-    fetchSummary,
     getActiveItemId,
     hide,
-    obscure,
     seedInput,
     setActiveItem,
     setActiveItemTitle,
@@ -483,7 +481,7 @@ async function mSummarize(event){
     this.classList.remove('summarize-error', 'fa-file-circle-exclamation', 'fa-file-circle-question', 'fa-file-circle-xmark')
     this.classList.add('fa-compass', 'spin')
     /* fetch summary */
-    const { instruction, responses, success, } = await fetchSummary(fileId, fileName) // throws on console.error
+    const { instruction, responses, success, } = await mGlobals.datamanager.summary(fileId, fileName)
     /* visibility triggers */
     this.classList.remove('fa-compass', 'spin')
     if(success)
@@ -1095,7 +1093,7 @@ async function mObscureEntry(event){
     const popupClose = document.getElementById(`popup-close_${ itemId }`)
     if(popupClose)
         popupClose.click()
-    const { responses, success, } = await obscure(itemId)
+    const { responses, success, } = await mGlobals.datamanager.obscure(itemId)
     if(responses?.length)
         addMessages(responses)
     toggleMemberInput(true)

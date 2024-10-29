@@ -142,21 +142,6 @@ function expunge(element){
     return mGlobals.expunge(element)
 }
 /**
- * Fetches the summary via PA for a specified file.
- * @param {string} fileId - The file ID.
- * @param {string} fileName - The file name.
- * @returns {Promise<object>} - The return is the summary object.
- */
-async function fetchSummary(fileId, fileName){
-    /* validate request */
-    if(!fileId?.length && !fileName?.length)
-        throw new Error('fetchSummary::Error()::`fileId` or `fileName` is required')
-    return await mFetchSummary(fileId, fileName)
-}
-function getActiveItem(){
-
-}
-/**
  * Gets the active chat item id to send to server.
  * @requires chatActiveItem
  * @returns {Guid} - The return is the active item ID.
@@ -531,41 +516,13 @@ async function mAddMessage(message, options={}){
 	}
 }
 /**
- * Fetches the summary via PA for a specified file.
- * @private
- * @param {string} fileId - The file ID.
- * @param {string} fileName - The file name.
- * @returns {Promise<object>} - The return is the summary object.
- */
-async function mFetchSummary(fileId, fileName){
-    const url = '/members/summarize'
-    const data = {
-        fileId,
-        fileName,
-    }
-    let response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-    })
-    if(!response.ok)
-        throw new Error(`HTTP error! Status: ${response.status}`)
-    response = await response.json()
-    return response
-}
-function getActiveCategory(){
-	return activeCategory
-}
-/**
- * Initialize module variables based on server fetch.
+ * Initialize module variables from server.
  * @private
  * @requires mMemberId
  * @returns {Promise<boolean>} - The return is a boolean indicating success.
  */
 async function mInitialize(){
-    /* fetch primary collections */
+    /* retrieve primary collections */
     await refreshCollection('story') // memories required
     /* page listeners */
     mInitializePageListeners()
@@ -590,23 +547,6 @@ function mInitializePageListeners(){
             })
         }
     })
-}
-/**
- * MyLife function to obscure an item summary
- * @param {Guid} itemId - The item ID
- * @returns 
- */
-async function obscure(itemId){
-    const url = '/members/obscure/' + itemId
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-    })
-    if(!response.ok)
-        throw new Error(`HTTP error! Status: ${response.status}`)
-    return await response.json()
 }
 /**
  * Primitive step to set a "modality" or intercession for the member chat. Currently will key off dataset in `chatInputField`.
@@ -691,32 +631,18 @@ function mStageTransitionMember(includeSidebar=true){
 }
 /**
  * Submits a message to MyLife Member Services chat.
+ * @async
  * @requires chatActiveItem
- * @param {string} message - The message to submit.
- * @param {boolean} hideMemberChat - The hide member chat flag, default=`true`.
- * @returns {Promise<object>} - The return is the chat response object.
+ * @param {string} message - The message to submit
+ * @param {boolean} hideMemberChat - The hide member chat flag, default=`true`
+ * @returns {Promise<object>} - The return is the chat response object: { instruction, responses, success, }
  */
 async function submit(message, hideMemberChat=true){
 	if(!message?.length)
 		throw new Error('submit(): `message` argument is required')
     if(hideMemberChat)
         toggleMemberInput(false)
-	const chatResponse = await mSubmitChat(message)
-    if(hideMemberChat)
-        toggleMemberInput(true)
-    return chatResponse
-}
-/**
- * Submits message to chat service.
- * @private
- * @async
- * @requires chatActiveItem
- * @param {string} message - The message to submit to the server.
- * @returns {void}
- */
-async function mSubmitChat(message) {
     const { action, itemId, } = chatActiveItem.dataset
-	const url = window.location.origin + '/members'
     const { id: botId, } = activeBot()
 	const request = {
             action,
@@ -725,34 +651,10 @@ async function mSubmitChat(message) {
 			message,
 			role: 'member',
 		}
-    const options = {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request),
-    }
-    let response
-	try {
-		response = await fetch(url, options)
-        if(!response.ok)
-            throw new Error('Network response was not ok')
-		response = await response.json()
-        /* validate response */
-        if(typeof response!=='object' || !response?.success){
-            console.log('Chat Request Failed', response)
-            throw new Error('Chat Request Failed on Server')
-        }
-        if(!response?.responses?.length){
-            console.log('No Responses from Server', response)
-            /* add error default message */
-            response.responses = [{ message: 'I\'m sorry, Something happened with my server connection, please type `try again` to try again.', role: 'agent' }]
-        }
-		return response
-	} catch (err) {
-		console.log('fatal error', err, response)
-		return alert(`Error: ${ err.message }`)
-	}
+	const response = await mGlobals.datamanager.submitChat(request, true)
+    if(hideMemberChat)
+        toggleMemberInput(true)
+    return response
 }
 /**
  * Toggles the member input between input and server `waiting`.
@@ -837,7 +739,6 @@ export {
     escapeHtml,
     experiences,
     expunge,
-    fetchSummary,
     getActiveItemId,
     getInputValue,
     getSystemChat,
@@ -845,7 +746,6 @@ export {
     hide,
     hideMemberChat,
     inExperience,
-    obscure,
     replaceElement,
     sceneTransition,
     seedInput,
