@@ -384,8 +384,8 @@ async function team(ctx){
  * @returns {Object[]} - List of team objects.
  */
 async function teams(ctx){
-	const { avatar, } = ctx.state
-	ctx.body = await avatar.teams()
+	const { avatar: Avatar, } = ctx.state
+	ctx.body = await Avatar.teams()
 }
 async function updateBotInstructions(ctx){
 	const { bid, } = ctx.params

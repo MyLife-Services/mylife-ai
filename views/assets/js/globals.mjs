@@ -89,12 +89,129 @@ class Datamanager {
         responses.forEach(response=>mAlertCreate(response))
         return responses
     }
+    async botActivate(botId){
+        const url = `/members/bots/activate/${ botId }`
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Request bot be created on server.
+     * @requires mActiveTeam
+     * @param {string} type - bot type
+     * @returns {object} - Bot object from server.
+     */
+    botCreate(botData){
+        const url = `/members/bots/create`
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(botData)
+        }
+        const response = this.#fetch(url, options)
+        return response
+    }
+    async botRetire(bot_id){
+        const url = `/members/bots/${ bot_id }`
+        const options = {
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            method: 'DELETE',
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Fetch bots from server, used primarily for initialization of page, though could be requested on-demand.
+     * @public
+     * @returns {Promise<Object>} - The bot array object wrapper
+     */
+    async bots(){
+        const url = `/members/bots`
+        const response = await this.#fetch(url)
+        return response
+    }
+    /**
+     * Updates Bot data on server.
+     * @param {Object} bot - bot object
+     * @returns {object} - response from server
+     */
+    async botUpdate(botData){
+        const { id, } = botData
+        const url = `/members/bots/${ id }`
+        const method = id?.length
+            ? 'PUT' // update
+            : 'POST' // create
+        const options = {
+            body: JSON.stringify(botData),
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            method: method,
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Request bot version update.
+     * @param {Guid} bot_id - The bot id to update
+     * @returns {object} - Response from server { bot, success, }
+     */
+    async botVersion(bot_id){
+        const url = `/members/bots/version/${ bot_id }`
+        const options = {
+            method: 'PUT',
+        }
+        const response = await this.#fetch(url)
+        return response
+    }
+    async chatRetire(bot_id){
+        const url = `/members/retire/chat/${ bot_id }`
+        const options = {
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            method: 'POST',
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Fetch collection(s) requested on-demand.
+     * @param {string} type - The type of collections to fetch.
+     * @returns {Promise<Object[Array]>} - The collection(s)' items, no wrapper.
+     */
+    async collections(type=''){
+        const url = `/members/collections/${ type }`
+        const response = await this.#fetch(url)
+        return response
+    }
     async greetings(dynamic=false){
         const url = `greetings?dyn=${ dynamic }`
         const response = await this.#fetch(url)
         const responses = ( response?.responses ?? [] )
             .map(response=>response.message)
         return responses
+    }
+    async help(helpData){
+        const url = `/help`
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(helpData),
+        }
+        const response = await this.#fetch(url, options)
+        return response
     }
     /**
      * Fetches the hosted members from the server.
@@ -105,6 +222,85 @@ class Datamanager {
         const url = `select`
         const responses = await this.#fetch(url)
         return responses
+    }
+    async itemDelete(itemId){
+        const url = `/members/items/${ itemId }`
+        const options = { method: 'DELETE', }
+        const response = await this.#fetch(url, options)
+        response = await response.json()
+    }
+    /**
+     * Sets collection item content on server.
+     * @private
+     * @async
+     * @param {Event} event - The event object.
+     * @returns {void}
+     */
+    async itemUpdate(itemId, summary, emoticons){
+        const url = `/members/item/${ itemId }`
+        const options = {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ emoticons, summary, })
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Sets collection item title on server.
+     * @param {Guid} itemId - The collection item id
+     * @param {string} title - The title to set
+     * @returns {boolean} - Whether or not the title was set
+     */
+    async itemUpdateTitle(itemId, title){
+        if(!title?.length)
+            throw new Error(`No title provided for title update`)
+        const url = `/members/item/${ itemId }`
+        const options = {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ id, title, })
+        }
+        const response = await this.#fetch(url, options)
+        if(!response.success)
+            throw new Error(`Title "${ title }" not accepted.`)
+        return true
+    }
+    async logout(){
+        const url = `/logout`
+        const response = await this.#fetch(url)
+        return response
+    }
+    /**
+     * Relives a memory for a member.
+     * @param {Guid} id - The memory collection item id
+     * @param {string} memberInput - The member's updates to the memory
+     * @returns {Object} - The response object
+     */
+    async memoryRelive(itemId, memberInput){
+        const url = `/members/memory/relive/${ itemId }`
+        const body = memberInput?.length
+            ? JSON.stringify({ memberInput, })
+            : null
+        const options = {
+            body,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            method: 'PATCH',
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    async memoryReliveEnd(itemId){
+        const url = `/members/memory/end/${ itemId }`
+        const options = { method: 'PATCH', }
+        const response = await this.#fetch(url, options)
+        return response
     }
     /**
      * MyLife function to obscure an item summary
@@ -120,6 +316,29 @@ class Datamanager {
             },
         }
         const response = await this.#fetch(url, options)
+        return response
+    }
+    async passphraseUpdate(passphrase){
+        const url = `/members/passphrase`
+        const options = {
+            body: JSON.stringify({ passphrase, }),
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            method: 'POST',
+        }
+        const success = await this.#fetch(url, options)
+        return success
+    }
+    /**
+     * Fetches shadows from the server.
+     * @private
+     * @async
+     * @returns {Object[]} - The shadows array.
+     */
+    async shadows(){
+        const url = `/shadows`
+        const response = await this.#fetch(url)
         return response
     }
     async signupStatus(){
@@ -185,6 +404,42 @@ class Datamanager {
         }
         const response = await this.#fetch(url, options)
         return response
+    }
+    /**
+     * Fetches the team for a specified team ID.
+     * @param {Guid} teamId - The team name
+     * @returns {Object}- The team object: { id, name, etc. }
+     */
+    async team(teamId){
+
+    }
+    /**
+     * Sets the active Team.
+     * @param {Guid} teamId - The team ID
+     * @returns {Object} - The response object
+     */
+    async teamActivate(teamId){
+        const url = `/members/teams/${ teamId }`
+        const options = {
+            method: 'POST', 
+        }
+        const response = await this.#fetch(url, options)
+        return response 
+    }
+    async teams(){
+        const url = `/members/teams`
+        const response = await this.#fetch(url)
+        return response
+    }
+    async uploadFiles(formData){
+        const url = `/members/upload`
+        const options = {
+            method: 'POST',
+            body: formData,
+        }
+        const response = await this.#fetch(url, options)
+        return response
+
     }
 }
 class Globals {
@@ -281,9 +536,6 @@ class Globals {
     expunge(element){
         this.hide(element) /* trigger any animations */
         element.remove()
-    }
-    async fetchShadows(){
-        return await mFetchShadows()
     }
     /**
      * Returns the avatar object if poplated by on-page EJS script.
@@ -647,25 +899,6 @@ function mAlertCreate(alertData){
     }
 }
 /**
- * Fetches shadows from the server.
- * @private
- * @async
- * @returns {Object[]} - The shadows array.
- */
-async function mFetchShadows(){
-    let response = await fetch('/shadows', {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-    })
-    if(response.ok)
-        response = await response.json()
-    else
-        throw new Error('mFetchShadows::response not ok')
-    return response
-}
-/**
  * Returns help content appropriate to indicated `type`.
  * @requires mHelpInitiatorContent
  * @param {string} type - The type of help content to return.
@@ -731,16 +964,11 @@ function mLogin(){
  * @returns {void}
  */
 async function mLogout(){
-    const response = await fetch('/logout', {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-    })
-    if(response.ok)
+    const response = await mDatamanager.logout()
+    if(response)
         window.location.href = '/'
     else
-        console.error('mLogout::response not ok', response)
+        console.error('mLogout::failure', response)
 }
 /**
  * Sets the type of help required by member.
@@ -839,22 +1067,13 @@ async function mSubmitHelp(event){
 async function mSubmitHelpToServer(helpRequest, type='general', mbr_id){
     if(!helpRequest.trim().length)
         throw new Error('mSubmitHelpToServer::helpRequest required')
-    const response = await fetch('/help', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            helpRequest,
-            type,
-            mbr_id,
-        }),
-    })
-    const jsonResponse = await response.json()
-    if(response.ok)
-        return jsonResponse
-    else
-        throw new Error(jsonResponse?.message ?? 'unknown server error')
+    const helpData = {
+        helpRequest,
+        type,
+        mbr_id,
+    }
+    const response = await mDatamanager.help(helpData)
+    return response
 }
 /**
  * Toggles the visibility of the challenge submit button based on `input` event.

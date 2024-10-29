@@ -47,8 +47,8 @@ let mActiveBot,
     mShadows
 /* onDomContentLoaded */
 document.addEventListener('DOMContentLoaded', async event=>{
-    mShadows = await mGlobals.fetchShadows()
-    const { bots, activeBotId: id } = await fetchBots()
+    mShadows = await mGlobals.datamanager.shadows()
+    const { bots, activeBotId: id } = await mGlobals.datamanager.bots()
     if(!bots?.length)
         throw new Error(`ERROR: No bots returned from server`)
     updatePageBots(bots) // includes p-a
@@ -62,52 +62,6 @@ document.addEventListener('DOMContentLoaded', async event=>{
  */
 function activeBot(){
     return mActiveBot
-}
-/**
- * Fetch bots from server, used primarily for initialization of page, though could be requested on-demand.
- * @public
- * @returns {Promise<Object[Array]>} - The bot object array, no wrapper.
- */
-async function fetchBots(){
-    const url = window.location.origin + '/members/bots'
-    const response = await fetch(url)
-    if(!response.ok)
-        throw new Error(`HTTP error! Status: ${response.status}`)
-    return await response.json()
-}
-/**
- * Fetch collection(s) requested on-demand.
- * @param {string} type - The type of collections to fetch.
- * @returns {Promise<Object[Array]>} - The collection(s)' items, no wrapper.
- */
-async function fetchCollections(type){
-    const url = window.location.origin
-        + `/members/collections`
-        + ( !type ? '' : `/${ type }` )
-    let response = await fetch(url)
-    if(!response.ok)
-        throw new Error(`HTTP error! Status: ${response.status}`)
-    response = await response.json()
-    return response
-}
-async function fetchTeam(teamId){
-    const url = window.location.origin + '/members/teams/' + teamId
-    const method = 'POST'
-    const response = await fetch(url, { method, })
-    if(!response.ok)
-        throw new Error(`HTTP error! Status: ${response.status}`)
-    return await response.json()
-}
-/**
- * Fetch MyLife Teams from server.
- * @returns {Object[Array]} - The list of available team objects.
- */
-async function fetchTeams(){
-    const url = window.location.origin + '/members/teams'
-    const response = await fetch(url)
-    if(!response.ok)
-        throw new Error(`HTTP error! Status: ${response.status}`)
-    return await response.json()
 }
 /**
  * Get specific bot by id (first) or type.
@@ -157,19 +111,7 @@ async function setActiveBot(event, dynamic=false){
     if(initialActiveBot===mActiveBot)
         return // no change, no problem
     const { id, type, } = mActiveBot
-    /* confirm via server request: set active bot */
-    let response = await fetch(
-        '/members/bots/activate/' + id,
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            })
-    if(!response.ok)
-        throw new Error(`HTTP error! Status: ${ response.status }`)
-    response = await response.json()
-    const { bot_id, greeting='Danger Will Robinson! No greeting was received from the server', success=false, version, versionUpdate, } = response
+    const { bot_id, greeting='Danger Will Robinson! No greeting was received from the server', success=false, version, versionUpdate, } = await mGlobals.datamanager.botActivate(id)
     if(!success)
         throw new Error(`Server unsuccessful at setting active bot.`)
     /* update page bot data */
@@ -253,37 +195,6 @@ function mBot(type){
 function mBotActive(id){
     return id===mActiveBot?.id
         ?? false
-}
-/**
- * Request version update to bot.
- * @param {Guid} botId - The bot id to update
- * @returns {object} - Response from server { bot, success, }
- */
-async function mBotVersionUpdate(botId){
-    const url = window.location.origin + '/members/bots/version/' + botId
-    const method = 'PUT'
-    const response = await fetch(url, { method, })
-    if(!response.ok)
-        throw new Error(`HTTP error! Status: ${response.status}`)
-    return await response.json()
-}
-/**
- * Request bot be created on server.
- * @requires mActiveTeam
- * @param {string} type - bot type
- * @returns {object} - bot object from server.
- */
-async function mCreateBot(type){
-    const { id: teamId, } = mActiveTeam
-    const url = window.location.origin + '/members/bots/create'
-    const method = 'POST'
-    const body = JSON.stringify({ teamId, type, })
-    const headers = { 'Content-Type': 'application/json' }
-    let response = await fetch(url, { body, headers, method, })
-    if(!response.ok)
-        throw new Error(`server unable to create bot.`)
-    response = await response.json()
-    return response
 }
 /**
  * Returns icon path string based on bot type.
@@ -878,8 +789,11 @@ async function mCreateTeamMember(event){
     const { value: type, } = this
     if(!type)
         throw new Error(`no team member type selected`)
-    // const { description, id, teams, } = await mCreateBot(type)
-    const bot = await mCreateBot(type)
+    const data = {
+        id: mActiveTeam.id,
+        type,
+    }
+    const bot = await mGlobals.datamanager.botCreate(data)
     if(!bot)
         throw new Error(`no bot created for team member`)
     const { description, id, teams, } = bot
@@ -1021,11 +935,7 @@ async function mDeleteCollectionItem(event){
     /* confirmation dialog */
     const userConfirmed = confirm("Are you sure you want to delete this item?")
     if(userConfirmed){
-        /* talk to server */
-        const url = window.location.origin + '/members/items/' + id
-        const method = 'DELETE'
-        let response = await fetch(url, { method: method })
-        response = await response.json()
+        const response = await mGlobals.datamanager.itemelete(id)
         if(response){
             expunge(item)
             if(getActiveItemId()===id)
@@ -1136,7 +1046,7 @@ async function mRefreshCollection(type, collectionList){
         ?? document.getElementById(`collection-list-${ type }`)
     if(!collectionList)
         throw new Error(`No collection list found for refresh request.`)
-    const collection = await fetchCollections(type)
+    const collection = await mGlobals.datamanager.collections(type)
     mUpdateCollection(type, collectionList, collection)
 }
 async function mReliveMemory(event){
@@ -1153,7 +1063,7 @@ async function mReliveMemory(event){
         popupClose.click()
     toggleMemberInput(false, false, `Reliving memory with `)
     unsetActiveItem()
-    const { instruction, item, responses, success, } = await mReliveMemoryRequest(id, inputContent)
+    const { instruction, item, responses, success, } = await mGlobals.datamanager.memoryRelive(id, inputContent)
     if(success){
         toggleMemberInput(false, true)
         addMessages(responses, { bubbleClass: 'relive-bubble' })
@@ -1193,46 +1103,6 @@ async function mReliveMemory(event){
     }
 }
 /**
- * 
- * @param {Guid} id - The memory collection item id.
- * @param {string} memberInput - The member's updates to the memory.
- * @returns 
- */
-async function mReliveMemoryRequest(id, memberInput){
-    console.log('Relive memory:', id, memberInput)
-    try {
-        const url = window.location.origin + '/members/memory/relive/' + id
-        let response = await fetch(url, {
-            body: memberInput?.length ? JSON.stringify({ memberInput, }) : null,
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        })
-        if(!response.ok)
-            throw new Error(`HTTP error! Status: ${response.status}`)
-        response = await response.json()
-        return response
-    } catch (error) {
-        console.log('Error fetching memory for relive:', error)
-    }
-}
-async function mReliveMemoryRequestStop(id){
-    console.log('Stop reliving memory:', id)
-    try {
-        const url = window.location.origin + '/members/memory/end/' + id
-        let response = await fetch(url, {
-            method: 'PATCH',
-        })
-        if(!response.ok)
-            throw new Error(`HTTP error! Status: ${response.status}`)
-        response = await response.json()
-        return response
-    } catch (error) {
-        console.log('Error stopping relive memory:', error)
-    }
-}
-/**
  * Request to retire an identified bot.
  * @param {Event} event - The event object
  * @returns {void}
@@ -1246,17 +1116,7 @@ async function mRetireBot(event){
         /* reset active bot */
         if(mActiveBot.id===botId)
             setActiveBot()
-        /* retire bot */
-        const url = window.location.origin + '/members/bots/' + botId
-        let response = await fetch(url, {
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            method: 'DELETE',
-        })
-        if(!response.ok)
-            throw new Error(`HTTP error! Status: ${response.status}`)
-        response = await response.json()
+        response = await mGlobals.datamanager.botRetire(botId)
         addMessages(response.responses)
     } catch(err) {
         console.log('Error posting bot data:', err)
@@ -1274,48 +1134,11 @@ async function mRetireChat(event){
     try {
         const { dataset, id, } = event.target
         const { botId, type, } = dataset
-        const url = window.location.origin + '/members/retire/chat/' + botId
-        let response = await fetch(url, {
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            method: 'POST',
-        })
-        if(!response.ok)
-            throw new Error(`HTTP error! Status: ${response.status}`)
-        response = await response.json()
+        const reponse = await mGlobals.datamanager.chatRetire(botId)
         addMessages(response.responses)
     } catch(err) {
         console.log('Error posting bot data:', err)
         addMessage(`Error posting bot data: ${err.message}`)
-    }
-}
-/**
- * Set Bot data on server.
- * @param {Object} bot - bot object
- * @returns {object} - response from server
- */
-async function mSetBot(bot){
-    try {
-        const { id, } = bot
-        const url = window.location.origin + '/members/bots/' + id
-        const method = id?.length
-            ? 'PUT' // update
-            : 'POST' // create
-        let response = await fetch(url, {
-            body: JSON.stringify(bot),
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            method: method,
-        })
-        if(!response.ok)
-            throw new Error(`HTTP error! Status: ${response.status}`)
-        return true
-    } catch (error) {
-        console.log('Error posting bot data:', error)
-        alert('Error posting bot data:', error.message)
-        return false
     }
 }
 /**
@@ -1436,56 +1259,6 @@ function mSetStatusBar(bot, botContainer){
         botVersionElement.textContent = mVersion(version)
 }
 /**
- * Sets collection item content on server.
- * @private
- * @async
- * @param {Event} event - The event object.
- * @returns {void}
- */
-async function mSetCollectionItem(id, content, emoticons){
-    const summary = content
-    const url = window.location.origin + '/members/item/' + id
-    const method = 'PUT'
-    let response = await fetch(url, {
-        method: method,
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ emoticons, summary, })
-    })
-    if(!response.ok)
-        return false
-    response = await response.json()
-    return response?.success
-        ?? false
-}
-/**
- * Sets collection item title on server.
- * @param {Guid} id - The collection item id.
- * @param {string} title - The title to set.
- * @returns {boolean} - Whether or not the title was set.
- */
-async function mSetCollectionItemTitle(id, title){
-    if(!title?.length)
-        throw new Error(`No title provided for title update`)
-    const url = window.location.origin + '/members/item/' + id
-    const method = 'PUT'
-    let response = await fetch(url, {
-        method: method,
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ id, title, })
-    })
-    if(!response.ok)
-        throw new Error(`HTTP error! Status: ${response.status}`)
-    response = await response.json()
-    if(!response.success || response.item?.title!==title)
-        throw new Error(`Title "${ title }" not accepted.`)
-    console.log('Set collection item title response:', title, response.item)
-    return true
-}
-/**
  * Highlights bot bar icon of active bot.
  * @public
  * @requires mActiveBot
@@ -1542,75 +1315,9 @@ async function mStopRelivingMemory(id){
     const input = document.getElementById(`relive-memory-input-container_${ id }`)
     if(input)
         expunge(input)
-    await mReliveMemoryRequestStop(id)
+    await mGlobals.datamanager.memoryReliveEnd(id)
     unsetActiveItem()
     toggleMemberInput(true)
-}
-/**
- * Submit updated `story` data. No need to return unless an error, which is currently thrown.
- * @param {Event} event - The event object.
- * @returns {void}
- */
-async function mStory(event){
-    event.stopPropagation()
-    const { dataset, value, } = this
-    const { id, type: field, } = dataset
-    if(!value?.length)
-        throw new Error(`No value provided for story update.`)
-    const url = window.location.origin + '/members/item/' + id
-    const method = 'PUT'
-    let response = await fetch(url, {
-        method: method,
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ [`${ field }`]: value })
-    })
-    if(!response.ok)
-        throw new Error(`HTTP error! Status: ${response.status}`)
-    response = await response.json()
-    if(!response.success)
-        throw new Error(`Narrative "${ value }" not accepted.`)
-}
-async function mStoryContext(event){
-    const { dataset, value, } = this
-    const { previousValue, } = dataset
-    if(previousValue==value)
-        return
-    mStory.bind(this)(event) // no need await
-}
-/**
- * Submit updated passphrase for MyLife via avatar.
- * @private
- * @async
- * @param {Event} event - The event object.
- * @returns {void}
- */
-async function mSubmitPassphrase(event){
-    const { value, } = passphraseInput
-    if(!value?.length)
-        return
-    try{
-        /* submit to server */
-        const url = window.location.origin + '/members/passphrase'
-        const method = 'POST'
-        let response = await fetch(url, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ passphrase: value })
-        })
-        if(!response.ok)
-            throw new Error(`HTTP error! Status: ${response.status}`)
-        response = await response.json()
-        if(!response.success)
-            throw new Error(`Passphrase "${ value }" not accepted.`)
-        mTogglePassphrase(false)
-    } catch(err){
-        console.log('Error submitting passphrase:', err)
-        mTogglePassphrase(true)
-    }
 }
 /**
  * Manages `change` event selection of team member from `team-select` dropdown.
@@ -1724,13 +1431,13 @@ function mTogglePassphrase(event){
         passphraseInput.focus()
         passphraseInput.addEventListener('input', mInputPassphrase)
         passphraseCancelButton.addEventListener('click', mTogglePassphrase, { once: true })
-        passphraseSubmitButton.addEventListener('click', mSubmitPassphrase)
+        passphraseSubmitButton.addEventListener('click', mUpdatePassphrase)
         hide(passphraseResetButton)
         show(passphraseInputContainer)
     } else {
         passphraseInput.blur()
         passphraseInput.removeEventListener('input', mInputPassphrase)
-        passphraseSubmitButton.removeEventListener('click', mSubmitPassphrase)
+        passphraseSubmitButton.removeEventListener('click', mUpdatePassphrase)
         passphraseResetButton.addEventListener('click', mTogglePassphrase, { once: true })
         hide(passphraseInputContainer)
         show(passphraseResetButton)
@@ -1980,12 +1687,12 @@ function mUpdateBotContainerAddenda(botContainer){
             botNameInput.addEventListener('change', async event=>{
                 dataset.bot_name = botNameInput.value
                 const { bot_name, } = dataset
-                const updatedBot = {
+                const botData = {
                     bot_name,
                     id,
                     type,
                 }
-                if(await mSetBot(updatedBot)){
+                if(await mGlobals.datamanager.botUpdate(botData)){
                     const botTitleName = document.getElementById(`${ type }-title-name`)
                     if(botTitleName)
                         botTitleName.textContent = bot_name
@@ -2071,7 +1778,7 @@ async function mUpdateBotVersion(event){
     const { botId, currentVersion, updateVersion, } = dataset
     if(currentVersion==updateVersion)
         return
-    const updatedVersion = await mBotVersionUpdate(botId)
+    const updatedVersion = await mGlobals.datamanager.botVersionUpdate(botId)
     if(updatedVersion?.success){
         const { version, } = updatedVersion.bot
         dataset.currentVersion = version
@@ -2121,7 +1828,7 @@ async function mUpdateCollectionItem(event){
     const { dataset, } = contentElement
     const { emoticons=[], lastUpdatedContent, } = dataset
     const { value: content, } = contentElement
-    if(content!=lastUpdatedContent && await mSetCollectionItem(id, content, emoticons))
+    if(content!=lastUpdatedContent && await mGlobals.datamanager.itemUpdate(id, content, emoticons))
         contentElement.dataset.lastUpdatedContent = content
     else
         contentElement.value = lastUpdatedContent
@@ -2153,9 +1860,7 @@ function mUpdateCollectionItemTitle(event){
     })
     input.addEventListener('blur', async event=>{
         if(input.value.length && input.value!==span.textContent){
-            /* update server */
-            console.log('Update title:', itemId, input.value)
-            if(await mSetCollectionItemTitle(itemId, input.value)){
+            if(await mGlobals.datamanager.itemUpdateTitle(itemId, input.value)){
                 const title = input.value
                 // if successful update title in all sub-locations (including activeItem in members)
                 span.textContent = title
@@ -2204,11 +1909,12 @@ function mUpdateInterests(botContainer){
                 .join('; ')
             dataset.interests = checkedValues
             const { id, interests, type, } = dataset
-            mSetBot({
+            const bot = {
                 id,
                 interests,
                 type,
-            })
+            }
+            mGlobals.datamanager.botUpdate(bot) // no `await
         })
     })
 }
@@ -2230,6 +1936,21 @@ function mUpdateLabels(activeLabelId, labels){
         }
     })
 }
+
+/**
+ * Submit updated passphrase for MyLife via avatar.
+ * @private
+ * @async
+ * @param {Event} event - The event object.
+ * @returns {void}
+ */
+async function mUpdatePassphrase(event){
+    const { value, } = passphraseInput
+    if(!value?.length)
+        return
+    const success = await mGlobals.datamanager.passphraseUpdate(value)
+    mTogglePassphrase(success)
+}
 /**
  * Updates the active team to specific or default.
  * @requires mActiveTeam
@@ -2241,14 +1962,14 @@ function mUpdateLabels(activeLabelId, labels){
  */
 async function mUpdateTeams(identifier=mDefaultTeam){
     if(!mTeams?.length)
-        mTeams.push(...await fetchTeams())
+        mTeams.push(...await mGlobals.datamanager.teams())
     const team = mTeams
         .find(team=>team.name===identifier || team.id===identifier)
     if(!team)
         throw new Error(`Team "${ identifier }" not available at this time.`)
     if(mActiveTeam!==team){
         const { id: teamId, } = team
-        const activeTeam = await fetchTeam(teamId) // set team on server and receive bot ids in `bots`
+        const activeTeam = await mGlobals.datamanager.teamActivate(teamId)
         if(activeTeam)
             mActiveTeam = activeTeam
     }
@@ -2300,17 +2021,12 @@ async function mUploadFilesInput(fileInput, uploadParent, uploadButton){
     fileInput.addEventListener('change', async event=>{
         const { files: uploads, } = fileInput
         if(uploads?.length){
-            /* send to server */
             const formData = new FormData()
             for(let file of uploads){
                 formData.append('files[]', file)
             }
             formData.append('type', mGlobals.HTMLIdToType(uploadParent.id))
-            const response = await fetch('/members/upload', {
-                method: 'POST',
-                body: formData
-            })
-            const { files, message, success, } = await response.json()
+            const { files, message, success, } = await mGlobals.datamanager.uploadFiles(formData)
             const type = 'file'
             const itemList = document.getElementById(`collection-list-${ type }`)
             mUpdateCollection(type, itemList, files)
@@ -2335,13 +2051,8 @@ function mVersion(version){
     return version
 }
 /* exports */
-// @todo - export combine of fetchBots and updatePageBots
 export {
     activeBot,
-    fetchBots,
-    fetchCollections,
-    fetchTeam,
-    fetchTeams,
     getBot,
     getItem,
     refreshCollection,
