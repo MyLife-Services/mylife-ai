@@ -73,7 +73,7 @@ class Datamanager {
             response = await response.json()
         } catch(e) {
             const errorMessage = e.message
-            console.error('Datamanager::fetch()::failure', errorMessage)
+            console.log('Datamanager::fetch()::failure', errorMessage)
             response = {
                 error: errorMessage,
                 message: errorMessage,
@@ -96,9 +96,57 @@ class Datamanager {
             .map(response=>response.message)
         return responses
     }
+    /**
+     * Fetches the hosted members from the server.
+     * @private
+     * @returns {Promise<MemberList[]>} - The response Member List { id, name, } array.
+     */
+    async hostedMembers(){
+        const url = `select`
+        const responses = await this.#fetch(url)
+        return responses
+    }
     async signupStatus(){
         const response = await this.#fetch('signup')
         return response
+    }
+    async submitChat(message){
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                message,
+                role: 'user',
+            }),
+        }
+        const response = await this.#fetch(undefined, options)
+        return response
+    }
+    async submitPassphrase(passphrase, mbr_id){
+        const url = `/challenge/${ mbr_id }`
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ passphrase, }),
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    async submitSignup(signupData){
+        const url = `signup`
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(signupData),
+        }
+        const { success, } = await this.#fetch(url, options)
+        return success
     }
 }
 class Globals {

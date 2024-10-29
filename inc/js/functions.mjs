@@ -356,9 +356,9 @@ async function signup(ctx) {
 	const { mbr_id, ..._registrationData } = signupPacket // do not display theoretical memberId
     ctx.status = 200 // OK
     ctx.body = {
+		message: 'Signup successful',
 		payload: _registrationData,
         success,
-        message: 'Signup successful',
     }
 }
 async function summarize(ctx){
