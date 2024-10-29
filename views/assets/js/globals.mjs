@@ -186,6 +186,68 @@ class Datamanager {
         const response = await this.#fetch(url)
         return response
     }
+    /**
+     * End experience on server.
+     * @public
+     * @async
+     * @param {Guid} experienceId - The experience id
+     * @returns {Promise<Object>} - The response object
+     */
+    async experienceEnd(experienceId){
+        const url = `/members/experience/${ experienceId }/end`
+        const options = { method: 'PATCH', }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Retrieves first or next sequence of experience events and updates mExperience object.
+     * @private
+     * @async
+     * @param {Guid} experienceId - The experience id
+     * @param {object} memberInput - Member input in form of object
+     * @returns {Promise<Experience>} - Experience object: { autoplay, events, id, location, name, purpose, skippable, }
+     */
+    async experienceEvents(experienceId, memberInput){
+        const url = `/members/experience/${ experienceId }`
+        const body = memberInput?.length
+            ? JSON.stringify({ memberInput, })
+            : null
+        const options = {
+            body,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            method: 'PATCH',
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Gets the manifest of the Experience.
+     * @private
+     * @async
+     * @param {Guid} id - The Experience id
+     * @returns {Promise<Experience>} - Experience object: { autoplay, events, id, location, name, purpose, skippable, }
+     */
+    async experienceManifest(experienceId){
+        const url =`/members/experience/${ experienceId }/manifest`
+        const options = {
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            method: 'PATCH',
+        }
+        const response = await this.#fetch(url)
+        return response
+    }
+    /**
+     * Fetches the experiences from the server.
+     * @returns {Promise<Experience[]>} - Array of Experience objects: { autoplay, events, id, location, name, purpose, skippable, }     */
+    async experiences(){
+        const url = `/experiences`
+        const response = await this.#fetch(url)
+        return response
+    }
     async greetings(dynamic=false){
         const url = `greetings?dyn=${ dynamic }`
         const response = await this.#fetch(url)

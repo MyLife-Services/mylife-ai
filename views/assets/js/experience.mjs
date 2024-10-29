@@ -83,10 +83,8 @@ document.addEventListener('DOMContentLoaded', async event=>{
  * @returns {Promise<void>} - The return is its own success, having cleared all active experience data.
  */
 async function experienceEnd(){
-    /* end experience on server */
-    const endExperience = await mEndServerExperience()
-    if(!endExperience)
-        throw new Error("Could not end experience on server!")
+    if(!mExperience || !mExperience?.id?.length || !await globals.datamanager.experienceEnd(mExperience.id))
+        return
     mExperience = null
     /* remove listeners */
     closeButton.removeEventListener('click', experienceEnd)
@@ -522,26 +520,6 @@ function mCreateModeratorInputDialog(){
     moderatorDialog.prepend(inputPromptDiv)
 }
 /**
- * End experience on server.
- * @private
- * @async
- * @returns {Promise<boolean>} - Success or failure of the server request.
- */
-async function mEndServerExperience(){
-    const { id, } = mExperience
-        ?? {} // call even when ended first on server
-    if(!id)
-        return false
-    const response = await fetch(`/members/experience/${id}/end`, {
-        method: 'PATCH',
-    })
-    if(!response.ok){
-        console.log(`HTTP error! Status: ${response}`)
-        return true
-    }
-    return await response.json()
-}
-/**
  * Reads character data for an event and prepares animation sequence.
  * @private
  * @requires mEvent - The current event object.
@@ -707,24 +685,19 @@ function mEventInput(){
     return animationSequence
 }
 /**
- * Retrieves experience events.
+ * Retrieves first or next sequence of experience events and updates mExperience object.
  * @private
  * @async
- * @param {object} memberInput - Member input in form of object.
- * @returns {void}
+ * @requires mExperience
+ * @param {object} memberInput - Member input in form of object
+ * @returns {Object[]} - Array of event objects
  */
 async function mEvents(memberInput){
-    const response = await fetch(`/members/experience/${ mExperience.id }`, {
-        method: 'PATCH',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: memberInput ? JSON.stringify({ memberInput, }) : null,
-    })
-    if(!response.ok)
-        throw new Error(`HTTP error! Status: ${response.status}`)
-    let { autoplay, events, id, location, name, purpose, skippable, } = await response.json()
-    if(!events?.length)
+    const experienceId = mExperience?.id
+    if(!experienceId?.length)
+        throw new Error(`Experience id not found: ${ experienceId }`)
+    let { autoplay, events, id, location, name, purpose, skippable, } = await globals.datamanager.experienceEvents(experienceId, memberInput)
+    if(!events?.length) // @todo - deprecate, could infinity loop
         events = await mEvents()
     mExperience.location = location
     return events
@@ -775,7 +748,8 @@ async function mGetExperiences(scope){
     // @stub - member experience fetch goes here
     /* system experiences */
     if((scope ?? 'system')==='system'){
-        let systemExperiences = await mGetExperiencesFromServer(`/experiences`)
+        let systemExperiences = await globals.datamanager.experiences()
+        // mGetExperiencesFromServer(`/experiences`)
         systemExperiences = systemExperiences?.experiences
             ?? systemExperiences
             ?? experiences
@@ -784,25 +758,6 @@ async function mGetExperiences(scope){
                 experience=>!experiences.some(_experience=>_experience.id===experience.id)
             ))
     }
-    return experiences
-}
-/**
- * Get experiences from server.
- * @private
- * @async
- * @param {string} url - The url to fetch experiences from.
- * @returns {Promise<Experience[]>} - The return is an array of Experience objects.
- */
-async function mGetExperiencesFromServer(url){
-    const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-    })
-    if(!response.ok)
-        throw new Error(`HTTP error! Status: ${response.status}`)
-    const experiences = await response.json()
     return experiences
 }
 /**
@@ -862,32 +817,6 @@ function mIsAvatar(type){
 function mIsMember(type){
     const memberList = ['member', 'user']
     return memberList.some(item => item === type.trim().toLowerCase())
-}
-/**
- * Gets the manifest of the Experience.
- * @private
- * @async
- * @param {Guid} id - The Experience object id.
- * @returns {Promise<Experience>} - The Experience object.
- */
-async function mManifest(id){
-    try {
-        const response = await fetch(`/members/experience/${id}/manifest`, {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            // body: JSON.stringify({}),
-        })
-        if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`)
-        }
-
-        return await response.json()
-    } catch (error) {
-        console.log('mManifest::Error()', error)
-        return null
-    }
 }
 /**
  * Scene transition based on backdrop.
