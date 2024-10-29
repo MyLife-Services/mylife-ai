@@ -58,22 +58,14 @@ class Datamanager {
                 : `/${url}`
             url = this.#url + url
             response = await fetch(url, options)
-            if(!response.ok)
-                throw new Error('Network response was not ok')
-            switch(response.status){
-                case 500:
-                    console.error('Datamanager::fetch()::error')
-                    break
-                case 401:
-                    console.error('Datamanager::fetch()::unauthorized')
-                    break
-                default:
-                    break
+            if(response.status===401){ // session timeout
+                response = await response.json()
+                window.location.href = response.redirectUrl
+                return
             }
             response = await response.json()
         } catch(e) {
             const errorMessage = e.message
-            console.log('Datamanager::fetch()::failure', errorMessage)
             response = {
                 error: errorMessage,
                 message: errorMessage,
