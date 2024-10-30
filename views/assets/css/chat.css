@@ -59,7 +59,12 @@
 	font-size: 1.25rem;
 	margin-right: 0.5em;
 }
-.chat-active-item-text {
+.chat-active-item-status {
+	color: #e9eb5c;
+	font-weight: bold;
+	margin-right: 0.9rem;
+}
+.chat-active-item-title {
 	align-items: center;
     color: aliceblue;
     display: flex;
@@ -67,12 +72,7 @@
 	max-height: 1.2rem;
     max-width: 80%;
 }
-.chat-active-item-text-active {
-	color: #e9eb5c;
-	font-weight: bold;
-	margin-right: 0.9rem;
-}
-.chat-active-item-text-title {
+.chat-active-item-title-text {
 	align-self: self-start;
 	color: gainsboro;
 	overflow: hidden;

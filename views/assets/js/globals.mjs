@@ -317,7 +317,7 @@ class Datamanager {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ id, title, })
+            body: JSON.stringify({ itemId, title, })
         }
         const response = await this.#fetch(url, options)
         if(!response.success)

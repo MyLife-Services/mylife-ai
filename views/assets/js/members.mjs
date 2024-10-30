@@ -14,6 +14,7 @@ import {
     setActiveBot as _setActiveBot,
     togglePopup,
     updateItem,
+    updateItemTitle,
 } from './bots.mjs'
 import Globals from './globals.mjs'
 /* variables */
@@ -254,29 +255,29 @@ function setActiveItem(itemId){
     if(!itemId || !popup)
         throw new Error('setActiveItem::Error()::valid `id` is required')
     const { title, type, } = popup.dataset
-    const chatActiveItemTitleText = document.getElementById('chat-active-item-text')
     const chatActiveItemClose = document.getElementById('chat-active-item-close')
-    if(chatActiveItemTitleText){
-        chatActiveItemTitleText.innerHTML = ''
-        const activeActive = document.createElement('div')
-        activeActive.classList.add('chat-active-item-text-active')
-        activeActive.id = `chat-active-item-text-active`
-        activeActive.innerHTML = `Active:`
-        const activeTitle = document.createElement('div')
-        activeTitle.classList.add('chat-active-item-text-title')
-        activeTitle.id = `chat-active-item-text-title`
-        activeTitle.innerHTML = title
-        /* append children */
-        chatActiveItemTitleText.appendChild(activeActive)
-        chatActiveItemTitleText.appendChild(activeTitle)
-        chatActiveItemTitleText.dataset.itemId = itemId
-        chatActiveItemTitleText.dataset.popupId = popup.id
-        chatActiveItemTitleText.dataset.title = title
-        chatActiveItemTitleText.addEventListener('click', mToggleItemPopup)
-        // @stub - edit title with double-click?
-    }
+    const chatActiveItemStatus = document.getElementById('chat-active-item-status')
+    const chatActiveItemTitle = document.getElementById('chat-active-item-title')
     if(chatActiveItemClose)
         chatActiveItemClose.addEventListener('click', unsetActiveItem, { once: true })
+    if(chatActiveItemStatus){
+        chatActiveItemStatus.dataset.itemId = itemId
+        chatActiveItemStatus.addEventListener('click', mToggleItemPopup)
+    }
+    if(chatActiveItemTitle){
+        chatActiveItemTitle.innerHTML = ''
+        const activeTitle = document.createElement('div')
+        activeTitle.classList.add('chat-active-item-title-text')
+        activeTitle.dataset.itemId = itemId
+        activeTitle.id = `chat-active-item-title-text_${ itemId }`
+        activeTitle.innerHTML = title
+        /* append children */
+        chatActiveItemTitle.appendChild(activeTitle)
+        chatActiveItemTitle.dataset.itemId = itemId
+        chatActiveItemTitle.dataset.popupId = popup.id
+        chatActiveItemTitle.dataset.title = title
+        chatActiveItemTitle.addEventListener('dblclick', updateItemTitle, { once: true })
+    }
     chatActiveItem.dataset.id = id
     chatActiveItem.dataset.itemId = itemId
     show(chatActiveItem)
@@ -284,17 +285,13 @@ function setActiveItem(itemId){
 /**
  * Sets the active item title in the chat system, display-only.
  * @public
- * @param {string} title - The title to set.
- * @param {Guid} itemId - The item ID.
+ * @param {Guid} itemId - The item ID
+ * @param {string} title - The title to set
  * @returns {void}
  */
-function setActiveItemTitle(title, itemId){
-    const chatActiveItemText = document.getElementById('chat-active-item-text')
-    if(!chatActiveItemText)
-        throw new Error('setActiveItemTitle::Error()::`chatActiveItemText` is required')
-    const chatActiveItemTitle = document.getElementById('chat-active-item-text-title')
-    if(!chatActiveItemTitle)
-        throw new Error('setActiveItemTitle::Error()::`chatActiveItemTitle` is required')
+function setActiveItemTitle(itemId, title){
+    const chatActiveItemText = document.getElementById('chat-active-item-title')
+    const chatActiveItemTitle = document.getElementById(`chat-active-item-title-text_${ itemId }`)
     const { itemId: id, } = chatActiveItemText.dataset
     if(id!==itemId)
         throw new Error('setActiveItemTitle::Error()::`itemId`\'s do not match')
@@ -364,7 +361,7 @@ function toggleVisibility(){
  * @returns {void}
  */
 function unsetActiveItem(){
-    const chatActiveItemTitleText = document.getElementById('chat-active-item-text')
+    const chatActiveItemTitleText = document.getElementById('chat-active-item-title-text')
     const chatActiveItemClose = document.getElementById('chat-active-item-close')
     if(chatActiveItemTitleText){
         chatActiveItemTitleText.innerHTML = ''
@@ -700,7 +697,10 @@ function toggleInputTextarea(event){
 function mToggleItemPopup(event){
     event.stopPropagation()
     event.preventDefault()
-    togglePopup(event.target.dataset.popupId, true)
+    const { itemId, } = event.target.dataset
+    if(!itemId)
+        console.log('mToggleItemPopup::Error()::`itemId` is required', event.target.dataset, itemId)
+    togglePopup(itemId, true)
 }
 function toggleSubmitButtonState() {
 	memberSubmit.disabled = !(chatInputField.value?.trim()?.length ?? true)

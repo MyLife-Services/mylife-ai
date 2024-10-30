@@ -136,10 +136,29 @@ async function setActiveBot(event, dynamic=false){
     decorateActiveBot(mActiveBot)
 }
 /**
+ * Sets an item's changed title in all locations.
+ * @param {Guid} itemId - The collection item id
+ * @param {String} title - The title to set for the item
+ */
+async function setItemTitle(itemId, title){
+    const titleSpan = document.getElementById(`collection-item-title_${ itemId }`)
+    const titleInput = document.getElementById(`collection-item-title-input__${ itemId }`)
+    const popupTitle = document.getElementById(`popup-header-title_${ itemId }`)
+    if(titleSpan)
+        titleSpan.textContent = title
+    if(titleInput)
+        titleInput.value = title
+    if(popupTitle)
+        popupTitle.textContent = title
+    setActiveItemTitle(itemId, title)
+}
+/**
  * Exposed method to allow externalities to toggle a specific item popup.
  * @param {string} id - Id for HTML div element to toggle.
  */
 function togglePopup(id, bForceState=null){
+    if(mGlobals.isGuid(id))
+        id = `popup-container_${ id }`
     const popup = document.getElementById(id)
     if(!popup)
         throw new Error(`No popup found for id: ${ id }`)
@@ -157,6 +176,9 @@ function updateItem(item){
     /* update collection elements indicated as object keys with this itemId */
     // @stub - force-refresh memories; could be more savvy
     refreshCollection('story')
+}
+function updateItemTitle(event){
+    return mUpdateCollectionItemTitle(event)
 }
 /**
  * Proxy to update bot-bar, bot-containers, and bot-greeting, if desired. Requirements should come from including module, here `members.mjs`.
@@ -268,15 +290,15 @@ function mCreateCollectionItem(collectionItem){
     itemIcon.src = mBotIcon(iconType)
     item.appendChild(itemIcon)
     /* name */
-    const itemName = document.createElement('span')
-    itemName.id = `collection-item-name_${ id }`
-    itemName.name = `collection-item-name-${ type }`
-    itemName.classList.add('collection-item-name', `${ type }-collection-item-name`)
-    itemName.innerText = title
+    const itemTitle = document.createElement('span')
+    itemTitle.id = `collection-item-title_${ id }`
+    itemTitle.name = `collection-item-title-${ type }`
+    itemTitle.classList.add('collection-item-title', `${ type }-collection-item-title`)
+    itemTitle.textContent = title
         ?? name
         ?? filename
         ?? `unknown ${ type } item`
-    item.appendChild(itemName)
+    item.appendChild(itemTitle)
     /* buttons */
     switch(type){
         case 'file':
@@ -298,7 +320,7 @@ function mCreateCollectionItem(collectionItem){
             const itemPopup = mCreateCollectionPopup(collectionItem)
             item.appendChild(itemPopup)
             item.addEventListener('click', mTogglePopup)
-            item.addEventListener('dblclick', mUpdateCollectionItemTitle, { once: true })
+            itemTitle.addEventListener('dblclick', mUpdateCollectionItemTitle, { once: true })
             break
     }
     return item
@@ -468,7 +490,23 @@ function mCreateCollectionPopup(collectionItem){
     const popupHeader = document.createElement('div')
     popupHeader.classList.add('popup-header', 'collection-popup-header')
     popupHeader.id = `popup-header_${ id }`
-    popupHeader.innerText = title ?? `${ type } Item`
+    popupHeader.name = `popup-header-${ type }`
+    const popupHeaderTitle = document.createElement('span')
+    popupHeaderTitle.classList.add('collection-popup-header-title')
+    popupHeaderTitle.id = `popup-header-title_${ id }`
+    popupHeaderTitle.textContent = title
+        ?? `${ type } Item`
+    popupHeaderTitle.name = `popup-header-title-${ type }`
+    popupHeaderTitle.addEventListener('dblclick', mUpdateCollectionItemTitle, { once: true })
+    popupHeader.appendChild(popupHeaderTitle)
+    /* create popup close button */
+    const popupClose = document.createElement('button')
+    popupClose.classList.add('fa-solid', 'fa-close', 'popup-close', 'collection-popup-close')
+    popupClose.dataset.isClose = 'true'
+    popupClose.id = `popup-close_${ id }`
+    popupClose.setAttribute('aria-label', 'Close')
+    popupClose.addEventListener('click', mTogglePopup)
+    popupHeader.appendChild(popupClose)
     /* Variables for dragging */
     let isDragging = false
     let offsetX, offsetY
@@ -493,13 +531,6 @@ function mCreateCollectionPopup(collectionItem){
         collectionPopup.dataset.offsetX = collectionPopup.offsetLeft
         collectionPopup.dataset.offsetY = collectionPopup.offsetTop
     })
-    /* create popup close button */
-    const popupClose = document.createElement('button')
-    popupClose.classList.add('fa-solid', 'fa-close', 'popup-close', 'collection-popup-close')
-    popupClose.dataset.isClose = 'true'
-    popupClose.id = `popup-close_${ id }`
-    popupClose.setAttribute('aria-label', 'Close')
-    popupClose.addEventListener('click', mTogglePopup)
     /* create popup body/container */
     const popupBody = document.createElement('div')
     popupBody.classList.add('popup-body', 'collection-popup-body')
@@ -568,7 +599,7 @@ function mCreateCollectionPopup(collectionItem){
     emoticons.forEach(emoticon => {
         const emoticonButton = document.createElement('span')
         emoticonButton.classList.add('popup-sidebar-emoticon')
-        emoticonButton.innerText = emoticon
+        emoticonButton.textContent = emoticon
         emoticonButton.addEventListener('click', (event)=>{
             event.stopPropagation()
             console.log('Emoticon:write', emoticon, popupContent.readOnly, popupContent)
@@ -700,7 +731,6 @@ function mCreateCollectionPopup(collectionItem){
     }
     /* append elements */
     collectionPopup.appendChild(popupHeader)
-    collectionPopup.appendChild(popupClose)
     collectionPopup.appendChild(popupBody)
     if(typePopup)
         collectionPopup.appendChild(typePopup)
@@ -829,7 +859,7 @@ function mCreateTeamPopup(type, clickX=0, clickY=0, showPopup=true){
             memberSelect.classList.add('team-member-select')
             const memberOption = document.createElement('option')
             memberOption.disabled = true
-            memberOption.innerText = 'Select a team member to add...'
+            memberOption.textContent = 'Select a team member to add...'
             memberOption.selected = true
             memberOption.value = ''
             memberSelect.appendChild(memberOption)
@@ -837,7 +867,7 @@ function mCreateTeamPopup(type, clickX=0, clickY=0, showPopup=true){
                 if(mBots.find(bot=>bot.type===type)) // no duplicates currently
                     return
                 const memberOption = document.createElement('option')
-                memberOption.innerText = type
+                memberOption.textContent = type
                 memberOption.value = type
                 memberSelect.appendChild(memberOption)
             })
@@ -847,7 +877,7 @@ function mCreateTeamPopup(type, clickX=0, clickY=0, showPopup=true){
                 memberSelect.appendChild(divider)
                 const memberOptionCustom = document.createElement('option')
                 memberOptionCustom.value = 'custom'
-                memberOptionCustom.innerText = 'Create a custom team member...'
+                memberOptionCustom.textContent = 'Create a custom team member...'
                 memberSelect.appendChild(memberOptionCustom)
             }
             memberSelect.addEventListener('click', (e)=>e.stopPropagation()) // stops from closure onClick
@@ -863,7 +893,7 @@ function mCreateTeamPopup(type, clickX=0, clickY=0, showPopup=true){
             teamSelect.classList.add('team-select')
             const teamOption = document.createElement('option')
             teamOption.disabled = true
-            teamOption.innerText = `MyLife's pre-defined agent teams...`
+            teamOption.textContent = `MyLife's pre-defined agent teams...`
             teamOption.selected = true
             teamOption.value = ''
             teamSelect.appendChild(teamOption)
@@ -871,7 +901,7 @@ function mCreateTeamPopup(type, clickX=0, clickY=0, showPopup=true){
                 const { name, } = team
                 const teamOption = document.createElement('option')
                 teamOption.value = name
-                teamOption.innerText = name
+                teamOption.textContent = name
                 teamSelect.appendChild(teamOption)
             })
             teamSelect.addEventListener('click', (e)=>e.stopPropagation()) // stops from closure onClick
@@ -1833,45 +1863,46 @@ async function mUpdateCollectionItem(event){
     else
         contentElement.value = lastUpdatedContent
 }
+/**
+ * Updates the collection item title and assigns data and listeners as required.
+ * @param {Event} event - The event object
+ * @returns {void}
+ */
 function mUpdateCollectionItemTitle(event){
-    event.stopPropagation()
     const span = event.target
-    const { id, } = span
-    const itemId = id.split('_').pop()
-    /* make title editable */
-    // @stub - check for other active inputs and trigger them closed without save
+    const { id, textContent, } = span
+    let idType = id.split('_')
+    const itemId = idType.pop()
+    idType = idType.join('_')
+    console.log('mUpdateCollectionItemTitle', itemId, idType)
     /* create input */
     const input = document.createElement('input')
-    input.id = `collection-item-title-input_${ itemId }`
-    input.name = 'collection-item-title-input'
+    const inputName = `${ idType }-input`
+    input.id = `${ inputName }_${ itemId }`
+    input.name = inputName
     input.type = 'text'
-    input.value = span.textContent
-    input.className = span.className
+    input.value = textContent
+    input.className = inputName
+    console.log('mUpdateCollectionItemTitle', input.id, inputName)
     /* replace span with input */
     span.replaceWith(input)
     /* add listeners */
-    input.addEventListener('keydown', (event)=>{
+    input.addEventListener('keydown', event=>{
         if(event.key==='Enter')
             input.blur()
         else if(event.key==='Escape'){
-            input.value = span.textContent
+            input.value = textContent
             input.blur()
         }
     })
     input.addEventListener('blur', async event=>{
-        if(input.value.length && input.value!==span.textContent){
-            if(await mGlobals.datamanager.itemUpdateTitle(itemId, input.value)){
-                const title = input.value
-                // if successful update title in all sub-locations (including activeItem in members)
-                span.textContent = title
-                setActiveItemTitle(title, itemId)
-                const popupHeader = document.getElementById(`popup-header_${ itemId }`)
-                if(popupHeader)
-                    popupHeader.textContent = title
-            }
-        }
         input.replaceWith(span)
         input.remove()
+        const title = input.value
+        if(title?.length && title!==textContent){
+            if(await mGlobals.datamanager.itemUpdateTitle(itemId, title))
+                setItemTitle(itemId, title)
+        }
         span.addEventListener('dblclick', mUpdateCollectionItemTitle, { once: true })
     }, { once: true })
     input.focus()
@@ -1976,7 +2007,7 @@ async function mUpdateTeams(identifier=mDefaultTeam){
     const { allowedTypes, description, id, name, title, } = team
     mTeamName.dataset.id = id
     mTeamName.dataset.description = description
-    mTeamName.innerText = `${ title ?? name } Team`
+    mTeamName.textContent = `${ title ?? name } Team`
     mTeamName.title = description
     // @stub mTeamName.addEventListener('click', mCreateTeamSelect)
     mTeamAddMemberIcon.addEventListener('click', mCreateTeamMemberSelect)
@@ -2057,7 +2088,9 @@ export {
     getItem,
     refreshCollection,
     setActiveBot,
+    setItemTitle,
     togglePopup,
     updateItem,
+    updateItemTitle,
     updatePageBots,
 }

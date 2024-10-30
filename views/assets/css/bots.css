@@ -374,12 +374,19 @@
 .collection-item-delete:hover {
     color: red;
 }
-.collection-item-name {
+.collection-item-title {
     color: navy;
     display: flex;
     flex: 1 1 auto;
-    font-size: 1.1rem;
+    font-size: 1.0rem;
     font-style: italic;
+    overflow: hidden;
+    text-wrap: nowrap;
+}
+.collection-item-title-input {
+    display: flex;
+    flex: 0 0 auto;
+    font-size: 0.9rem;
     overflow: hidden;
     text-wrap: nowrap;
 }
@@ -447,6 +454,13 @@
     font-size: 1rem;
     font-weight: bold;
     padding: 0.5rem;
+}
+.collection-popup-header-title {
+    display: flex;
+    flex: 1 1 auto;
+    font-size: 1.0rem;
+    font-weight: bold;
+    margin-left: 1.5rem;
 }
 .collection-popup-story,
 .collection-popup-entry {
