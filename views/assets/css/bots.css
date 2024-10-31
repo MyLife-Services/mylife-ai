@@ -144,6 +144,8 @@
 	border-top: none;
 	box-shadow: 0 0.5rem 1rem rgba(0,0,0,.15);
 	display: none; /* Initially not displayed */
+    flex-direction: row;
+    flex-wrap: wrap;
     margin: 0em 0.5rem;
 	padding: 0.5rem;
     max-height: 50vh;
@@ -151,28 +153,30 @@
     overflow-y: auto; /* Enable vertical scrolling */
 }
 .bot-options::-webkit-scrollbar,
-.checkbox-group::-webkit-scrollbar {
+.checkbox-group::-webkit-scrollbar,
+.collection-list::-webkit-scrollbar {
     width: 6px; /* Adjust the width of the scrollbar */
 }
 .bot-options::-webkit-scrollbar-track,
-.checkbox-group::-webkit-scrollbar-track {
+.checkbox-group::-webkit-scrollbar-track,
+.collection-list::-webkit-scrollbar-track {
     background: rgba(0, 0, 0, 0.1); /* Color of the track */
     border-radius: 10px; /* Optional: adds rounded corners to the track */
 }
 .bot-options::-webkit-scrollbar-thumb,
-.checkbox-group::-webkit-scrollbar-thumb {
+.checkbox-group::-webkit-scrollbar-thumb,
+.collection-list::-webkit-scrollbar-thumb {
     background: rgba(232, 226, 183, .5); /* Color of the thumb */
     border-radius: 10px; /* Optional: adds rounded corners to the thumb */
 }
 .bot-options::-webkit-scrollbar-thumb:hover,
-.checkbox-group::-webkit-scrollbar-thumb:hover {
+.checkbox-group::-webkit-scrollbar-thumb:hover,
+.collection-list::-webkit-scrollbar-thumb:hover {
     background: rgba(214, 198, 75, 0.5); /* Darker shade on hover */
 }
 .bot-options.open {
     animation: _slideBotOptions 0.5s forwards;
     display: flex; /* Make it flex when open */
-    flex-direction: row;
-    flex-wrap: wrap;
 }
 .bot-options-dropdown {
     align-items: center;
@@ -322,8 +326,7 @@
 .collection {
     background-color: royalblue;
     display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
+    flex-direction: column;
     justify-content: flex-start;
     max-width: 100%;
     width: 100%;
@@ -336,7 +339,7 @@
     gap: 0.5rem;
     justify-content: flex-start;
     max-width: 100%;
-    min-height: 2.5rem;
+    min-height: 2.0rem;
     width: 100%;
 }
 .collection-icon {
@@ -361,14 +364,14 @@
     display: flex;
     flex: 0 0 auto;
     height: auto;
-    max-height: 3rem;
+    max-height: 2.5rem;
     width: auto;
 }
 .collection-item-delete {
     color: navy;
     display: flex;
     flex: 0 0 auto;
-    font-size: 1.3rem;
+    font-size: 1.2rem;
     margin: 0 0.5rem;
 }
 .collection-item-delete:hover {
@@ -378,7 +381,7 @@
     color: navy;
     display: flex;
     flex: 1 1 auto;
-    font-size: 1.0rem;
+    font-size: 0.9rem;
     font-style: italic;
     overflow: hidden;
     text-wrap: nowrap;
@@ -399,13 +402,10 @@
 .collection-list {
     display: none;
     flex-direction: column;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    margin: 0.2rem 0;
+    max-height: 16rem;
     max-width: 100%;
     overflow-x: hidden;
     overflow-y: auto;
-    width: 100%;
 }
 .collection-popup.popup-container {
     bottom: auto;
@@ -483,7 +483,7 @@
     color: aliceblue;
     display: flex;
     flex: 1 1 auto;
-    font-size: 1.2rem;
+    font-size: 1.0rem;
     font-weight: bold;
 }
 .collections {
@@ -494,6 +494,26 @@
     justify-content: flex-start;
     max-width: 100%;
     width: 100%;
+}
+.collections-description {
+    font-size: 0.8rem;
+    font-weight: bold;
+    padding-bottom: 0.4rem;
+}
+.collections-options {
+    border: rgba(0, 0, 0, 0.7) 0.12rem solid;
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+    border-top: none;
+    box-shadow: 0 0.5rem 1rem rgba(0,0,0,.15);
+    display: none; /* Initially not displayed */
+    flex: 0 0 auto;
+    flex-direction: row;
+    justify-content: center;
+    margin: 0em 0.5rem;
+    padding: 0.5rem;
+    max-height: 50vh;
+    overflow-x: hidden;
+    overflow-y: hidden; /* Enable vertical scrolling */
 }
 /* avatar passphrases */
 .passphrase-input {
