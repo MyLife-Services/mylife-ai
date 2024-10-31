@@ -147,6 +147,17 @@ async function deleteItem(ctx){
 	ctx.body = await avatar.deleteItem(iid)
 }
 /**
+ * Save feedback from the member.
+ * @param {Koa} ctx - Koa Context object
+ * @returns {Boolean} - Whether or not the feedback was saved
+ */
+async function feedback(ctx){
+	const { mid: message_id, } = ctx.params
+	const { avatar: Avatar, } = ctx.state
+	const { isPositive=true, message, } = ctx.request.body
+	ctx.body = await Avatar.feedback(message_id, isPositive, message)
+}
+/**
  * Get greetings for active situation.
  * @public
  * @async
@@ -422,8 +433,9 @@ export {
 	collections,
 	createBot,
 	deleteItem,
-	help,
+	feedback,
 	greetings,
+	help,
 	index,
 	interfaceMode,
 	item,

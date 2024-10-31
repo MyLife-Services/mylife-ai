@@ -965,7 +965,7 @@ async function mDeleteCollectionItem(event){
     /* confirmation dialog */
     const userConfirmed = confirm("Are you sure you want to delete this item?")
     if(userConfirmed){
-        const response = await mGlobals.datamanager.itemelete(id)
+        const response = await mGlobals.datamanager.itemDelete(id)
         if(response){
             expunge(item)
             if(getActiveItemId()===id)

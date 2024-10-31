@@ -248,6 +248,18 @@ class Datamanager {
         const response = await this.#fetch(url)
         return response
     }
+    async feedback(isPositive=true, message, message_id=''){
+        const url = `/members/feedback/${ message_id }`
+        const options = {
+            body: JSON.stringify({ isPositive, message, }),
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            method: 'POST',
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
     async greetings(dynamic=false){
         const url = `greetings?dyn=${ dynamic }`
         const response = await this.#fetch(url)
@@ -281,7 +293,7 @@ class Datamanager {
         const url = `/members/items/${ itemId }`
         const options = { method: 'DELETE', }
         const response = await this.#fetch(url, options)
-        response = await response.json()
+        return response
     }
     /**
      * Sets collection item content on server.

@@ -480,8 +480,24 @@ async function mAddMessage(message, options={}){
     chatMessageTab.classList.add('chat-message-tab', `chat-message-tab-${ role }`)
     const chatCopy = document.createElement('i')
     chatCopy.classList.add('fas', 'fa-copy', 'chat-copy')
+    chatCopy.title = 'Copy content to clipboard'
+    const chatSave = document.createElement('i')
+    chatSave.classList.add('fas', 'fa-floppy-disk', 'chat-save')
+    chatSave.title = 'Save memory directly to MyLife'
+    const chatFeedbackPositive = document.createElement('i')
+    chatFeedbackPositive.classList.add('fas', 'fa-thumbs-up', 'chat-feedback')
+    chatFeedbackPositive.title = 'I like this!'
+    const chatFeedbackNegative = document.createElement('i')
+    chatFeedbackNegative.classList.add('fas', 'fa-thumbs-down', 'chat-feedback')
+    chatFeedbackNegative.title = `I don't care for this.`
     /* attach children */
     chatMessageTab.appendChild(chatCopy)
+    if(role==='member')
+        chatMessageTab.appendChild(chatSave)
+    else {
+        chatMessageTab.appendChild(chatFeedbackPositive)
+        chatMessageTab.appendChild(chatFeedbackNegative)
+    }
     chatMessage.appendChild(chatBubble)
     chatMessage.appendChild(chatMessageTab)
 	systemChat.appendChild(chatMessage)
@@ -501,6 +517,65 @@ async function mAddMessage(message, options={}){
             console.error('Failed to copy: ', err)
         })
     })
+    chatFeedbackNegative.addEventListener('click', async event=>{
+        const baseClass = 'fa-thumbs-down'
+        chatFeedbackNegative.classList.remove(baseClass)
+        chatFeedbackNegative.classList.add('fa-spinner', 'spin')
+        const feedbackTimeout = setTimeout(_=>{
+            chatFeedbackNegative.classList.remove('fa-spinner', 'spin')
+            chatFeedbackNegative.classList.add(baseClass)
+        }, 5000)
+        const success = await mGlobals.datamanager.feedback(false, message)
+        clearTimeout(feedbackTimeout)
+        const successClass = success ? 'fa-check' : 'fa-times'
+        chatFeedbackNegative.classList.add(successClass)
+        chatFeedbackNegative.classList.remove('fa-spinner', 'spin')
+        setTimeout(_=>{
+            chatFeedbackNegative.remove()
+            chatFeedbackPositive.remove()
+        }, 2000)
+    }, { once: true })
+    chatFeedbackPositive.addEventListener('click', async event=>{
+        const baseClass = 'fa-thumbs-up'
+        chatFeedbackPositive.classList.remove(baseClass)
+        chatFeedbackPositive.classList.add('fa-spinner', 'spin')
+        const feedbackTimeout = setTimeout(_=>{
+            chatFeedbackPositive.classList.remove('fa-spinner', 'spin')
+            chatFeedbackPositive.classList.add(baseClass)
+        }, 5000)
+        const success = await mGlobals.datamanager.feedback(true, message)
+        clearTimeout(feedbackTimeout)
+        const successClass = success ? 'fa-check' : 'fa-times'
+        chatFeedbackPositive.classList.add(successClass)
+        chatFeedbackPositive.classList.remove('fa-spinner', 'spin')
+        setTimeout(_=>{
+            chatFeedbackNegative.remove()
+            chatFeedbackPositive.remove()
+        }, 2000)
+    }, { once: true })
+    chatSave.addEventListener('click', async event=>{
+        const baseClass = 'fa-floppy-disk'
+        chatSave.classList.remove(baseClass)
+        chatSave.classList.add('fa-spinner', 'spin')
+        const feedbackTimeout = setTimeout(_=>{
+            chatFeedbackPositive.classList.remove('fa-spinner', 'spin')
+            chatFeedbackPositive.classList.add(baseClass)
+        }, 15000)
+        const saveMessage = `Use the following content as summary to run storySummary function. Create title, keywords, etc.\n## CONTENT:\n${ message }\n`
+        const success = await submit(saveMessage, false)
+        clearTimeout(feedbackTimeout)
+        const successClass = success ? 'fa-check' : 'fa-exclamation-triangle'
+        chatSave.classList.add(successClass)
+        chatSave.classList.remove('fa-spinner', 'spin')
+        setTimeout(_=>{
+            if(success)
+                chatSave.remove()
+            else {
+                chatSave.classList.remove(successClass)
+                chatSave.classList.add(baseClass)
+            }
+        }, 2000)
+    }, { once: true })
     chatMessage.addEventListener('mouseleave', event => {
         chatMessageTab.classList.remove('chat-message-tab-hover', `chat-message-tab-hover-${ role }`)
     })

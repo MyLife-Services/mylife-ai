@@ -119,15 +119,18 @@
 	width: 100%;
 }
 .chat-copy,
-.chat-feedback {
+.chat-feedback,
+.chat-save {
 	cursor: pointer;
 	font-size: 0.8rem;
 	margin: 0.2rem;
-	position: absolute;
 	top: 0.2rem;
 }
-.chat-feedback {
-	right: 0.6rem;
+.chat-copy:hover,
+.chat-feedback:hover,
+.chat-save:hover {
+    color: navy; /* Example hover effect: change text color to blue */
+	font-size: 1.1rem;
 }
 .chat-input {
 	background-color: #ffffff; /* White background color */

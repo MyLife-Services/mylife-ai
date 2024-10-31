@@ -319,6 +319,19 @@ class Avatar extends EventEmitter {
         )
     }
     /**
+     * Submits message content and id feedback to bot.
+     * @todo - message id's not passed to frontend, but need to identify content in order to identify accurate bot, not just active bot. Given situation at the moment, it should be elucidating anyhow, and most likely will be a single bot, not to mention things that don't differentiate bots, such as tone or correctness.
+     * @param {String} message_id - Ideally LLM message id
+     * @param {Boolean} isPositive - Positive or negative feedback, defaults to `true`
+     * @param {String} message - Message content (optional)
+     * @returns {Boolean} - Whether feedback was saved successfully
+     */
+    async feedback(message_id, isPositive, message){
+        const feedback = await this.activeBot.feedback(message_id, isPositive, message)
+        const { success, } = feedback
+        return success
+    }
+    /**
      * Specified by id, returns the pruned Bot.
      * @param {Guid} id - The Bot id
      * @returns {object} - The pruned Bot object

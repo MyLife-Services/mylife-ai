@@ -29,15 +29,18 @@ class Bot {
 	#collectionsAgent
 	#conversation
 	#factory
+	#feedback
 	#initialGreeting
 	#greetings
 	#instructionNodes = new Set()
 	#llm
 	#type
 	constructor(botData, llm, factory){
+		console.log(`bot pre-created`, this.feedback)
 		this.#factory = factory
 		this.#llm = llm
-		const { greeting=mDefaultGreeting, greetings=mDefaultGreetings, type=mDefaultBotType, ..._botData } = botData
+		const { feedback=[], greeting=mDefaultGreeting, greetings=mDefaultGreetings, type=mDefaultBotType, ..._botData } = botData
+		this.#feedback = feedback
 		this.#greetings = greetings
 		this.#initialGreeting = greeting
 		this.#type = type
@@ -97,6 +100,29 @@ class Bot {
 		}
 		const collections = ( await this.#factory.collections(type) )
 		return collections
+	}
+    /**
+     * Submits message content and id feedback to bot.
+     * @param {String} message_id - LLM message id
+     * @param {Boolean} isPositive - Positive or negative feedback, defaults to `true`
+     * @param {String} message - Message content (optional)
+     * @returns {Object} - The feedback object
+     */
+	async feedback(message_id, isPositive=true, message=''){
+		if(!message_id?.length)
+			console.log('feedback message_id required')
+		this.#feedback.push(isPositive)
+		const botData = { feedback: this.#feedback, }
+		const botOptions = { instructions: false, }
+		this.update(botData, botOptions) // no `await`
+		if(message.length)
+			console.log(`feedback regarding agent message`, message)
+		const response = {
+			message,
+			message_id,
+			success: true,
+		}
+		return response
 	}
 	/**
 	 * Retrieves `this` Bot instance.
@@ -161,7 +187,7 @@ class Bot {
 		/* execute request */
 		botOptions.instructions = botOptions.instructions
 			?? Object.keys(botData).some(key => this.#instructionNodes.has(key))
-		const { id, mbr_id, type, ...updatedNodes } = await mBotUpdate(botData, botOptions, this, this.#llm, this.#factory)
+		const { feedback, id, mbr_id, type, ...updatedNodes } = await mBotUpdate(botData, botOptions, this, this.#llm, this.#factory)
 		Object.assign(this, updatedNodes)
 		/* respond request */
 		return this
