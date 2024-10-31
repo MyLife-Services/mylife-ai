@@ -9,7 +9,6 @@ import {
     chat,
     collections,
     createBot,
-    deleteItem,
     feedback,
     greetings,
     help,
@@ -102,7 +101,7 @@ _apiRouter.post('/upload/:mid', upload)
 /* member routes */
 _memberRouter.use(memberValidation)
 _memberRouter.delete('/bots/:bid', bots)
-_memberRouter.delete('/items/:iid', deleteItem)
+_memberRouter.delete('/items/:iid', item)
 _memberRouter.get('/', members)
 _memberRouter.get('/bots', bots)
 _memberRouter.get('/bots/:bid', bots)
@@ -126,6 +125,7 @@ _memberRouter.post('/bots/create', createBot)
 _memberRouter.post('/bots/activate/:bid', activateBot)
 _memberRouter.post('/feedback', feedback)
 _memberRouter.post('/feedback/:mid', feedback)
+_memberRouter.post('/item', item)
 _memberRouter.post('/migrate/bot/:bid', migrateBot)
 _memberRouter.post('/migrate/chat/:bid', migrateChat)
 _memberRouter.post('/mode', interfaceMode)

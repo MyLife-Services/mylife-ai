@@ -133,20 +133,6 @@ async function createBot(ctx){
 	ctx.body = await avatar.createBot(bot)
 }
 /**
- * Delete an item from collection via the member's avatar.
- * @public
- * @async
- * @param {object} ctx - Koa Context object
- * @returns {boolean} - Under `ctx.body`, status of deletion.
- */
-async function deleteItem(ctx){
-	const { iid, } = ctx.params
-	const { avatar, } = ctx.state
-	if(!iid?.length)
-		ctx.throw(400, `missing item id`)
-	ctx.body = await avatar.deleteItem(iid)
-}
-/**
  * Save feedback from the member.
  * @param {Koa} ctx - Koa Context object
  * @returns {Boolean} - Whether or not the feedback was saved
@@ -223,16 +209,8 @@ async function item(ctx){
 	const { avatar, } = ctx.state
 	const { globals, } = avatar
 	const { method, } = ctx.request
-	const item = ctx.request.body
-	/* validate payload */
-	if(!id?.length)
-		ctx.throw(400, `missing item id`)
-	if(!item || typeof item !== 'object' || !Object.keys(item).length)
-		ctx.throw(400, `missing item data`)
-	const { id: itemId, } = item
-	if(itemId && itemId!==id) // ensure item.id is set to id
-		throw new Error(`item.id must match /:iid`)
-	else if(!itemId)
+	const item = ctx.request.body // always `{}` by default
+	if(!item?.id && id?.length)
 		item.id = id
 	ctx.body = await avatar.item(item, method)
 }
@@ -432,7 +410,6 @@ export {
 	chat,
 	collections,
 	createBot,
-	deleteItem,
 	feedback,
 	greetings,
 	help,

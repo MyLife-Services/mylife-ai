@@ -960,19 +960,22 @@ function mCreateTeamSelect(event){
  */
 async function mDeleteCollectionItem(event){
     event.stopPropagation()
-    const id = event.target.id.split('_').pop()
+    const collectionItemDelete = event.target
+    const id = collectionItemDelete.id.split('_').pop()
     const item = document.getElementById(`collection-item_${ id }`)
     /* confirmation dialog */
     const userConfirmed = confirm("Are you sure you want to delete this item?")
+    if(getActiveItemId()===id)
+        unsetActiveItem()
     if(userConfirmed){
-        const response = await mGlobals.datamanager.itemDelete(id)
-        if(response){
+        const { instruction, responses, success, } = await mGlobals.datamanager.itemDelete(id)
+        if(success){
             expunge(item)
-            if(getActiveItemId()===id)
-                unsetActiveItem()
+            if(responses?.length)
+                addMessages(responses)
         }
     } else
-        item.addEventListener('click', mDeleteCollectionItem, { once: true })
+        collectionItemDelete.addEventListener('click', mDeleteCollectionItem, { once: true })
 }
 /**
  * Find checkbox associated with element, or errors.

@@ -289,6 +289,11 @@ class Datamanager {
         const responses = await this.#fetch(url)
         return responses
     }
+    /**
+     * Deletes the item from the server.
+     * @param {Guid} itemId - The collection item id
+     * @returns {Object} - The item object: { item, message, success, }
+     */
     async itemDelete(itemId){
         const url = `/members/items/${ itemId }`
         const options = { method: 'DELETE', }
@@ -312,7 +317,6 @@ class Datamanager {
             body: JSON.stringify({ emoticons, summary, })
         }
         const response = await this.#fetch(url, options)
-        console.log('itemUpdate', response)
         return response
     }
     /**

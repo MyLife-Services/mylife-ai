@@ -524,7 +524,7 @@ class AgentFactory extends BotFactory {
     /**
      * Delete an item from member container.
      * @param {Guid} id - The id of the item to delete.
-     * @returns {boolean} - true if item deleted successfully.
+     * @returns {boolean} - `true` if item deleted successfully.
      */
 	async deleteItem(id){
 		return await this.dataservices.deleteItem(id)

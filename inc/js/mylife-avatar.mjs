@@ -198,18 +198,6 @@ class Avatar extends EventEmitter {
         return bot
     }
     /**
-     * Delete an item from member container.
-     * @async
-     * @public
-     * @param {Guid} id - The id of the item to delete.
-     * @returns {boolean} - true if item deleted successfully.
-     */
-    async deleteItem(id){
-        if(this.isMyLife)
-            throw new Error('MyLife avatar cannot delete items.')
-        return await this.#factory.deleteItem(id)
-    }
-    /**
      * End the living memory, if running.
      * @async
      * @public
@@ -413,39 +401,60 @@ class Avatar extends EventEmitter {
     }
     /**
      * Manages a collection item's functionality.
-     * @param {object} item - The item data object.
-     * @param {string} method - The http method used to indicate response.
-     * @returns {Promise<object>} - Returns void if item created successfully.
+     * @todo - move `get` to here as well
+     * @param {Object} item - The item data object
+     * @param {String} method - The http method used to indicate response
+     * @returns {Promise<Object>} - Returns { instruction, item, responses, success, }
      */
     async item(item, method){
         const { globals, } = this
-        let { id, } = item
+        const response = { item, success: false, }
+        const instructions={ itemId: item.id, },
+            message={
+                agent: 'server',
+                message: `I encountered an error while trying to process your request; please try again.`,
+                type: 'system',
+            }
+        let { id: itemId, title, } = item
         let success = false
+        if(itemId && !globals.isValidGuid(itemId))
+            throw new Error(`Invalid item id: ${ itemId }`)
         switch(method.toLowerCase()){
             case 'delete':
-                if(globals.isValidGuid(id))
-                    item = await this.#factory.deleteItem(id)
-                success = item ?? success
+                success = await this.#factory.deleteItem(itemId)
+                message.message = success
+                    ? `I have successfully deleted your item.`
+                    : `I encountered an error while trying to delete your item, id: ${ itemId }.`
+                instructions.command = success
+                    ? 'removeItem'
+                    : 'error'
                 break
             case 'post': /* create */
-                item = await this.#factory.createItem(item)
-                id = item?.id
-                success = this.globals.isValidGuid(id)
+                const createdItem = await this.#factory.createItem(item)
+                success = this.globals.isValidGuid(createdItem?.id)
+                const createdTitle = createdItem?.title
+                    ?? title
+                message.message = success
+                    ? `I have successfully created: "${ createdTitle }".`
+                    : `I encountered an error while trying to create: "${ createdTitle }".`
                 break
             case 'put': /* update */
-                if(globals.isValidGuid(id)){
-                    item = await this.#factory.updateItem(item)
-                    success = this.globals.isValidGuid(item?.id)
-                }
+                const updatedItem = await this.#factory.updateItem(item)
+                success = this.globals.isValidGuid(updatedItem?.id)
+                const updatedTitle = updatedItem?.title
+                    ?? title
+                message.message = success
+                    ? `I have successfully updated: "${ updatedTitle }".`
+                    : `I encountered an error while trying to update: "${ updatedTitle }".`
                 break
             default:
                 console.log('item()::default', item)
                 break
         }
-        return {
-            item: mPruneItem(item),
-            success,
-        }
+        response.instructions = instructions
+        response.responses = [message]
+        response.success = success
+        return response
     }
     /**
      * Migrates a bot to a new, presumed combined (with internal or external) bot.
@@ -838,9 +847,9 @@ class Avatar extends EventEmitter {
         return this.#factory.conversation
     }
     /**
-     * Get conversations. If getting a specific conversation, use .conversation(id).
+     * Get full list of conversations active in Member Avatar. Use `getConversation(id)` for specific. **Note**: Currently `.conversation` references a class definition.
      * @getter
-     * @returns {array} - The conversations.
+     * @returns {Conversation[]} - The list of conversations
      */
     get conversations(){
         const conversations = this.bots
@@ -1368,9 +1377,9 @@ class Q extends Avatar {
         return 'MyLife'
     }
     /**
-     * Get conversations. If getting a specific conversation, use .conversation(id).
+     * Get full list of conversations active in System Avatar.
      * @getter
-     * @returns {array} - The conversations.
+     * @returns {Conversation[]} - The list of conversations
      */
     get conversations(){
         return this.#conversations
