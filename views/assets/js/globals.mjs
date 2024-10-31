@@ -300,7 +300,7 @@ class Datamanager {
      * @private
      * @async
      * @param {Event} event - The event object.
-     * @returns {void}
+     * @returns {Object} - The response object: { item, success, }
      */
     async itemUpdate(itemId, summary, emoticons){
         const url = `/members/item/${ itemId }`
@@ -312,6 +312,7 @@ class Datamanager {
             body: JSON.stringify({ emoticons, summary, })
         }
         const response = await this.#fetch(url, options)
+        console.log('itemUpdate', response)
         return response
     }
     /**

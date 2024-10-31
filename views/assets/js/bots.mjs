@@ -560,37 +560,37 @@ function mCreateCollectionPopup(collectionItem){
     popupSave.id = `popup-save_${ id }`
     popupSave.dataset.id = id
     popupSave.dataset.contentId = popupContent.id
-    popupSave.addEventListener('click', mUpdateCollectionItem)
+    popupSave.addEventListener('click', async event=>{
+        popupSave.classList.remove('fa-save')
+        popupSave.classList.add('fa-spinner', 'spin')
+        const success = await mUpdateCollectionItem(event)
+        popupSave.classList.remove('fa-spinner', 'spin')
+        popupSave.classList.add(success ? 'fa-check' : 'fa-times')
+        setTimeout(_=>{
+            popupSave.classList.remove('fa-check', 'fa-times')
+            popupSave.classList.add('fa-save')
+        }, 2000)
+    })
     /* toggle-edit listeners */
     popupEdit.addEventListener('click', (event)=>{
-        const { target: editIcon,} = event
-        const content = document.getElementById(editIcon.dataset?.contentId)
-        if(!content)
-            throw new Error(`No content found for edit request.`)        
-        _toggleEditable(event, false, content)
+        _toggleEditable()
     })
     popupContent.addEventListener('dblclick', (event)=>{
-        const { target: contentElement, } = event
-        _toggleEditable(event, false, contentElement)
-    }) /* double-click to toggle edit */
+        _toggleEditable()
+    })
     popupContent.addEventListener('blur', (event) => {
-        const { target: contentElement, } = event
-        _toggleEditable(event, true, contentElement)
-        // @stub - update content on server call if dynamic
+        _toggleEditable(false)
     })
     popupContent.addEventListener('keydown', (event) => {
-        const { target: contentElement, } = event
         if(event.key==='Escape')
-            _toggleEditable(event, true, contentElement)
+            _toggleEditable(false)
     })
     /* inline function to toggle editable state */
-    function _toggleEditable(event, state, contentElement){
-        event.stopPropagation()
-        contentElement.dataset.lastCursorPosition = contentElement.selectionStart
-        contentElement.readOnly = state
-            ?? !contentElement.readOnly
-            ?? true
-        contentElement.focus()
+    function _toggleEditable(isEditable=true){
+        popupContent.dataset.lastCursorPosition = popupContent.selectionStart
+        popupContent.readOnly = !isEditable
+        popupEdit.classList.toggle('popup-sidebar-icon-active', isEditable)
+        popupContent.focus()
     }
     sidebar.appendChild(popupEdit)
     sidebar.appendChild(popupSave)
@@ -1846,22 +1846,26 @@ function mUpdateCollection(type, collectionList, collection){
  * Sets collection item content.
  * @private
  * @async
- * @param {Event} event - The event object.
- * @returns {void}
+ * @param {Event} event - The event object
+ * @returns {Boolean} - Whether or not the content was updated
  */
 async function mUpdateCollectionItem(event){
     event.stopPropagation()
-    const { contentId, id, } = this.dataset
+    const { contentId, id, } = event.target.dataset
     const contentElement = document.getElementById(contentId)
     if(!contentElement)
         throw new Error(`No content found for collection item update.`)
     const { dataset, } = contentElement
     const { emoticons=[], lastUpdatedContent, } = dataset
     const { value: content, } = contentElement
-    if(content!=lastUpdatedContent && await mGlobals.datamanager.itemUpdate(id, content, emoticons))
+    if(content==lastUpdatedContent)
+        return true
+    const { success, } = await mGlobals.datamanager.itemUpdate(id, content, emoticons)
+    if(success)
         contentElement.dataset.lastUpdatedContent = content
-    else
+    else 
         contentElement.value = lastUpdatedContent
+    return success
 }
 /**
  * Updates the collection item title and assigns data and listeners as required.
