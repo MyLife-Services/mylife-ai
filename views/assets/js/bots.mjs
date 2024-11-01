@@ -1257,6 +1257,7 @@ function mSetStatusBar(bot, botContainer){
     }
     /* status icon */
     const botIcon = document.getElementById(`${ type }-icon`)
+    const botThumb = document.getElementById(`${ type }-thumb`)
     switch(true){
         case ( mActiveBot?.id==id ): // activated
             botIcon.classList.remove('online', 'offline', 'error')
@@ -1399,6 +1400,8 @@ async function mToggleBotContainers(event){
             mOpenStatusDropdown(this)
             break
         case 'icon':
+        case 'image':
+        case 'thumb':
         case 'type':
             if(dataset?.status && !(['error', 'offline', 'unknown'].includes(dataset.status)))
                 await setActiveBot(dataset?.id ?? id, true)

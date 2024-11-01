@@ -469,6 +469,19 @@ async function mAddMessage(message, options={}){
     /* message container */
     const chatMessage = document.createElement('div')
     chatMessage.classList.add('chat-message-container', `chat-message-container-${ role }`)
+    /* message thumbnail */
+    const messageThumb = document.createElement('img')
+    messageThumb.classList.add('chat-thumb')
+    messageThumb.id = `message-thumb-${ mChatBubbleCount }`
+    if(role==='agent' || role==='system'){
+        const bot = activeBot()
+        const type = bot.type.split('-').pop()
+        console.log('mAddMessage::activeBot()', type, bot)
+        messageThumb.src = `/png/${ type }-thumb.png` // Set bot icon URL
+        messageThumb.alt = bot.name
+        messageThumb.title = bot.purpose
+            ?? `I'm ${ bot.name }, an artificial intelligence ${ type.replace('-', ' ') } designed to assist you!`
+    }
     /* message bubble */
 	const chatBubble = document.createElement('div')
 	chatBubble.classList.add('chat-bubble', ( bubbleClass ?? role+'-bubble' ))
@@ -498,6 +511,7 @@ async function mAddMessage(message, options={}){
         chatMessageTab.appendChild(chatFeedbackPositive)
         chatMessageTab.appendChild(chatFeedbackNegative)
     }
+    chatMessage.appendChild(messageThumb)
     chatMessage.appendChild(chatBubble)
     chatMessage.appendChild(chatMessageTab)
 	systemChat.appendChild(chatMessage)

@@ -184,7 +184,6 @@
 	display: flex;
     flex-direction: column;
 	height: 100%;
-	justify-content: flex-end;
     opacity: 0;
 	padding: 0.2rem;
     pointer-events: none;
@@ -230,6 +229,10 @@
 	font-size: 24px; /* Icon size, adjust as needed */
 	cursor: pointer; /* Pointer cursor on hover */
 	z-index: calc(var(--chat-base-z-index) + 5);
+}
+.chat-thumb {
+	height: fit-content;
+	width: 3.5rem;
 }
 /* chat-submit button; requires special treament to overwrite button class for now */
 button.chat-submit { /* need specificity to overwrite button class */

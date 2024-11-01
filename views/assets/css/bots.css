@@ -109,10 +109,10 @@
 .collections-spacer {
     display: flex;
 	flex: 0 0 auto;
-	height: 1.5rem;
-	margin: .4rem;
+	height: 2.0rem;
+	margin: 0.2rem;
 	position: relative;
-	width: 1.5rem;
+	width: 2.0rem;
 }
 .bot-icon {
     background-image: radial-gradient(circle at 0.1rem 0.1rem, #eaedff 0%, #1e3b4e 40%, rgb(60 162 213) 80%, #404553 100%);
@@ -134,6 +134,11 @@
 .bot-icon.online {
 	animation: none;
 	background-image: radial-gradient(circle at 0.1rem 0.1rem, #ecffea 0%, #1e4e2d 40%, rgb(55, 255, 41) 80%, #3b3b3b 100%);
+}
+.bot-image {
+    display: flex;
+    height: 100%;
+    width: 100%;
 }
 .bot-name {
 	color: inherit;
