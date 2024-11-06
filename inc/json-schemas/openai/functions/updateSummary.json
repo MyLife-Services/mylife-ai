@@ -1,8 +1,9 @@
 {
-    "name": "updateSummary",
     "description": "Updates (overwrites) the summary referenced by itemId",
+    "name": "updateSummary",
     "strict": true,
     "parameters": {
+        "additionalProperties": false,
         "type": "object",
         "properties": {
             "itemId": {
@@ -14,7 +15,6 @@
                 "type": "string"
             }
         },
-        "additionalProperties": false,
         "required": [
             "itemId",
             "summary"

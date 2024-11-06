@@ -575,7 +575,7 @@ async function mAddMessage(message, options={}){
             chatFeedbackPositive.classList.remove('fa-spinner', 'spin')
             chatFeedbackPositive.classList.add(baseClass)
         }, 15000)
-        const saveMessage = `Use the following content as summary to run storySummary function. Create title, keywords, etc.\n## CONTENT:\n${ message }\n`
+        const saveMessage = `## PRINT\n${ message }\n`
         const success = await submit(saveMessage, false)
         clearTimeout(feedbackTimeout)
         const successClass = success ? 'fa-check' : 'fa-exclamation-triangle'

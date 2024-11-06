@@ -529,52 +529,6 @@ class AgentFactory extends BotFactory {
 	async deleteItem(id){
 		return await this.dataservices.deleteItem(id)
 	}
-	async entry(entry){
-		const defaultForm = 'journal'
-		const defaultType = 'entry'
-		const {
-			being=defaultType,
-			form=defaultForm,
-			id=this.newGuid,
-			keywords=[],
-			mbr_id=this.mbr_id,
-			title=`Untitled ${ defaultForm } ${ defaultType }`,
-		} = entry
-		let {
-			content,
-			summary,
-		} = entry
-		if(this.isMyLife)
-			throw new Error('System cannot store entries of its own')
-		let { name, } = entry
-		name = name
-			?? `${ defaultType }_${ form }_${ title.substring(0,64) }_${ mbr_id }`
-		summary = summary
-			?? content
-		if(!summary?.length)
-			throw new Error('entry summary required')
-		content = content
-			?? summary
-		/* assign default keywords */
-		if(!keywords.includes('entry'))
-			keywords.push('entry')
-		if(!keywords.includes('journal'))
-			keywords.push('journal')
-		const _entry = {
-			...entry,
-			...{
-			being,
-			content,
-			form,
-			id,
-			keywords,
-			mbr_id,
-			name,
-			summary,
-			title,
-		}}
-		return await this.dataservices.pushItem(_entry)
-	}
 	async getAlert(_alert_id){
 		const _alert = mAlerts.system.find(alert => alert.id === _alert_id)
 		return _alert ? _alert : await mDataservices.getAlert(_alert_id)
@@ -679,61 +633,6 @@ class AgentFactory extends BotFactory {
 		}
 		const savedExperience = await this.dataservices.saveExperience(_experience)
 		return savedExperience
-	}
-	/**
-	 * Submits a story to MyLife. Currently called both from API _and_ LLM function.
-	 * @param {object} story - Story object
-	 * @returns {object} - The story document from Cosmos
-	 */
-	async story(story){
-		const defaultForm = 'memory'
-		const defaultType = 'story'
-		const {
-			being=defaultType,
-			form=defaultForm,
-			id=this.newGuid,
-			keywords=[],
-			mbr_id=(!this.isMyLife ? this.mbr_id : undefined),
-			phaseOfLife='unknown',
-			summary,
-			title=`Untitled ${ defaultForm } ${ defaultType }`,
-		} = story
-		if(!mbr_id) // only triggered if not MyLife server
-			throw new Error('mbr_id required for story summary')
-		const { name=`${ being }_${ form }_${ title.substring(0,64) }_${ mbr_id }`, } = story
-		if(!summary?.length)
-			throw new Error('story summary required')
-		/* assign default keywords */
-		if(!keywords.includes('memory'))
-			keywords.push('memory')
-		if(!keywords.includes('biographer'))
-			keywords.push('biographer')
-		const _story = { // add validated fields back into `story` object
-			...story,
-			...{
-				being,
-				form,
-				id,
-				keywords,
-				mbr_id,
-				name,
-				phaseOfLife,
-				summary,
-				title,
-			}}
-		return await this.dataservices.pushItem(_story)
-	}
-	async summary(summary){
-		const { being='story', } = summary
-		switch(being){
-			case 'entry':
-				return await this.entry(summary)
-			case 'memory':
-			case 'story':
-				return await this.story(summary)
-			default:
-				throw new Error('summary being not recognized')
-		}
 	}
 	/**
 	 * Tests partition key for member

@@ -1,211 +1,11 @@
 // imports
+import fs from 'fs/promises'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import EventEmitter from 'events'
 import { Guid } from 'js-guid'
 /* constants */
-const mAiJsFunctions = {
-	changeTitle: {
-		name: 'changeTitle',
-		description: 'Change the title of a summary in the database for an itemId',
-		strict: true,
-		parameters: {
-			type: 'object',
-			properties: {
-				itemId: {
-					description: 'itemId to update',
-					type: 'string'
-				},
-				title: {
-					description: 'The new title for the summary',
-					type: 'string'
-				}
-			},
-			additionalProperties: false,
-			required: [
-				'itemId',
-				'title'
-			]
-		}
-	},
-	entrySummary: {
-		description: 'Generate `entry` summary with keywords and other critical data elements.',
-		name: 'entrySummary',
-		strict: true,
-		parameters: {
-			type: 'object',
-			properties: {
-				content: {
-					description: 'complete concatenated raw text content of member input(s) for this `entry`',
-					type: 'string'
-				},
-				form: {
-					description: 'Form of `entry` content, determine context from internal instructions',
-					enum: [
-						'diary',
-						'journal',
-					],
-					type: 'string'
-				},
-				keywords: {
-					description: 'Keywords most relevant to `entry`.',
-					items: {
-						description: 'Keyword (single word or short phrase) to be used in `entry` summary',
-						type: 'string'
-					},
-					type: 'array'
-				},
-				mood: {
-					description: 'Record member mood for day (or entry) in brief as ascertained from content of `entry`',
-					type: 'string'
-				},
-				relationships: {
-					description: 'Record individuals (or pets) mentioned in this `entry`',
-					type: 'array',
-					items: {
-						description: 'A name of relational individual/pet to the `entry` content',
-						type: 'string'
-					}
-				},
-				summary: {
-					description: 'Generate `entry` summary from member input',
-					type: 'string'
-				},
-				title: {
-					description: 'Generate display Title of the `entry`',
-					type: 'string'
-				}
-			},
-			additionalProperties: false,
-			required: [
-			'content',
-			'form',
-			'keywords',
-			'mood',
-			'relationships',
-			'summary',
-			'title'
-			]
-		}
-	},
-	getSummary: {
-		description: "Gets a story summary by itemId",
-		name: "getSummary",
-		strict: true,
-		parameters: {
-			type: "object",
-			properties: {
-				itemId: {
-					description: "Id of summary to retrieve",
-					type: "string"
-				}
-			},
-			additionalProperties: false,
-			required: [
-				"itemId"
-			]
-		}
-	},
-	obscure: {
-		description: "Obscures a summary so that no human names are present",
-		name: "obscure",
-		strict: true,
-		parameters: {
-			type: "object",
-			properties: {
-				itemId: {
-					description: "Id of summary to obscure",
-					type: "string"
-				}
-			},
-			additionalProperties: false,
-			required: [
-				"itemId"
-			]
-		}
-	},
-	storySummary: {
-		description: 'Generate a complete `story` summary with metadata elements',
-		name: 'storySummary',
-		strict: true,
-		parameters: {
-			type: 'object',
-			properties: {
-				keywords: {
-					description: 'Keywords most relevant to `story`',
-					items: {
-						description: 'Keyword from `story` summary',
-						type: 'string'
-					},
-					type: 'array'
-				},
-				phaseOfLife: {
-					description: 'Phase of life indicated in `story`',
-					enum: [
-						'birth',
-						'childhood',
-						'adolescence',
-						'teenage',
-						'young-adult',
-						'adulthood',
-						'middle-age',
-						'senior',
-						'end-of-life',
-						'past-life',
-						'unknown',
-						'other'
-					],
-					type: 'string'
-				},
-				relationships: {
-					description: 'Individuals (or pets) mentioned in `story`',
-					type: 'array',
-					items: {
-						description: 'Name of individual or pet in `story`',
-						type: 'string'
-					}
-				},
-				summary: {
-					description: 'A complete `story` summary composed of all salient points from member input',
-					type: 'string'
-				},
-				title: {
-					description: 'Generate display Title for `story`',
-					type: 'string'
-				}
-			},
-			additionalProperties: false,
-			required: [
-				'keywords',
-				'phaseOfLife',
-				"relationships",
-				'summary',
-				'title'
-			]
-		}
-	},
-	updateSummary: {
-		description: "Updates (overwrites) the summary referenced by itemId",
-		name: "updateSummary",
-		strict: true,
-		parameters: {
-			type: "object",
-			properties: {
-				itemId: {
-					description: "Id of summary to update",
-					type: "string"
-				},
-				summary: {
-					description: "The new updated and complete summary",
-					type: "string"
-				}
-			},
-			additionalProperties: false,
-			required: [
-				"itemId",
-				"summary"
-			]
-		}
-	},
-}
+const mAiJsFunctions = await mParseFunctions()
 const mEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const mForbiddenCosmosFields = ['$', '_', ' ', '@', '#',]
 const mGuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i	//	regex for GUID validation
@@ -355,6 +155,25 @@ class Globals extends EventEmitter {
 	get uploadPath(){
 		return './.uploads/.tmp/'
 	}
+}
+/* modular functions */
+async function mParseFunctions(){
+	const __filename = fileURLToPath(import.meta.url)
+    const __dirname = path.dirname(__filename)
+	const jsonFolderPath = path.join(__dirname, '..', 'json-schemas/openai/functions')
+	const jsonObjects = {}
+	const files = await fs.readdir(jsonFolderPath)
+	for(const file of files){
+		const filePath = path.join(jsonFolderPath, file)
+		const stat = await fs.lstat(filePath)
+		if(!stat.isFile() || path.extname(file) !== '.json')
+			continue
+		const data = await fs.readFile(filePath, 'utf8')
+		const jsonObject = JSON.parse(data)
+		const fileNameWithoutExtension = path.basename(file, path.extname(file))
+		jsonObjects[fileNameWithoutExtension] = jsonObject
+	}
+	return jsonObjects
 }
 //	exports
 export default Globals

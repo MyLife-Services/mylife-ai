@@ -162,7 +162,7 @@ class Datamanager {
         const options = {
             method: 'PUT',
         }
-        const response = await this.#fetch(url)
+        const response = await this.#fetch(url, options)
         return response
     }
     async chatRetire(bot_id){
@@ -237,7 +237,7 @@ class Datamanager {
             },
             method: 'PATCH',
         }
-        const response = await this.#fetch(url)
+        const response = await this.#fetch(url, options)
         return response
     }
     /**

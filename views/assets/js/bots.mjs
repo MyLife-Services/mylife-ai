@@ -680,7 +680,8 @@ function mCreateCollectionPopup(collectionItem){
         case 'experience':
         case 'file':
             break
-        case 'story': // memory
+        case 'memory':
+        case 'story':
             /* improve memory container */
             const improveMemory = document.createElement('div')
             improveMemory.classList.add(`collection-popup-${ type }`)
@@ -1810,17 +1811,19 @@ function mUpdateBotContainerAddenda(botContainer){
  */
 async function mUpdateBotVersion(event){
     event.stopPropagation()
-    const { classList, dataset,} = event.target
+    const updater = event.target
+    const { classList, dataset,} = updater
     const { botId, currentVersion, updateVersion, } = dataset
     if(currentVersion==updateVersion)
         return
-    const updatedVersion = await mGlobals.datamanager.botVersionUpdate(botId)
+    const updatedVersion = await mGlobals.datamanager.botVersion(botId)
     if(updatedVersion?.success){
         const { version, } = updatedVersion.bot
         dataset.currentVersion = version
-        event.target.textContent = mVersion(version)
+        updater.textContent = mVersion(version)
         classList.remove('update-available')
-    }
+    } else
+        updater.addEventListener('click', mUpdateBotVersion, { once: true })
 }
 /**
  * Update the identified collection with provided specifics.
@@ -1834,20 +1837,20 @@ function mUpdateCollection(type, collectionList, collection){
     collection
         .map(item=>({
             ...item,
-            name: item.name
+            being: item.being
+                ?? item.type,
+            name: item.title
                 ?? item.filename
+                ?? item.name
                 ?? type,
             type: item.type
                 ?? item.being
                 ?? type,
         }))
-        .filter(item=>item.type===type)
+        .filter(item=>item.type===type || item.being===type)
         .sort((a, b)=>a.name.localeCompare(b.name))
-        .forEach(item=>{
-            collectionList.appendChild(mCreateCollectionItem(item))
-        })
+        .forEach(item=>collectionList.appendChild(mCreateCollectionItem(item)))
 }
-
 /**
  * Sets collection item content.
  * @private

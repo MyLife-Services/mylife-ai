@@ -130,6 +130,7 @@ class LLMServices {
      * Given member input, get a response from the specified LLM service.
      * @example - `run` object: { assistant_id, id, model, provider, required_action, status, usage }
      * @todo - confirm that reason for **factory** is to run functions as responses from LLM; #botAgent if possible, Avatar if not
+     * @todo - cancel run on: 400 Can't add messages to `thread_...` while a run `run_...` is active.
      * @param {string} thread_id - Thread id
      * @param {string} llm_id - GPT-Assistant/Bot id
      * @param {string} prompt - Member input
@@ -140,7 +141,19 @@ class LLMServices {
     async getLLMResponse(thread_id, llm_id, prompt, factory, avatar){
         if(!thread_id?.length)
             thread_id = ( await mThread(this.openai) ).id
-        await mAssignRequestToThread(this.openai, thread_id, prompt)
+        try{
+            await mAssignRequestToThread(this.openai, thread_id, prompt)
+        } catch(error) {
+            console.log('LLMServices::getLLMResponse()::error', error.message)
+            if(error.status==400)
+                await mRunCancel(this.openai, thread_id, llm_id)
+            try{
+                await mAssignRequestToThread(this.openai, thread_id, prompt)
+            } catch(error) {
+                console.log('LLMServices::getLLMResponse()::error', error.message, error.status)
+                return []
+            }
+        }
         const run = await mRunTrigger(this.openai, llm_id, thread_id, factory, avatar)
         const { id: run_id, } = run
         const llmMessages = ( await this.messages(thread_id) )
@@ -311,8 +324,8 @@ async function mRunFinish(llmServices, run, factory, avatar){
         const checkInterval = setInterval(async ()=>{
             try {
                 const functionRun = await mRunStatus(llmServices, run, factory, avatar)
-                console.log('mRunFinish::functionRun()', functionRun?.status)
                 if(functionRun?.status ?? functionRun ?? false){
+                    console.log('mRunFinish::functionRun()', functionRun.status)
                     clearInterval(checkInterval)
                     resolve(functionRun)
                 }
@@ -330,7 +343,6 @@ async function mRunFinish(llmServices, run, factory, avatar){
 }
 /**
  * Executes openAI run functions. See https://platform.openai.com/docs/assistants/tools/function-calling/quickstart.
- * @todo - storysummary output action requires integration with factory/avatar data intersecting with story submission
  * @module
  * @private
  * @async
@@ -361,7 +373,8 @@ async function mRunFunctions(openai, run, factory, avatar){
                             },
                             success = false
                         if(typeof toolArguments==='string')
-                            toolArguments = JSON.parse(toolArguments) ?? {}
+                            toolArguments = await JSON.parse(toolArguments)
+                                ?? {}
                         toolArguments.thread_id = thread_id
                         const { itemId, } = toolArguments
                         let item
@@ -437,28 +450,27 @@ async function mRunFunctions(openai, run, factory, avatar){
                             case 'entrysummary': // entrySummary in Globals
                             case 'entry_summary':
                             case 'entry summary':
-                                console.log('mRunFunctions()::entrySummary::begin', toolArguments)
-                                avatar.backupResponse = {
-                                    message: `I'm sorry, I couldn't save this entry. I believe the issue might have been temporary. Would you like me to try again?`,
-                                    type: 'system',
-                                }
-                                const { id: entryItemId, summary: _entrySummary, } = await factory.entry(toolArguments)
-                                if(_entrySummary?.length){
-                                    action = 'confirm entry has been saved and based on the mood of the entry, ask more about _this_ entry or move on to another event'
-                                    success = true
-                                    avatar.backupResponse = {
-                                        message: `I can confirm that your story has been saved. Would you like to add more details or begin another memory?`,
-                                        type: 'system',
-                                    }
-                                }
+                            case 'itemsummary': // itemSummary in Globals
+                            case 'item_summary':
+                            case 'item summary':
+                            case 'story': // storySummary.json
+                            case 'storysummary':
+                            case 'story-summary':
+                            case 'story_summary':
+                            case 'story summary':
+                                console.log(`mRunFunctions()::${ name }`, toolArguments?.title)
+                                const { item: itemSummaryItem, success: itemSummarySuccess, } = await avatar.item(toolArguments, 'POST')
+                                success = itemSummarySuccess
+                                action = success
+                                    ? `confirm item creation was successful; save for **internal AI reference** this itemId: ${ itemSummaryItem.id }`
+                                    : `error creating summary for item given argument title: ${ toolArguments?.title } - DO NOT TRY AGAIN until member asks for it`
                                 confirmation.output = JSON.stringify({
                                     action,
-                                    itemId: entryItemId,
+                                    itemId: itemSummaryItem?.id,
                                     success,
-                                    summary: _entrySummary,
                                 })
-                                console.log('mRunFunctions()::entrySummary::end', success, entryItemId, _entrySummary)
-                                return confirmation
+                                console.log(`mRunFunctions()::${ name }`, confirmation, itemSummaryItem)
+                                return confirmation    
                             case 'getsummary':
                             case 'get_summary':
                             case 'get summary':
@@ -516,49 +528,6 @@ async function mRunFunctions(openai, run, factory, avatar){
                                     console.log('mRunFunctions()::avatar', avatar, registration, toolArguments)
                                 }
                                 confirmation.output = JSON.stringify({ action, success, })
-                                return confirmation
-                            case 'story': // storySummary.json
-                            case 'storysummary':
-                            case 'story-summary':
-                            case 'story_summary':
-                            case 'story summary':
-                                console.log('mRunFunctions()::storySummary', toolArguments)
-                                avatar.backupResponse = {
-                                    message: `I'm very sorry, an error occured before I could create your summary. Would you like me to try again?`,
-                                    type: 'system',
-                                }
-                                const { id: storyItemId, phaseOfLife, summary: _storySummary, } = await factory.story(toolArguments)
-                                if(_storySummary?.length){
-                                    let { interests, updates, } = factory.core
-                                    if(typeof interests=='array')
-                                        interests = interests.join(', ')
-                                    if(typeof updates=='array')
-                                        updates = updates.join(', ')
-                                    action = 'confirm memory has been saved and '
-                                    switch(true){
-                                        case phaseOfLife?.length:
-                                            action += `ask about another encounter during member's ${ phaseOfLife }`
-                                            break
-                                        case interests?.length:
-                                            action = `ask about a different interest from: ${ interests }`
-                                            break
-                                        default:
-                                            action = 'ask about another event in member\'s life'
-                                            break
-                                    }
-                                    success = true
-                                }
-                                confirmation.output = JSON.stringify({
-                                    action,
-                                    itemId: storyItemId,
-                                    success,
-                                    summary: _storySummary,
-                                })
-                                avatar.backupResponse = {
-                                    message: `I can confirm that your story has been saved. Would you like to add more details or begin another memory?`,
-                                    type: 'system',
-                                }
-                                console.log('mRunFunctions()::storySummary()::end', success, storyItemId, _storySummary)
                                 return confirmation
                             case 'updatesummary':
                             case 'update_summary':
@@ -643,7 +612,6 @@ async function mRunStatus(openai, run, factory, avatar){
         )
     switch(run.status){
         case 'requires_action':
-            console.log('mRunStatus::requires_action', run.required_action?.submit_tool_outputs?.tool_calls)
             const completedRun = await mRunFunctions(openai, run, factory, avatar)
             return completedRun /* if undefined, will ping again */
         case 'completed':

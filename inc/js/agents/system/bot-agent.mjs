@@ -385,6 +385,21 @@ class BotAgent {
 		const Conversation = await mConversationStart(type, form, bot_id, null, llm_id, this.#llm, this.#factory, prompt)
 		return Conversation
 	}
+	/**
+	 * Gets the correct bot for the item type and form.
+	 * @todo - deprecate
+	 * @param {String} itemForm - The item form
+	 * @param {String} itemType - The item type
+	 * @returns {String} - The assistant type
+	 */
+	getAssistantType(itemForm='biographer', itemType='memory'){
+		if(itemType.toLowerCase()==='memory')
+			return 'biographer'
+		if(itemType.toLowerCase()==='entry')
+			return itemForm.toLowerCase()==='diary'
+				? 'diary'
+				: 'journaler'
+	}
     /**
      * Get a static or dynamic greeting from active bot.
      * @param {boolean} dynamic - Whether to use LLM for greeting
@@ -825,6 +840,20 @@ function mBotInstructions(factory, botData={}){
 	} = instructions
     /* compile instructions */
     switch(type){
+		case 'avatar':
+        case 'personal-avatar':
+            instructions = preamble
+                + general
+            break
+		case 'biographer':
+        case 'journaler':
+		case 'personal-biographer':
+            instructions = preamble
+                + purpose
+                + prefix
+                + general
+				+ voice
+            break
 		case 'diary':
             instructions = purpose
 				+ preamble
@@ -833,17 +862,6 @@ function mBotInstructions(factory, botData={}){
 				+ suffix
 				+ voice
 			break
-        case 'personal-avatar':
-            instructions = preamble
-                + general
-            break
-        case 'journaler':
-		case 'personal-biographer':
-            instructions = preamble
-                + purpose
-                + prefix
-                + general
-            break
         default:
             instructions = general
             break
@@ -919,7 +937,7 @@ async function mBotUpdate(botData, options={}, Bot, llm, factory){
 		throw new Error('Bot instance required to update bot')
 	const { bot_id, id, llm_id, metadata={}, type, vectorstoreId: bot_vectorstore_id, } = Bot
 	const _llm_id = llm_id
-	?? bot_id // @stub - deprecate bot_id
+		?? bot_id // @stub - deprecate bot_id
 	const {
 		instructions: discardInstructions,
 		mbr_id, // no modifications allowed
@@ -1079,7 +1097,7 @@ function mGetAIFunctions(type, globals, vectorstoreId){
 			tools.push(
 				globals.getGPTJavascriptFunction('changeTitle'),
 				globals.getGPTJavascriptFunction('getSummary'),
-				globals.getGPTJavascriptFunction('storySummary'),
+				globals.getGPTJavascriptFunction('itemSummary'),
 				globals.getGPTJavascriptFunction('updateSummary'),
 			)
 			includeSearch = true
@@ -1091,8 +1109,8 @@ function mGetAIFunctions(type, globals, vectorstoreId){
 		case 'journaler':
 			tools.push(
 				globals.getGPTJavascriptFunction('changeTitle'),
-				globals.getGPTJavascriptFunction('entrySummary'),
 				globals.getGPTJavascriptFunction('getSummary'),
+				globals.getGPTJavascriptFunction('itemSummary'),
 				globals.getGPTJavascriptFunction('obscure'),
 				globals.getGPTJavascriptFunction('updateSummary'),
 			)

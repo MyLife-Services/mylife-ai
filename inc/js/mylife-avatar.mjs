@@ -150,27 +150,38 @@ class Avatar extends EventEmitter {
      */
     async collections(type){
         if(type==='file'){
-            await this.#assetAgent.init(this.#vectorstoreId) // bypass factory for files
+            await this.#assetAgent.init(this.#vectorstoreId)
             return this.#assetAgent.files
-        } // bypass factory for files
-        const { factory, } = this
-        const collections = ( await factory.collections(type) )
-            .map(collection=>{
+        }
+        const collections = ( await this.#factory.collections(type) )
+            .map(item=>{
                 switch(type){
+                    case 'entry':
+                    case 'memory':
+                    case 'story':
+                        return mPruneItem(item)
                     case 'experience':
                     case 'lived-experience':
-                        const { completed=true, description, experience_date=Date.now(), experience_id, id, title, variables, } = collection
+                        const {
+                            completed=true,
+                            description,
+                            experience_date=Date.now(),
+                            experience_id,
+                            id: experienceId,
+                            title,
+                            variables,
+                        } = item
                         return {
                             completed,
                             description,
                             experience_date,
                             experience_id,
-                            id,
+                            id: experienceId,
                             title,
                             variables,
                         }
                     default:
-                        return collection
+                        return item
                 }
             })
         return collections
@@ -208,6 +219,26 @@ class Avatar extends EventEmitter {
         // @stub - save conversation fragments */
         this.#livingMemory = null
     }
+	/**
+	 * Submits a new diary or journal entry to MyLife. Currently called both from API _and_ LLM function.
+     * @todo - deprecate to `item` function
+	 * @param {object} entry - Entry item object
+	 * @returns {object} - The entry document from Cosmos
+	 */
+	async entry(entry){
+		const defaultForm = 'journal'
+		const type = 'entry'
+		const {
+			form=defaultForm,
+		} = entry
+		entry = {
+			...entry,
+			...{
+			form,
+            type,
+		}}
+		return await this.item(entry, 'POST')
+	}
     /**
      * Ends an experience.
      * @todo - allow guest experiences
@@ -233,7 +264,7 @@ class Avatar extends EventEmitter {
         }
         this.mode = 'standard'
         const { id, location, title, variables, } = experience
-        const { mbr_id, newGuid, } = factory
+        const { mbr_id, newGuid, } = this.#factory
         const completed = location?.completed
         this.#livedExperiences.push({ // experience considered concluded for session regardless of origin, sniffed below
             completed,
@@ -407,7 +438,7 @@ class Avatar extends EventEmitter {
      * @returns {Promise<Object>} - Returns { instruction, item, responses, success, }
      */
     async item(item, method){
-        const { globals, } = this
+        const { globals, mbr_id, } = this
         const response = { item, success: false, }
         const instructions={ itemId: item.id, },
             message={
@@ -430,13 +461,45 @@ class Avatar extends EventEmitter {
                     : 'error'
                 break
             case 'post': /* create */
-                const createdItem = await this.#factory.createItem(item)
-                success = this.globals.isValidGuid(createdItem?.id)
-                const createdTitle = createdItem?.title
-                    ?? title
+                /* validate request */
+                const {
+                    content,
+                    form,
+                } = item
+                let {
+                    summary=content,
+                    title=`New ${ form }`,
+                    type=form,
+                } = item
+                if(!summary?.length){
+                    message.message = `Request had no summary for: "${ title }".`
+                    break
+                }
+                const assistantType = this.#botAgent.getAssistantType(form, type)
+                const being = 'story'
+                item = { // add validated fields back into `item`
+                    ...item,
+                    ...{
+                        assistantType,
+                        being,
+                        id: this.#factory.newGuid,
+                        mbr_id,
+                        name: `${ type }_${ form }_${ title.substring(0,64) }_${ mbr_id }`,
+                        summary,
+                        title,
+                        type,
+                    }}
+                /* execute request */
+                try {
+                    response.item = await this.#factory.createItem(item)
+                } catch(error) {
+                    console.log('item()::error', error)
+                }
+                /* return response */
+                success = this.globals.isValidGuid(response.item?.id)
                 message.message = success
-                    ? `I have successfully created: "${ createdTitle }".`
-                    : `I encountered an error while trying to create: "${ createdTitle }".`
+                    ? `I have successfully created: "${ response.item.title }".`
+                    : `I encountered an error while trying to create: "${ title }".`
                 break
             case 'put': /* update */
                 const updatedItem = await this.#factory.updateItem(item)
@@ -651,6 +714,26 @@ class Avatar extends EventEmitter {
     async shadows(){
         return await this.#factory.shadows()
     }
+	/**
+	 * Submits a memory to MyLife. Currently called both from API _and_ LLM function.
+     * @todo - deprecate to `item` function
+	 * @param {object} story - Story object
+	 * @returns {object} - The story document from Cosmos
+	 */
+	async story(story){
+		const defaultForm = 'biographer'
+		const type = 'memory'
+		const {
+			form=defaultForm,
+		} = story
+		story = { // add validated fields back into `story` object
+			...story,
+			...{
+				form,
+                type,
+			}}
+		return await this.item(story, 'POST')
+	}
     /**
      * Summarize the file indicated.
      * @param {string} fileId 
@@ -2041,26 +2124,37 @@ function mPruneConversation(conversation){
     }
 }
 /**
- * Returns a frontend-ready object, pruned of cosmos database fields.
- * @param {object} document - The document object to prune.
- * @returns {object} - The pruned document object.
+ * Returns a frontend-ready collection item object, pruned of cosmos database fields.
+ * @module
+ * @param {object} document - The collection item object to prune
+ * @returns {object} - The pruned collection item object
  */
-function mPruneDocument(document){
-    const {
-        being,
-        mbr_id,
-        name,
-        _attachments,
-        _etag,
-        _rid,
-        _self,
-        _ts,
-        ..._document
-    } = document
-    return _document
-}
 function mPruneItem(item){
-    return mPruneDocument(item)
+    const {
+        assistantType,
+        being,
+        form,
+        id,
+        keywords,
+        mood,
+        phaseOfLife,
+        relationships,
+        summary,
+        title,
+    } = item
+    item = {
+        assistantType,
+        being,
+        form,
+        id,
+        keywords,
+        mood,
+        phaseOfLife,        
+        relationships,
+        summary,
+        title,
+    }
+    return item
 }
 /**
  * Returns frontend-ready Message object after logic mutation.
