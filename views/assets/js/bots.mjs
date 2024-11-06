@@ -10,6 +10,7 @@ import {
     getActiveItemId,
     hide,
     seedInput,
+    setActiveAction,
     setActiveItem,
     setActiveItemTitle,
     show,

@@ -63,6 +63,20 @@ document.addEventListener('DOMContentLoaded', async event=>{
     /* determine mode, default = member bot interface */
     await mInitialize() // throws if error
     stageTransition()
+    setActiveAction({
+        button: `Make a Memory`,
+        callback: async function(event){
+            const actionButton = event.target
+            actionButton.disabled = true
+            unsetActiveAction()
+            console.log('members.mjs::setActiveAction::callback', event.target)
+        },
+        icon: 'fa-play',
+        status: 'Let\'s',
+        text: 'from our chat',
+        thumb: '/png/Q.png',
+    })
+    // unsetActiveAction()
     console.log('members.mjs::DOMContentLoaded')
     /* **note**: bots run independently upon conclusion */
 })
@@ -232,6 +246,83 @@ function replaceElement(element, newType, retainValue=true, onEvent, listenerFun
     }
 }
 /**
+ * Sets the active item to an `action` determined by the requesting bot.
+ * @public
+ * @requires chatActiveItem
+ * @param {object} instructions - The action object describing how to populate { button, callback, icon, status, text, thumb, }.
+ * @property {string} button - The button text; if false-y, no button is displayed
+ * @property {function} callback - The callback function to execute on button click
+ * @property {string} icon - The icon class to display
+ * @property {string} status - The status text to display
+ * @property {string} text - The text to display
+ * @property {string} thumb - The thumbnail image URL
+ * @returns {void}
+ */
+function setActiveAction(instructions){
+    const activeItem = document.getElementById('chat-active-item')
+    if(!activeItem)
+        return
+    else
+        delete activeItem.dataset
+    const { button, callback, icon, status, text, thumb, } = instructions
+    const activeButton = document.getElementById('chat-active-item-button')
+    const activeClose = document.getElementById('chat-active-item-close')
+    const activeIcon = document.getElementById('chat-active-item-icon')
+    const activeStatus = document.getElementById('chat-active-item-status')
+    const activeThumb = document.getElementById('chat-active-item-thumb')
+    const activeTitle = document.getElementById('chat-active-item-title')
+    if(activeThumb){
+        delete activeThumb.dataset
+        activeThumb.className = 'fas chat-active-action-thumb'
+        if(thumb?.length)
+            activeThumb.src = thumb
+        else
+            hide(activeThumb)
+    }
+    if(activeIcon){
+        delete activeIcon.dataset
+        activeIcon.className = 'fas chat-active-action-icon'
+        if(icon?.length)
+            activeIcon.classList.add(icon)
+        else
+            hide(activeIcon)
+    }
+    if(activeStatus){
+        delete activeStatus.dataset
+        activeStatus.className = 'chat-active-action-status'
+        activeStatus.removeEventListener('click', mToggleItemPopup)
+        if(status?.length)
+            activeStatus.textContent = status
+        else
+            hide(activeStatus)
+    }
+    if(activeButton){
+        delete activeButton.dataset
+        activeButton.className = 'button chat-active-action-button'
+        if(button?.length){
+            activeButton.textContent = button
+            if(callback){
+                console.log('setActiveAction::callback', callback)
+                activeButton.addEventListener('click', callback, { once: true })
+                activeButton.disabled = false
+            }
+        } else
+            hide(activeButton)
+    }
+    if(activeTitle){
+        delete activeTitle.dataset
+        activeTitle.className = 'chat-active-action-title'
+        if(text?.length)
+            activeTitle.textContent = text
+        else
+            hide(activeTitle)
+    }
+    if(activeClose){
+        activeClose.addEventListener('click', unsetActiveAction, { once: true })
+    }
+    show(activeItem)
+}
+/**
  * Proxy to set the active bot (via `bots.mjs`).
  * @public
  * @async
@@ -243,9 +334,8 @@ async function setActiveBot(){
 /**
  * Sets the active item, ex. `memory`, `entry`, `story` in the chat system for member operation(s).
  * @public
- * @todo - edit title with double-click
  * @requires chatActiveItem
- * @param {Guid} itemId - The item id to set as active.
+ * @param {Guid} itemId - The item id to set as active
  * @returns {void}
  */
 function setActiveItem(itemId){
@@ -255,28 +345,40 @@ function setActiveItem(itemId){
     if(!itemId || !popup)
         throw new Error('setActiveItem::Error()::valid `id` is required')
     const { title, type, } = popup.dataset
-    const chatActiveItemClose = document.getElementById('chat-active-item-close')
-    const chatActiveItemStatus = document.getElementById('chat-active-item-status')
-    const chatActiveItemTitle = document.getElementById('chat-active-item-title')
-    if(chatActiveItemClose)
-        chatActiveItemClose.addEventListener('click', unsetActiveItem, { once: true })
-    if(chatActiveItemStatus){
-        chatActiveItemStatus.dataset.itemId = itemId
-        chatActiveItemStatus.addEventListener('click', mToggleItemPopup)
+    const activeButton = document.getElementById('chat-active-item-button')
+    const activeClose = document.getElementById('chat-active-item-close')
+    const activeIcon = document.getElementById('chat-active-item-icon')
+    const activeStatus = document.getElementById('chat-active-item-status')
+    const activeTitle = document.getElementById('chat-active-item-title')
+    if(activeButton)
+        hide(activeButton)
+    if(activeClose){
+        activeClose.className = 'fas fa-times chat-active-item-close'
+        activeClose.addEventListener('click', unsetActiveItem, { once: true })
     }
-    if(chatActiveItemTitle){
-        chatActiveItemTitle.innerHTML = ''
-        const activeTitle = document.createElement('div')
-        activeTitle.classList.add('chat-active-item-title-text')
+    if(activeIcon){
+        activeIcon.className = 'fas fa-square chat-active-item-icon'
+    }
+    if(activeStatus){
+        activeStatus.className = 'chat-active-item-status'
+        activeStatus.dataset.itemId = itemId
+        activeStatus.textContent = 'Active: '
+        activeStatus.addEventListener('click', mToggleItemPopup)
+    }
+    if(activeTitle){
+        activeTitle.innerHTML = ''
+        const activeText = document.createElement('div')
+        activeText.classList.add('chat-active-item-title-text')
+        activeText.dataset.itemId = itemId
+        activeText.id = `chat-active-item-title-text_${ itemId }`
+        activeText.innerHTML = title
+        /* append activeTitle */
+        activeTitle.appendChild(activeText)
+        activeTitle.className = 'chat-active-item-title'
         activeTitle.dataset.itemId = itemId
-        activeTitle.id = `chat-active-item-title-text_${ itemId }`
-        activeTitle.innerHTML = title
-        /* append children */
-        chatActiveItemTitle.appendChild(activeTitle)
-        chatActiveItemTitle.dataset.itemId = itemId
-        chatActiveItemTitle.dataset.popupId = popup.id
-        chatActiveItemTitle.dataset.title = title
-        chatActiveItemTitle.addEventListener('dblclick', updateItemTitle, { once: true })
+        activeTitle.dataset.popupId = popup.id
+        activeTitle.dataset.title = title
+        activeTitle.addEventListener('dblclick', updateItemTitle, { once: true })
     }
     chatActiveItem.dataset.id = id
     chatActiveItem.dataset.itemId = itemId
@@ -354,6 +456,16 @@ async function startExperience(experienceId){
 function toggleVisibility(){
     mGlobals.toggleVisibility(...arguments)
 }
+function unsetActiveAction(){
+    const activeItem = document.getElementById('chat-active-item')
+    if(!activeItem)
+        return
+    const activeThumb = document.getElementById('chat-active-item-thumb')
+    if(activeThumb)
+        hide(activeThumb)
+    delete activeItem.dataset
+    hide(activeItem)
+}
 /**
  * Unsets the active item in the chat system.
  * @public
@@ -361,14 +473,6 @@ function toggleVisibility(){
  * @returns {void}
  */
 function unsetActiveItem(){
-    const chatActiveItemTitleText = document.getElementById('chat-active-item-title-text')
-    const chatActiveItemClose = document.getElementById('chat-active-item-close')
-    if(chatActiveItemTitleText){
-        chatActiveItemTitleText.innerHTML = ''
-        chatActiveItemTitleText.dataset.popupId = null
-        chatActiveItemTitleText.dataset.title = null
-        chatActiveItemTitleText.removeEventListener('click', mToggleItemPopup)
-    }
     delete chatActiveItem.dataset.id
     delete chatActiveItem.dataset.itemId
     hide(chatActiveItem)
@@ -838,6 +942,7 @@ export {
     replaceElement,
     sceneTransition,
     seedInput,
+    setActiveAction,
     setActiveBot,
     setActiveItem,
     setActiveItemTitle,
