@@ -2,7 +2,9 @@
     <div id="team-popup" class="popup team-popup"></div>
     <div id="personal-avatar" class="bot-container">
         <div id="personal-avatar-status" class="bot-status">
-            <div id="personal-avatar-icon" class="bot-icon"></div>
+            <div id="personal-avatar-icon" class="bot-icon">
+                <img id="personal-avatar-thumb" class="bot-image" src="/png/avatar-thumb.png" title="I am an artificial intelligence designed to help you with anything you need inside MyLife." />
+            </div>
             <div id="personal-avatar-title" class="bot-title">
                 <div id="personal-avatar-title-type" class="bot-title-type"></div>
                 <div id="personal-avatar-title-name" class="bot-title-name"></div>
@@ -42,7 +44,9 @@
     </div>
     <div class="bot-container" id="personal-biographer">
         <div class="bot-status" id="personal-biographer-status">
-            <div class="bot-icon" id="personal-biographer-icon"></div>
+            <div class="bot-icon" id="personal-biographer-icon">
+                <img id="personal-biographer-thumb" class="bot-image" title="I am an artificial intelligence designed to help you collect and enhance your memories." src="/png/biographer-thumb.png" />
+            </div>
             <div id="personal-biographer-title" class="bot-title">
                 <div id="personal-biographer-title-type" class="bot-title-type"></div>
                 <div id="personal-biographer-title-name" class="bot-title-name"></div>
@@ -155,7 +159,9 @@
     </div>
     <div class="bot-container" id="diary">
         <div class="bot-status" id="diary-status">
-            <div class="bot-icon" id="diary-icon"></div>
+            <div class="bot-icon" id="diary-icon">
+                <img id="diary-thumb" class="bot-image" src="/png/diary-thumb.png" title="I am an artificial intelligence designed to help you keep secure your private thoughts." />
+            </div>
             <div id="diary-title" class="bot-title">
                 <div id="diary-title-type" class="bot-title-type"></div>
                 <div id="diary-title-name" class="bot-title-name"></div>
@@ -215,7 +221,9 @@
     </div>
     <div class="bot-container" id="journaler">
         <div class="bot-status" id="journaler-status">
-            <div class="bot-icon" id="journaler-icon"></div>
+            <div class="bot-icon" id="journaler-icon">
+                <img id="journaler-thumb" class="bot-image" src="/png/library-thumb.png" title="I am an artificial intelligence designed to help you keep secure your private thoughts." />
+            </div>
             <div id="journaler-title" class="bot-title">
                 <div id="journaler-title-type" class="bot-title-type"></div>
                 <div id="journaler-title-name" class="bot-title-name"></div>
@@ -280,10 +288,10 @@
             <div class="collections-title" id="collections-title" name="collections-title">Scrapbook</div>
             <div class="bot-options-dropdown" id="collections-options-dropdown"></div><!-- drop-down caret to trigger slide-down of container below -->
         </div>
-        <div class="bot-options hidden" id="collections-options" name="collections-options">
+        <div class=" bot-options collections-options hidden" id="collections-options" name="collections-options">
             <!-- Bot Name -->
-            <div class="input-group" id="collections-description">
-                Click a category to browse your scrapbook items.
+            <div class="collections-description" id="collections-description">
+                Click on a category to browse entries
             </div>
             <div id="collections-collections" class="collections"><!-- from here _could_ be dynamic, not just listing -->
                 <div id="collection-story" class="collection story-collection">

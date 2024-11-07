@@ -6,9 +6,10 @@ const mHelpInitiatorContent = {
     membership: `I'll do my best to assist with a "membership" request. Please type in your question or issue below and click "Send" to get started.`,
     tutorial: `The tutorial is a great place to start! Click this button to launch or re-run the tutorial:`,
 }
-const mNewGuid = () => crypto.randomUUID()
+const mNewGuid = ()=>crypto.randomUUID()
 /* module variables */
 let mActiveHelpType, // active help type, currently entire HTMLDivElement
+    mDatamanager,
     mHelpAwait,
     mHelpClose,
     mHelpContainer,
@@ -31,10 +32,492 @@ let mActiveHelpType, // active help type, currently entire HTMLDivElement
     mNavigationHelpIcon,
     mSidebar
 /* class definitions */
+class Datamanager {
+    #url
+    /**
+     * Creates a new Datamanager.
+     * @param {String} type - The type of user, defaults to 'guest'
+     */
+    constructor(type='guest'){
+        this.#url = window.location.origin
+        switch(type){
+            case 'member':
+                this.#url += '/member'
+                break
+            case 'guest':
+            default:
+                break
+        }
+    }
+    /* private functions */
+    async #fetch(url='', options){
+        let response
+        try {
+            url = url.startsWith('/')
+                ? url
+                : `/${url}`
+            url = this.#url + url
+            response = await fetch(url, options)
+            if(response.status===401){ // session timeout
+                response = await response.json()
+                window.location.href = response.redirectUrl
+                return
+            }
+            response = await response.json()
+        } catch(e) {
+            const errorMessage = e.message
+            response = {
+                error: errorMessage,
+                message: errorMessage,
+                success: false
+            }
+        }
+        return response
+    }
+    /* public functions */
+    async alerts(){
+        const url = `alerts`
+        const responses = await this.#fetch(url)
+        responses.forEach(response=>mAlertCreate(response))
+        return responses
+    }
+    async botActivate(botId){
+        const url = `/members/bots/activate/${ botId }`
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Request bot be created on server.
+     * @requires mActiveTeam
+     * @param {string} type - bot type
+     * @returns {object} - Bot object from server.
+     */
+    botCreate(botData){
+        const url = `/members/bots/create`
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(botData)
+        }
+        const response = this.#fetch(url, options)
+        return response
+    }
+    async botRetire(bot_id){
+        const url = `/members/bots/${ bot_id }`
+        const options = {
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            method: 'DELETE',
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Fetch bots from server, used primarily for initialization of page, though could be requested on-demand.
+     * @public
+     * @returns {Promise<Object>} - The bot array object wrapper
+     */
+    async bots(){
+        const url = `/members/bots`
+        const response = await this.#fetch(url)
+        return response
+    }
+    /**
+     * Updates Bot data on server.
+     * @param {Object} bot - bot object
+     * @returns {object} - response from server
+     */
+    async botUpdate(botData){
+        const { id, } = botData
+        const url = `/members/bots/${ id }`
+        const method = id?.length
+            ? 'PUT' // update
+            : 'POST' // create
+        const options = {
+            body: JSON.stringify(botData),
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            method: method,
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Request bot version update.
+     * @param {Guid} bot_id - The bot id to update
+     * @returns {object} - Response from server { bot, success, }
+     */
+    async botVersion(bot_id){
+        const url = `/members/bots/version/${ bot_id }`
+        const options = {
+            method: 'PUT',
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    async chatRetire(bot_id){
+        const url = `/members/retire/chat/${ bot_id }`
+        const options = {
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            method: 'POST',
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Fetch collection(s) requested on-demand.
+     * @param {string} type - The type of collections to fetch.
+     * @returns {Promise<Object[Array]>} - The collection(s)' items, no wrapper.
+     */
+    async collections(type=''){
+        const url = `/members/collections/${ type }`
+        const response = await this.#fetch(url)
+        return response
+    }
+    /**
+     * End experience on server.
+     * @public
+     * @async
+     * @param {Guid} experienceId - The experience id
+     * @returns {Promise<Object>} - The response object
+     */
+    async experienceEnd(experienceId){
+        const url = `/members/experience/${ experienceId }/end`
+        const options = { method: 'PATCH', }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Retrieves first or next sequence of experience events and updates mExperience object.
+     * @private
+     * @async
+     * @param {Guid} experienceId - The experience id
+     * @param {object} memberInput - Member input in form of object
+     * @returns {Promise<Experience>} - Experience object: { autoplay, events, id, location, name, purpose, skippable, }
+     */
+    async experienceEvents(experienceId, memberInput){
+        const url = `/members/experience/${ experienceId }`
+        const body = memberInput?.length
+            ? JSON.stringify({ memberInput, })
+            : null
+        const options = {
+            body,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            method: 'PATCH',
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Gets the manifest of the Experience.
+     * @private
+     * @async
+     * @param {Guid} id - The Experience id
+     * @returns {Promise<Experience>} - Experience object: { autoplay, events, id, location, name, purpose, skippable, }
+     */
+    async experienceManifest(experienceId){
+        const url =`/members/experience/${ experienceId }/manifest`
+        const options = {
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            method: 'PATCH',
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Fetches the experiences from the server.
+     * @returns {Promise<Experience[]>} - Array of Experience objects: { autoplay, events, id, location, name, purpose, skippable, }     */
+    async experiences(){
+        const url = `/experiences`
+        const response = await this.#fetch(url)
+        return response
+    }
+    async feedback(isPositive=true, message, message_id=''){
+        const url = `/members/feedback/${ message_id }`
+        const options = {
+            body: JSON.stringify({ isPositive, message, }),
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            method: 'POST',
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    async greetings(dynamic=false){
+        const url = `greetings?dyn=${ dynamic }`
+        const response = await this.#fetch(url)
+        const responses = ( response?.responses ?? [] )
+            .map(response=>response.message)
+        return responses
+    }
+    async help(helpData){
+        const url = `/help`
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(helpData),
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Fetches the hosted members from the server.
+     * @private
+     * @returns {Promise<MemberList[]>} - The response Member List { id, name, } array.
+     */
+    async hostedMembers(){
+        const url = `select`
+        const responses = await this.#fetch(url)
+        return responses
+    }
+    /**
+     * Deletes the item from the server.
+     * @param {Guid} itemId - The collection item id
+     * @returns {Object} - The item object: { item, message, success, }
+     */
+    async itemDelete(itemId){
+        const url = `/members/items/${ itemId }`
+        const options = { method: 'DELETE', }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Sets collection item content on server.
+     * @private
+     * @async
+     * @param {Event} event - The event object.
+     * @returns {Object} - The response object: { item, success, }
+     */
+    async itemUpdate(itemId, summary, emoticons){
+        const url = `/members/item/${ itemId }`
+        const options = {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ emoticons, summary, })
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Sets collection item title on server.
+     * @param {Guid} itemId - The collection item id
+     * @param {string} title - The title to set
+     * @returns {boolean} - Whether or not the title was set
+     */
+    async itemUpdateTitle(itemId, title){
+        if(!title?.length)
+            throw new Error(`No title provided for title update`)
+        const url = `/members/item/${ itemId }`
+        const options = {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ itemId, title, })
+        }
+        const response = await this.#fetch(url, options)
+        if(!response.success)
+            throw new Error(`Title "${ title }" not accepted.`)
+        return true
+    }
+    async logout(){
+        const url = `/logout`
+        const response = await this.#fetch(url)
+        return response
+    }
+    /**
+     * Relives a memory for a member.
+     * @param {Guid} id - The memory collection item id
+     * @param {string} memberInput - The member's updates to the memory
+     * @returns {Object} - The response object
+     */
+    async memoryRelive(itemId, memberInput){
+        const url = `/members/memory/relive/${ itemId }`
+        const body = memberInput?.length
+            ? JSON.stringify({ memberInput, })
+            : null
+        const options = {
+            body,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            method: 'PATCH',
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    async memoryReliveEnd(itemId){
+        const url = `/members/memory/end/${ itemId }`
+        const options = { method: 'PATCH', }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * MyLife function to obscure an item summary
+     * @param {Guid} itemId - The item ID
+     * @returns {Object} - The item object: { id, summary, etc. }
+     */
+    async obscure(itemId){
+        const url = `/members/obscure/${ itemId }`
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    async passphraseUpdate(passphrase){
+        const url = `/members/passphrase`
+        const options = {
+            body: JSON.stringify({ passphrase, }),
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            method: 'POST',
+        }
+        const success = await this.#fetch(url, options)
+        return success
+    }
+    /**
+     * Fetches shadows from the server.
+     * @private
+     * @async
+     * @returns {Object[]} - The shadows array.
+     */
+    async shadows(){
+        const url = `/shadows`
+        const response = await this.#fetch(url)
+        return response
+    }
+    async signupStatus(){
+        const response = await this.#fetch('signup')
+        return response
+    }
+    async submitChat(chatData, useMemberRoute=false){
+        const url = useMemberRoute
+            ? `/members/`
+            : `/`
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(chatData),
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    async submitPassphrase(passphrase, mbr_id){
+        const url = `/challenge/${ mbr_id }`
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ passphrase, }),
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    async submitSignup(signupData){
+        const url = `signup`
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(signupData),
+        }
+        const { success, } = await this.#fetch(url, options)
+        return success
+    }
+    /**
+     * Fetches the summary for a specified file.
+     * @public
+     * @param {string} fileId - The file ID
+     * @param {string} fileName - The file name
+     * @returns {Promise<object>} - The Summary response
+     */
+    async summary(fileId, fileName){
+        const url = `/members/summarize`
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                fileId,
+                fileName,
+            }),
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
+     * Fetches the team for a specified team ID.
+     * @param {Guid} teamId - The team name
+     * @returns {Object}- The team object: { id, name, etc. }
+     */
+    async team(teamId){
+
+    }
+    /**
+     * Sets the active Team.
+     * @param {Guid} teamId - The team ID
+     * @returns {Object} - The response object
+     */
+    async teamActivate(teamId){
+        const url = `/members/teams/${ teamId }`
+        const options = {
+            method: 'POST', 
+        }
+        const response = await this.#fetch(url, options)
+        return response 
+    }
+    async teams(){
+        const url = `/members/teams`
+        const response = await this.#fetch(url)
+        return response
+    }
+    async uploadFiles(formData){
+        const url = `/members/upload`
+        const options = {
+            method: 'POST',
+            body: formData,
+        }
+        const response = await this.#fetch(url, options)
+        return response
+
+    }
+}
 class Globals {
     #uuid = mNewGuid()
     constructor(){
         if(!mLoaded){
+            mDatamanager = new Datamanager()
             mLoginButton = document.getElementById('navigation-login-logout-button')
             mLoginContainer = document.getElementById('navigation-login-logout')
             mMainContent = document.getElementById('main-content')
@@ -56,9 +539,10 @@ class Globals {
             mNavigationHelpIcon = document.getElementById('navigation-help-icon')
             mSidebar = document.getElementById('sidebar')
             this.init()
+            mLoaded = true
         }
     }
-    init(){
+    async init(){
         /* global visibility settings */
         this.hide(mHelpContainer)
         /* assign event listeners */
@@ -73,6 +557,8 @@ class Globals {
             mToggleHelpSubmit()
         }
         mLoginButton.addEventListener('click', this.loginLogout, { once: true })
+        /* fetch data */
+        await this.datamanager.alerts()
     }
     /* public functions */
 	/**
@@ -121,9 +607,6 @@ class Globals {
     expunge(element){
         this.hide(element) /* trigger any animations */
         element.remove()
-    }
-    async fetchShadows(){
-        return await mFetchShadows()
     }
     /**
      * Returns the avatar object if poplated by on-page EJS script.
@@ -262,6 +745,9 @@ class Globals {
         return undashedString.replace(/ /g, '-').toLowerCase()
     }
     /* getters/setters */
+    get datamanager(){
+        return mDatamanager
+    }
     get mainContent(){
         return mMainContent
     }
@@ -431,24 +917,57 @@ function mCreateTutorialLauncher(){
     tutorialLauncher.addEventListener('click', mLaunchTutorial, { once: true })
     return tutorialLauncher
 }
-/**
- * Fetches shadows from the server.
- * @private
- * @async
- * @returns {Object[]} - The shadows array.
- */
-async function mFetchShadows(){
-    let response = await fetch('/shadows', {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-    })
-    if(response.ok)
-        response = await response.json()
-    else
-        throw new Error('mFetchShadows::response not ok')
-    return response
+/* alerts */
+function mAlertCreate(alertData){
+    const systemAlertContainer = document.getElementById('system-alert-container')
+    const _id = alertData.id
+    /* individual alert box */
+    const systemAlertBox = document.createElement('div')
+    systemAlertBox.id = `alert-${_id}`
+    systemAlertBox.name = systemAlertBox.id
+    systemAlertBox.classList.add('alert-box')
+    systemAlertContainer.appendChild(systemAlertBox)
+    /* alert box content */
+    const systemAlertContent = document.createElement('div')
+    systemAlertContent.id = `alert-content-${_id}`
+    systemAlertContent.name = systemAlertContent.id
+    systemAlertContent.classList.add('alert-content')
+    systemAlertContent.textContent = alertData.content
+    if(alertData.urgency?.length){
+        let urgency = ''
+        switch(alertData.urgency.toLowerCase()) {
+            case 'low':
+                urgency = 'alert-low'
+                break
+            case 'medium':
+                urgency = 'alert-medium'
+                break
+            case 'high':
+                urgency = 'alert-high'
+                break
+            default:
+                break
+        }
+        systemAlertContent.classList.add(alertUrgencyClass(urgency))
+    }
+    systemAlertBox.appendChild(systemAlertContent)
+    /* alert box close */
+    const systemAlertClose = document.createElement('div')
+    systemAlertClose.id = `alert-close-${_id}`
+    systemAlertClose.name = systemAlertClose.id
+    if(alertData.dismissable){
+        systemAlertClose.classList.add('alert-close', 'fa', 'fa-times')
+        systemAlertClose.onclick = ()=>mAlertHide(systemAlertBox)
+    }
+    systemAlertBox.appendChild(systemAlertClose)
+    mShowAlert(systemAlertBox)
+    setTimeout(()=>mAlertHide(systemAlertBox), 22000)
+    function mAlertHide(systemAlert) {
+        systemAlert.classList.add('alert-hide')
+    }
+    function mShowAlert(systemAlert) {
+        systemAlert.classList.remove('alert-hide')
+    }
 }
 /**
  * Returns help content appropriate to indicated `type`.
@@ -516,16 +1035,11 @@ function mLogin(){
  * @returns {void}
  */
 async function mLogout(){
-    const response = await fetch('/logout', {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-    })
-    if(response.ok)
+    const response = await mDatamanager.logout()
+    if(response)
         window.location.href = '/'
     else
-        console.error('mLogout::response not ok', response)
+        console.error('mLogout::failure', response)
 }
 /**
  * Sets the type of help required by member.
@@ -624,22 +1138,13 @@ async function mSubmitHelp(event){
 async function mSubmitHelpToServer(helpRequest, type='general', mbr_id){
     if(!helpRequest.trim().length)
         throw new Error('mSubmitHelpToServer::helpRequest required')
-    const response = await fetch('/help', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            helpRequest,
-            type,
-            mbr_id,
-        }),
-    })
-    const jsonResponse = await response.json()
-    if(response.ok)
-        return jsonResponse
-    else
-        throw new Error(jsonResponse?.message ?? 'unknown server error')
+    const helpData = {
+        helpRequest,
+        type,
+        mbr_id,
+    }
+    const response = await mDatamanager.help(helpData)
+    return response
 }
 /**
  * Toggles the visibility of the challenge submit button based on `input` event.
@@ -684,5 +1189,5 @@ function mToggleHelpSubmit(event){
     else
         mShow(mHelpInputSubmit)
 }
-/* export */
+/* exports */
 export default Globals

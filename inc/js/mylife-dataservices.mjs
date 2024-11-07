@@ -299,23 +299,12 @@ class Dataservices {
      * @async
      * @public
      * @param {Guid} id - The id of the item to delete.
-	 * @param {boolean} bSuppressError - Suppress error, default: `true`
      * @returns {boolean} - true if item deleted successfully.
      */
-	async deleteItem(id, bSuppressError=true){
+	async deleteItem(id){
 		if(!id?.length)
-			throw new Error('ERROR::deleteItem::Item `id` required')
-		let success=false
-		if(bSuppressError){
-			try{
-				success = await this.datamanager.deleteItem(id)
-			} catch(err){
-				console.log('mylife-data-service::deleteItem() ERROR', err.code) // NotFound
-			}
-		} else {
-			await this.datamanager.deleteItem(id)
-			success = true
-		}
+			return false
+		const success = await this.datamanager.deleteItem(id)
 		return success
 	}
 	async findRegistrationIdByEmail(_email){

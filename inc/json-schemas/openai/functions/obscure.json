@@ -3,6 +3,7 @@
     "name": "obscure",
     "strict": true,
     "parameters": {
+        "additionalProperties": false,
         "type": "object",
         "properties": {
             "itemId": {
@@ -13,6 +14,5 @@
         "required": [
             "itemId"
         ]
-    },
-    "additionalProperties": false
+    }
 }

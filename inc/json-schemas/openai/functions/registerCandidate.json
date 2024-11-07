@@ -2,6 +2,7 @@
     "name": "registerCandidate",
     "description": "Register candidate for MyLife",
     "parameters": {
+        "additionalProperties": false,
         "type": "object",
         "properties": {
             "avatarName": {

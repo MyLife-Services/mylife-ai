@@ -150,27 +150,38 @@ class Avatar extends EventEmitter {
      */
     async collections(type){
         if(type==='file'){
-            await this.#assetAgent.init(this.#vectorstoreId) // bypass factory for files
+            await this.#assetAgent.init(this.#vectorstoreId)
             return this.#assetAgent.files
-        } // bypass factory for files
-        const { factory, } = this
-        const collections = ( await factory.collections(type) )
-            .map(collection=>{
+        }
+        const collections = ( await this.#factory.collections(type) )
+            .map(item=>{
                 switch(type){
+                    case 'entry':
+                    case 'memory':
+                    case 'story':
+                        return mPruneItem(item)
                     case 'experience':
                     case 'lived-experience':
-                        const { completed=true, description, experience_date=Date.now(), experience_id, id, title, variables, } = collection
+                        const {
+                            completed=true,
+                            description,
+                            experience_date=Date.now(),
+                            experience_id,
+                            id: experienceId,
+                            title,
+                            variables,
+                        } = item
                         return {
                             completed,
                             description,
                             experience_date,
                             experience_id,
-                            id,
+                            id: experienceId,
                             title,
                             variables,
                         }
                     default:
-                        return collection
+                        return item
                 }
             })
         return collections
@@ -198,18 +209,6 @@ class Avatar extends EventEmitter {
         return bot
     }
     /**
-     * Delete an item from member container.
-     * @async
-     * @public
-     * @param {Guid} id - The id of the item to delete.
-     * @returns {boolean} - true if item deleted successfully.
-     */
-    async deleteItem(id){
-        if(this.isMyLife)
-            throw new Error('MyLife avatar cannot delete items.')
-        return await this.#factory.deleteItem(id)
-    }
-    /**
      * End the living memory, if running.
      * @async
      * @public
@@ -220,6 +219,26 @@ class Avatar extends EventEmitter {
         // @stub - save conversation fragments */
         this.#livingMemory = null
     }
+	/**
+	 * Submits a new diary or journal entry to MyLife. Currently called both from API _and_ LLM function.
+     * @todo - deprecate to `item` function
+	 * @param {object} entry - Entry item object
+	 * @returns {object} - The entry document from Cosmos
+	 */
+	async entry(entry){
+		const defaultForm = 'journal'
+		const type = 'entry'
+		const {
+			form=defaultForm,
+		} = entry
+		entry = {
+			...entry,
+			...{
+			form,
+            type,
+		}}
+		return await this.item(entry, 'POST')
+	}
     /**
      * Ends an experience.
      * @todo - allow guest experiences
@@ -245,7 +264,7 @@ class Avatar extends EventEmitter {
         }
         this.mode = 'standard'
         const { id, location, title, variables, } = experience
-        const { mbr_id, newGuid, } = factory
+        const { mbr_id, newGuid, } = this.#factory
         const completed = location?.completed
         this.#livedExperiences.push({ // experience considered concluded for session regardless of origin, sniffed below
             completed,
@@ -319,6 +338,19 @@ class Avatar extends EventEmitter {
         )
     }
     /**
+     * Submits message content and id feedback to bot.
+     * @todo - message id's not passed to frontend, but need to identify content in order to identify accurate bot, not just active bot. Given situation at the moment, it should be elucidating anyhow, and most likely will be a single bot, not to mention things that don't differentiate bots, such as tone or correctness.
+     * @param {String} message_id - Ideally LLM message id
+     * @param {Boolean} isPositive - Positive or negative feedback, defaults to `true`
+     * @param {String} message - Message content (optional)
+     * @returns {Boolean} - Whether feedback was saved successfully
+     */
+    async feedback(message_id, isPositive, message){
+        const feedback = await this.activeBot.feedback(message_id, isPositive, message)
+        const { success, } = feedback
+        return success
+    }
+    /**
      * Specified by id, returns the pruned Bot.
      * @param {Guid} id - The Bot id
      * @returns {object} - The pruned Bot object
@@ -361,11 +393,16 @@ class Avatar extends EventEmitter {
     /**
      * Get a static or dynamic greeting from active bot.
      * @param {boolean} dynamic - Whether to use LLM for greeting
-     * @returns {Array} - The greeting message(s) string array in order of display
+     * @returns {Object} - The greeting Response object: { responses, success, }
      */
     async greeting(dynamic=false){
-        const greetings = mPruneMessages(this.#botAgent.activeBotId, await this.#botAgent.greeting(dynamic), 'greeting')
-        return greetings
+        const responses = []
+        const greeting = await this.#botAgent.greeting(dynamic)
+        responses.push(mPruneMessage(this.activeBotId, greeting, 'greeting'))
+        return {
+            responses,
+            success: true,
+        }
     }
     /**
      * Request help about MyLife. **caveat** - correct avatar should have been selected prior to calling.
@@ -395,39 +432,98 @@ class Avatar extends EventEmitter {
     }
     /**
      * Manages a collection item's functionality.
-     * @param {object} item - The item data object.
-     * @param {string} method - The http method used to indicate response.
-     * @returns {Promise<object>} - Returns void if item created successfully.
+     * @todo - move `get` to here as well
+     * @param {Object} item - The item data object
+     * @param {String} method - The http method used to indicate response
+     * @returns {Promise<Object>} - Returns { instruction, item, responses, success, }
      */
     async item(item, method){
-        const { globals, } = this
-        let { id, } = item
+        const { globals, mbr_id, } = this
+        const response = { item, success: false, }
+        const instruction={},
+            message={
+                agent: 'server',
+                message: `I encountered an error while trying to process your request; please try again.`,
+                type: 'system',
+            }
+        let { id: itemId, title, } = item
         let success = false
+        if(itemId && !globals.isValidGuid(itemId))
+            throw new Error(`Invalid item id: ${ itemId }`)
         switch(method.toLowerCase()){
             case 'delete':
-                if(globals.isValidGuid(id))
-                    item = await this.#factory.deleteItem(id)
-                success = item ?? success
+                success = await this.#factory.deleteItem(itemId)
+                message.message = success
+                    ? `I have successfully deleted your item.`
+                    : `I encountered an error while trying to delete your item, id: ${ itemId }.`
+                instruction.command = success
+                    ? 'removeItem'
+                    : 'error'
                 break
             case 'post': /* create */
-                item = await this.#factory.createItem(item)
-                id = item?.id
-                success = this.globals.isValidGuid(id)
+                /* validate request */
+                const {
+                    content,
+                    form,
+                } = item
+                let {
+                    summary=content,
+                    title=`New ${ form }`,
+                    type=form,
+                } = item
+                if(!summary?.length){
+                    message.message = `Request had no summary for: "${ title }".`
+                    break
+                }
+                const assistantType = this.#botAgent.getAssistantType(form, type)
+                const being = 'story'
+                item = { // add validated fields back into `item`
+                    ...item,
+                    ...{
+                        assistantType,
+                        being,
+                        id: this.#factory.newGuid,
+                        mbr_id,
+                        name: `${ type }_${ form }_${ title.substring(0,64) }_${ mbr_id }`,
+                        summary,
+                        title,
+                        type,
+                    }}
+                /* execute request */
+                try {
+                    response.item = mPruneItem(await this.#factory.createItem(item))
+                } catch(error) {
+                    console.log('item()::error', error)
+                }
+                /* return response */
+                success = this.globals.isValidGuid(response.item?.id)
+                if(success){
+                    instruction.command = 'createItem'
+                    instruction.item = response.item
+                    message.message = `Item successfully created: "${ response.item.title }".`
+                } else {
+                    instruction.command = 'error'
+                    message.message = `I encountered an error while creating: "${ title }".`
+                }
                 break
             case 'put': /* update */
-                if(globals.isValidGuid(id)){
-                    item = await this.#factory.updateItem(item)
-                    success = this.globals.isValidGuid(item?.id)
-                }
+                const updatedItem = await this.#factory.updateItem(item)
+                success = this.globals.isValidGuid(updatedItem?.id)
+                const updatedTitle = updatedItem?.title
+                    ?? title
+                message.message = success
+                    ? `I have successfully updated: "${ updatedTitle }".`
+                    : `I encountered an error while trying to update: "${ updatedTitle }".`
                 break
             default:
                 console.log('item()::default', item)
                 break
         }
-        return {
-            item: mPruneItem(item),
-            success,
-        }
+        this.frontendInstruction = instruction // LLM-return safe
+        response.instruction = instruction // direct-access
+        response.responses = [message]
+        response.success = success
+        return response
     }
     /**
      * Migrates a bot to a new, presumed combined (with internal or external) bot.
@@ -608,12 +704,42 @@ class Avatar extends EventEmitter {
         return response
     }
     /**
+     * Activate a specific Bot.
+     * @param {Guid} bot_id - The bot id
+     * @returns {object} - Activated Response object: { bot_id, greeting, success, version, versionUpdate, }
+     */
+    async setActiveBot(bot_id){
+        const dynamic = false
+        const response = await this.#botAgent.setActiveBot(bot_id, dynamic)
+        return response
+    }
+    /**
      * Gets the list of shadows.
      * @returns {Object[]} - Array of shadow objects.
      */
     async shadows(){
         return await this.#factory.shadows()
     }
+	/**
+	 * Submits a memory to MyLife. Currently called both from API _and_ LLM function.
+     * @todo - deprecate to `item` function
+	 * @param {object} story - Story object
+	 * @returns {object} - The story document from Cosmos
+	 */
+	async story(story){
+		const defaultForm = 'biographer'
+		const type = 'memory'
+		const {
+			form=defaultForm,
+		} = story
+		story = { // add validated fields back into `story` object
+			...story,
+			...{
+				form,
+                type,
+			}}
+		return await this.item(story, 'POST')
+	}
     /**
      * Summarize the file indicated.
      * @param {string} fileId 
@@ -702,16 +828,6 @@ class Avatar extends EventEmitter {
             success: true,
         }
     }
-    /**
-     * Validate registration id.
-     * @todo - move to MyLife only avatar variant.
-     * @param {Guid} validationId - The registration id.
-     * @returns {Promise<Object[]>} - Array of system messages.
-     */
-    async validateRegistration(validationId){
-        const { messages, registrationData, success, } = await mValidateRegistration(this.activeBot, this.#factory, validationId)
-        return messages
-    }
     /* getters/setters */
     /**
      * Get the active bot. If no active bot, return this as default chat engine.
@@ -728,24 +844,6 @@ class Avatar extends EventEmitter {
      */
     get activeBotId(){
         return this.#botAgent.activeBotId
-    }
-    /**
-     * Set the active bot id. If not match found in bot list, then defaults back to this.id (avatar).
-     * @setter
-     * @param {string} bot_id - The requested bot id
-     * @returns {void}
-     */
-    set activeBotId(bot_id){
-        this.#botAgent.setActiveBot(bot_id)
-    }
-    get activeBotNewestVersion(){
-        const { type, } = this.activeBot
-        const newestVersion = this.#factory.botInstructionsVersion(type)
-        return newestVersion
-    }
-    get activeBotVersion(){
-        const { version=1.0, } = this.activeBot
-        return version
     }
     /**
      * Get the age of the member.
@@ -838,9 +936,9 @@ class Avatar extends EventEmitter {
         return this.#factory.conversation
     }
     /**
-     * Get conversations. If getting a specific conversation, use .conversation(id).
+     * Get full list of conversations active in Member Avatar. Use `getConversation(id)` for specific. **Note**: Currently `.conversation` references a class definition.
      * @getter
-     * @returns {array} - The conversations.
+     * @returns {Conversation[]} - The list of conversations
      */
     get conversations(){
         const conversations = this.bots
@@ -1229,6 +1327,20 @@ class Q extends Avatar {
         throw new Error('System avatar cannot create bots.')
     }
     /**
+     * OVERLOADED: Get MyLife static greeting with identifying information stripped.
+     * @returns {Object} - The greeting Response object: { responses, success, }
+     */
+    async greeting(){
+        let responses = []
+        const greeting = await this.avatar.greeting(false)
+        responses.push(mPruneMessage(null, greeting, 'greeting'))
+        responses.forEach(response=>delete response.activeBotId)
+        return {
+            responses,
+            success: true,
+        }
+    }
+    /**
      * OVERLOADED: Given an itemId, obscures aspects of contents of the data record. Obscure is a vanilla function for MyLife, so does not require intervening intelligence and relies on the factory's modular LLM. In this overload, we invoke a micro-avatar for the member to handle the request on their behalf, with charge-backs going to MyLife as the sharing and api is a service.
      * @public
      * @param {string} mbr_id - The member id
@@ -1240,17 +1352,21 @@ class Q extends Avatar {
         const updatedSummary = await botFactory.obscure(iid)
         return updatedSummary
     }
+    
     /* overload rejections */
     /**
      * OVERLOADED: Q refuses to execute.
      * @public
      * @throws {Error} - MyLife avatar cannot upload files.
      */
+    async setActiveBot(){
+        throw new Error('MyLife System Avatars cannot be externally set')
+    }
     summarize(){
-        throw new Error('MyLife avatar cannot summarize files.')
+        throw new Error('MyLife System Avatar cannot summarize files')
     }
     upload(){
-        throw new Error('MyLife avatar cannot upload files.')
+        throw new Error('MyLife System Avatar cannot upload files.')
     }
     /* public methods */
     /**
@@ -1330,6 +1446,15 @@ class Q extends Avatar {
         }
         return this.#hostedMembers
     }
+    /**
+     * Validate registration id.
+     * @param {Guid} validationId - The registration id
+     * @returns {Promise<Object>} - Response object: { error, instruction, registrationData, responses, success, }
+     */
+    async validateRegistration(validationId){
+        const response = await mValidateRegistration(this.activeBotId, this.#factory, validationId)
+        return response
+    }
     /* getters/setters */
     /**
      * Get the "avatar's" being, or more precisely the name of the being (affiliated object) the evatar is emulating.
@@ -1341,9 +1466,9 @@ class Q extends Avatar {
         return 'MyLife'
     }
     /**
-     * Get conversations. If getting a specific conversation, use .conversation(id).
+     * Get full list of conversations active in System Avatar.
      * @getter
-     * @returns {array} - The conversations.
+     * @returns {Conversation[]} - The list of conversations
      */
     get conversations(){
         return this.#conversations
@@ -1434,15 +1559,22 @@ async function mCast(factory, cast){
     }))
     return cast
 }
-function mCreateSystemMessage(activeBot, message, factory){
-    if(!(message instanceof factory.message)){
-        const { id: bot_id, thread_id, } = activeBot
-        const content = message?.content ?? message?.message ?? message
-        message = new (factory.message)({
+/**
+ * Creates frontend system message from message String/Object.
+ * @param {Guid} bot_id - The bot id
+ * @param {String|Message} message - The message to be pruned
+ * @param {*} factory 
+ * @returns 
+ */
+function mCreateSystemMessage(bot_id, message, messageClassDefinition){
+    if(!(message instanceof messageClassDefinition)){
+        const content = message?.content
+            ?? message?.message
+            ?? message
+        message = new messageClassDefinition({
             being: 'message',
             content,
             role: 'assistant',
-            thread_id,
             type: 'system'
         })
     }
@@ -1998,26 +2130,37 @@ function mPruneConversation(conversation){
     }
 }
 /**
- * Returns a frontend-ready object, pruned of cosmos database fields.
- * @param {object} document - The document object to prune.
- * @returns {object} - The pruned document object.
+ * Returns a frontend-ready collection item object, pruned of cosmos database fields.
+ * @module
+ * @param {object} document - The collection item object to prune
+ * @returns {object} - The pruned collection item object
  */
-function mPruneDocument(document){
-    const {
-        being,
-        mbr_id,
-        name,
-        _attachments,
-        _etag,
-        _rid,
-        _self,
-        _ts,
-        ..._document
-    } = document
-    return _document
-}
 function mPruneItem(item){
-    return mPruneDocument(item)
+    const {
+        assistantType,
+        being,
+        form,
+        id,
+        keywords,
+        mood,
+        phaseOfLife,
+        relationships,
+        summary,
+        title,
+    } = item
+    item = {
+        assistantType,
+        being,
+        form,
+        id,
+        keywords,
+        mood,
+        phaseOfLife,        
+        relationships,
+        summary,
+        title,
+    }
+    return item
 }
 /**
  * Returns frontend-ready Message object after logic mutation.
@@ -2034,7 +2177,7 @@ function mPruneMessage(activeBotId, message, type='chat', processStartTime=Date.
     let agent='server',
         content='',
         response_time=Date.now()-processStartTime
-    const { content: messageContent, } = message
+    const { content: messageContent=message, } = message
     const rSource = /【.*?\】/gs
     const rLines = /\n{2,}/g
     content = Array.isArray(messageContent)
@@ -2159,39 +2302,48 @@ function mValidateMode(_requestedMode, _currentMode){
 /**
  * Validate provided registration id.
  * @private
- * @param {object} activeBot - The active bot object.
+ * @param {object} bot_id - The active bot object.
  * @param {AgentFactory} factory - AgentFactory object.
  * @param {Guid} validationId - The registration id.
- * @returns {Promise<object>} - The validation result: { messages, success, }.
+ * @returns {Promise<Object>} - The validation result: { registrationData, responses, success, }.
  */
-async function mValidateRegistration(activeBot, factory, validationId){
-    /* validate structure */
+async function mValidateRegistration(bot_id, factory, validationId){
+    /* validate request */
     if(!factory.globals.isValidGuid(validationId))
         throw new Error('FAILURE::validateRegistration()::Invalid validation id.')
-    /* validate validationId */
-    let message,
-        registrationData = { id: validationId },
-        success = false
-    const registration = await factory.validateRegistration(validationId)
-    const messages = []
     const failureMessage = `I\'m sorry, but I\'m currently unable to validate your registration id:<br />${ validationId }.<br />I\'d be happy to talk with you more about MyLife, but you may need to contact member support to resolve this issue.`
-    /* determine eligibility */
+    if(!factory.isMyLife)
+        throw new Error('FAILURE::validateRegistration()::Registration can only be validated by MyLife.')
+    let message,
+        registrationData = {
+            id: validationId
+        },
+        success = false
+    const responses = []
+    /* execute request */
+    const registration = await factory.validateRegistration(validationId)
     if(registration){
         const { avatarName, being, email: registrationEmail, humanName, } = registration
         const eligible = being==='registration'
             && factory.globals.isValidEmail(registrationEmail)
         if(eligible){
             const successMessage = `Hello and _thank you_ for your registration, ${ humanName }!\nI'm Q, the ai-representative for MyLife, and I'm excited to help you get started, so let's do the following:\n1. Verify your email address\n2. set up your account\n3. get you started with your first MyLife experience!\n<br />\n<br />Let me walk you through the process.<br />In the chat below, please enter the email you registered with and hit the <b>submit</b> button!`
-            message = mCreateSystemMessage(activeBot, successMessage, factory)
-            registrationData.avatarName = avatarName ?? humanName ?? 'My AI-Agent'
+            message = mCreateSystemMessage(bot_id, successMessage, factory.message)
+            registrationData.avatarName = avatarName
+                ?? humanName
+                ?? 'My AI-Agent'
             registrationData.humanName = humanName
             success = true
         }
     }
-    if(!message)
-        message = mCreateSystemMessage(activeBot, failureMessage, factory)
-    messages.push(message)
-    return { registrationData, messages, success, }
+    message = message
+        ?? mCreateSystemMessage(bot_id, failureMessage, factory.message)
+    responses.push(message)
+    return {
+        registrationData,
+        responses,
+        success,
+    }
 }
 /* exports */
 export {

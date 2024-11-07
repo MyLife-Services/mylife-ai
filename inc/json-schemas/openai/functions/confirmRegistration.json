@@ -1,23 +1,23 @@
 {
-    "name": "confirmRegistration",
-    "description": "Confirm registration email provided by user with registrationId provided by system",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "email": {
-          "description": "Email address provided by user",
-          "format": "email",
-          "type": "string"
-        },
-        "registrationId": {
-          "description": "registrationId provided by system",
-          "format": "uuid",
-          "type": "string"
-        }
+  "description": "Confirm registration email provided by user with registrationId provided by MyLife",
+  "name": "confirmRegistration",
+  "strict": true,
+  "parameters": {
+    "additionalProperties": false,
+    "type": "object",
+    "properties": {
+      "email": {
+        "description": "Email address provided by user",
+        "type": "string"
       },
-      "required": [
-        "email",
-        "registrationId"
-      ]
-    }
+      "registrationId": {
+        "description": "registrationId provided by MyLife",
+        "type": "string"
+      }
+    },
+    "required": [
+      "email",
+      "registrationId"
+    ]
   }
+}

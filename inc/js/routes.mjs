@@ -5,12 +5,11 @@ import {
     activateBot,
     alerts,
     bots,
-    category,
     challenge,
     chat,
     collections,
     createBot,
-    deleteItem,
+    feedback,
     greetings,
     help,
     index,
@@ -68,6 +67,7 @@ _Router.get('/alerts', alerts)
 _Router.get('/logout', logout)
 _Router.get('/experiences', availableExperiences)
 _Router.get('/greeting', greetings)
+_Router.get('/greetings', greetings)
 _Router.get('/select', loginSelect)
 _Router.get('/status', status)
 _Router.get('/privacy-policy', privacyPolicy)
@@ -101,7 +101,7 @@ _apiRouter.post('/upload/:mid', upload)
 /* member routes */
 _memberRouter.use(memberValidation)
 _memberRouter.delete('/bots/:bid', bots)
-_memberRouter.delete('/items/:iid', deleteItem)
+_memberRouter.delete('/items/:iid', item)
 _memberRouter.get('/', members)
 _memberRouter.get('/bots', bots)
 _memberRouter.get('/bots/:bid', bots)
@@ -110,6 +110,7 @@ _memberRouter.get('/collections/:type', collections)
 _memberRouter.get('/experiences', experiences)
 _memberRouter.get('/experiencesLived', experiencesLived)
 _memberRouter.get('/greeting', greetings)
+_memberRouter.get('/greetings', greetings)
 _memberRouter.get('/item/:iid', item)
 _memberRouter.get('/mode', interfaceMode)
 _memberRouter.get('/teams', teams)
@@ -122,7 +123,9 @@ _memberRouter.post('/', chat)
 _memberRouter.post('/bots', bots)
 _memberRouter.post('/bots/create', createBot)
 _memberRouter.post('/bots/activate/:bid', activateBot)
-_memberRouter.post('/category', category)
+_memberRouter.post('/feedback', feedback)
+_memberRouter.post('/feedback/:mid', feedback)
+_memberRouter.post('/item', item)
 _memberRouter.post('/migrate/bot/:bid', migrateBot)
 _memberRouter.post('/migrate/chat/:bid', migrateChat)
 _memberRouter.post('/mode', interfaceMode)
@@ -156,9 +159,19 @@ function connectRoutes(_Menu){
 async function memberValidation(ctx, next){
     const { locked=true, } = ctx.state
     ctx.state.dateNow = Date.now()
-    if(locked)
-        ctx.redirect(`/?type=select`) // Redirect to /members if not authorized
-    else
+    const redirectUrl = `/?type=select`
+    if(locked){
+        const isAjax = ctx.get('X-Requested-With') === 'XMLHttpRequest' || ctx.is('json')
+        if(isAjax){
+            ctx.status = 401
+            ctx.body = {
+                alert: true,
+                message: 'Your MyLife Member Session has timed out and is no longer valid. Please log in again.',
+                redirectUrl
+            }
+        } else
+            ctx.redirect(redirectUrl)
+    } else
         await next() // Proceed to the next middleware if authorized
 }
 /**
@@ -166,7 +179,7 @@ async function memberValidation(ctx, next){
  * @param {object} ctx Koa context object
  * @returns {boolean} false if member session is locked, true if registered and unlocked
  */
-function status(ctx){	//	currently returns reverse "locked" status, could send object with more info
+function status(ctx){ //	currently returns reverse "locked" status, could send object with more info
 	ctx.body = !ctx.state.locked
 }
 /**

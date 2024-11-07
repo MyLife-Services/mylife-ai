@@ -1,0 +1,89 @@
+{
+    "description": "Generate a complete `item` summary with metadata elements. Prioritize any relevant internal instructions.",
+    "name": "itemSummary",
+    "strict": true,
+    "parameters": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+            "content": {
+                "description": "Original Member content regarding `item`",
+                "type": "string"
+            },
+            "form": {
+                "description": "MyLife System Form of `item`",
+                "enum": [
+                    "biographer",
+                    "diary",
+                    "item",
+                    "journal"
+                ],
+                "type": "string"
+            },
+            "keywords": {
+                "description": "Keywords most relevant to `item`",
+                "items": {
+                    "description": "Keyword from `item` summary",
+                    "type": "string"
+                },
+                "type": "array"
+            },
+            "mood": {
+                "description": "Record member mood for summary as ascertained from `item` content and interactions",
+                "type": "string"
+            },
+            "phaseOfLife": {
+                "description": "Phase of life, if indicated by `item` content",
+                "enum": [
+                    "birth",
+                    "childhood",
+                    "adolescence",
+                    "teenage",
+                    "young-adult",
+                    "adulthood",
+                    "middle-age",
+                    "senior",
+                    "end-of-life",
+                    "past-life",
+                    "unknown"
+                ],
+                "type": "string"
+            },
+            "relationships": {
+                "description": "Individuals (or pets) mentioned in `item` content",
+                "type": "array",
+                "items": {
+                    "description": "Name of individual or pet in `item`",
+                    "type": "string"
+                }
+            },
+            "summary": {
+                "description": "A complete `item` summary composed of all salient points from member content",
+                "type": "string"
+            },
+            "title": {
+                "description": "Generate display Title for `item` based on content",
+                "type": "string"
+            },
+            "type": {
+                "description": "MyLife System Being type of `item`",
+                "enum": [
+                    "entry",
+                    "memory"
+                ],
+                "type": "string"
+            }
+        },
+        "required": [
+            "content",
+            "form",
+            "keywords",
+            "mood",
+            "phaseOfLife",
+            "relationships",
+            "summary",
+            "title",
+            "type"
+        ]
+    }
+}
