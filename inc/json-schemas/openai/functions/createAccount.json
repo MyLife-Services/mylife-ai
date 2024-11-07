@@ -1,22 +1,23 @@
 {
-    "name": "createAccount",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "passphrase": {
-          "description": "Private passphrase provided by user, may have spaces",
-          "type": "string"
-        },
-        "birthdate": {
-          "description": "Birthdate of user",
-          "format": "sql date",
-          "type": "string"
-        }
+  "description": "Creates MyLife accout, requirig basic personal information for account creation: member birthdate and passphrase",
+  "name": "createAccount",
+  "strict": true,
+  "parameters": {
+    "additionalProperties": false,
+    "type": "object",
+    "properties": {
+      "passphrase": {
+        "description": "Private passphrase provided by member, may have spaces",
+        "type": "string"
       },
-      "required": [
-        "birthdate",
-        "passphrase"
-      ]
+      "birthdate": {
+        "description": "Birthdate of member",
+        "type": "string"
+      }
     },
-    "description": "Creates accout, requirig basic personal information for account creation: birthdate and passphrase"
+    "required": [
+      "birthdate",
+      "passphrase"
+    ]
   }
+}

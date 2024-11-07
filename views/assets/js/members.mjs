@@ -14,6 +14,7 @@ import {
     setActiveBot as _setActiveBot,
     togglePopup,
     updateItem,
+    updateItemTitle,
 } from './bots.mjs'
 import Globals from './globals.mjs'
 /* variables */
@@ -62,6 +63,20 @@ document.addEventListener('DOMContentLoaded', async event=>{
     /* determine mode, default = member bot interface */
     await mInitialize() // throws if error
     stageTransition()
+    setActiveAction({
+        button: `Make a Memory`,
+        callback: async function(event){
+            const actionButton = event.target
+            actionButton.disabled = true
+            unsetActiveAction()
+            console.log('members.mjs::setActiveAction::callback', event.target)
+        },
+        icon: 'fa-play',
+        status: 'Let\'s',
+        text: 'from our chat',
+        thumb: '/png/Q.png',
+    })
+    // unsetActiveAction()
     console.log('members.mjs::DOMContentLoaded')
     /* **note**: bots run independently upon conclusion */
 })
@@ -140,21 +155,6 @@ function experiences(){
  */
 function expunge(element){
     return mGlobals.expunge(element)
-}
-/**
- * Fetches the summary via PA for a specified file.
- * @param {string} fileId - The file ID.
- * @param {string} fileName - The file name.
- * @returns {Promise<object>} - The return is the summary object.
- */
-async function fetchSummary(fileId, fileName){
-    /* validate request */
-    if(!fileId?.length && !fileName?.length)
-        throw new Error('fetchSummary::Error()::`fileId` or `fileName` is required')
-    return await mFetchSummary(fileId, fileName)
-}
-function getActiveItem(){
-
 }
 /**
  * Gets the active chat item id to send to server.
@@ -246,6 +246,83 @@ function replaceElement(element, newType, retainValue=true, onEvent, listenerFun
     }
 }
 /**
+ * Sets the active item to an `action` determined by the requesting bot.
+ * @public
+ * @requires chatActiveItem
+ * @param {object} instructions - The action object describing how to populate { button, callback, icon, status, text, thumb, }.
+ * @property {string} button - The button text; if false-y, no button is displayed
+ * @property {function} callback - The callback function to execute on button click
+ * @property {string} icon - The icon class to display
+ * @property {string} status - The status text to display
+ * @property {string} text - The text to display
+ * @property {string} thumb - The thumbnail image URL
+ * @returns {void}
+ */
+function setActiveAction(instructions){
+    const activeItem = document.getElementById('chat-active-item')
+    if(!activeItem)
+        return
+    else
+        delete activeItem.dataset
+    const { button, callback, icon, status, text, thumb, } = instructions
+    const activeButton = document.getElementById('chat-active-item-button')
+    const activeClose = document.getElementById('chat-active-item-close')
+    const activeIcon = document.getElementById('chat-active-item-icon')
+    const activeStatus = document.getElementById('chat-active-item-status')
+    const activeThumb = document.getElementById('chat-active-item-thumb')
+    const activeTitle = document.getElementById('chat-active-item-title')
+    if(activeThumb){
+        delete activeThumb.dataset
+        activeThumb.className = 'fas chat-active-action-thumb'
+        if(thumb?.length)
+            activeThumb.src = thumb
+        else
+            hide(activeThumb)
+    }
+    if(activeIcon){
+        delete activeIcon.dataset
+        activeIcon.className = 'fas chat-active-action-icon'
+        if(icon?.length)
+            activeIcon.classList.add(icon)
+        else
+            hide(activeIcon)
+    }
+    if(activeStatus){
+        delete activeStatus.dataset
+        activeStatus.className = 'chat-active-action-status'
+        activeStatus.removeEventListener('click', mToggleItemPopup)
+        if(status?.length)
+            activeStatus.textContent = status
+        else
+            hide(activeStatus)
+    }
+    if(activeButton){
+        delete activeButton.dataset
+        activeButton.className = 'button chat-active-action-button'
+        if(button?.length){
+            activeButton.textContent = button
+            if(callback){
+                console.log('setActiveAction::callback', callback)
+                activeButton.addEventListener('click', callback, { once: true })
+                activeButton.disabled = false
+            }
+        } else
+            hide(activeButton)
+    }
+    if(activeTitle){
+        delete activeTitle.dataset
+        activeTitle.className = 'chat-active-action-title'
+        if(text?.length)
+            activeTitle.textContent = text
+        else
+            hide(activeTitle)
+    }
+    if(activeClose){
+        activeClose.addEventListener('click', unsetActiveAction, { once: true })
+    }
+    show(activeItem)
+}
+/**
  * Proxy to set the active bot (via `bots.mjs`).
  * @public
  * @async
@@ -257,9 +334,8 @@ async function setActiveBot(){
 /**
  * Sets the active item, ex. `memory`, `entry`, `story` in the chat system for member operation(s).
  * @public
- * @todo - edit title with double-click
  * @requires chatActiveItem
- * @param {Guid} itemId - The item id to set as active.
+ * @param {Guid} itemId - The item id to set as active
  * @returns {void}
  */
 function setActiveItem(itemId){
@@ -269,29 +345,41 @@ function setActiveItem(itemId){
     if(!itemId || !popup)
         throw new Error('setActiveItem::Error()::valid `id` is required')
     const { title, type, } = popup.dataset
-    const chatActiveItemTitleText = document.getElementById('chat-active-item-text')
-    const chatActiveItemClose = document.getElementById('chat-active-item-close')
-    if(chatActiveItemTitleText){
-        chatActiveItemTitleText.innerHTML = ''
-        const activeActive = document.createElement('div')
-        activeActive.classList.add('chat-active-item-text-active')
-        activeActive.id = `chat-active-item-text-active`
-        activeActive.innerHTML = `Active:`
-        const activeTitle = document.createElement('div')
-        activeTitle.classList.add('chat-active-item-text-title')
-        activeTitle.id = `chat-active-item-text-title`
-        activeTitle.innerHTML = title
-        /* append children */
-        chatActiveItemTitleText.appendChild(activeActive)
-        chatActiveItemTitleText.appendChild(activeTitle)
-        chatActiveItemTitleText.dataset.itemId = itemId
-        chatActiveItemTitleText.dataset.popupId = popup.id
-        chatActiveItemTitleText.dataset.title = title
-        chatActiveItemTitleText.addEventListener('click', mToggleItemPopup)
-        // @stub - edit title with double-click?
+    const activeButton = document.getElementById('chat-active-item-button')
+    const activeClose = document.getElementById('chat-active-item-close')
+    const activeIcon = document.getElementById('chat-active-item-icon')
+    const activeStatus = document.getElementById('chat-active-item-status')
+    const activeTitle = document.getElementById('chat-active-item-title')
+    if(activeButton)
+        hide(activeButton)
+    if(activeClose){
+        activeClose.className = 'fas fa-times chat-active-item-close'
+        activeClose.addEventListener('click', unsetActiveItem, { once: true })
     }
-    if(chatActiveItemClose)
-        chatActiveItemClose.addEventListener('click', unsetActiveItem, { once: true })
+    if(activeIcon){
+        activeIcon.className = 'fas fa-square chat-active-item-icon'
+    }
+    if(activeStatus){
+        activeStatus.className = 'chat-active-item-status'
+        activeStatus.dataset.itemId = itemId
+        activeStatus.textContent = 'Active: '
+        activeStatus.addEventListener('click', mToggleItemPopup)
+    }
+    if(activeTitle){
+        activeTitle.innerHTML = ''
+        const activeText = document.createElement('div')
+        activeText.classList.add('chat-active-item-title-text')
+        activeText.dataset.itemId = itemId
+        activeText.id = `chat-active-item-title-text_${ itemId }`
+        activeText.innerHTML = title
+        /* append activeTitle */
+        activeTitle.appendChild(activeText)
+        activeTitle.className = 'chat-active-item-title'
+        activeTitle.dataset.itemId = itemId
+        activeTitle.dataset.popupId = popup.id
+        activeTitle.dataset.title = title
+        activeTitle.addEventListener('dblclick', updateItemTitle, { once: true })
+    }
     chatActiveItem.dataset.id = id
     chatActiveItem.dataset.itemId = itemId
     show(chatActiveItem)
@@ -299,17 +387,13 @@ function setActiveItem(itemId){
 /**
  * Sets the active item title in the chat system, display-only.
  * @public
- * @param {string} title - The title to set.
- * @param {Guid} itemId - The item ID.
+ * @param {Guid} itemId - The item ID
+ * @param {string} title - The title to set
  * @returns {void}
  */
-function setActiveItemTitle(title, itemId){
-    const chatActiveItemText = document.getElementById('chat-active-item-text')
-    if(!chatActiveItemText)
-        throw new Error('setActiveItemTitle::Error()::`chatActiveItemText` is required')
-    const chatActiveItemTitle = document.getElementById('chat-active-item-text-title')
-    if(!chatActiveItemTitle)
-        throw new Error('setActiveItemTitle::Error()::`chatActiveItemTitle` is required')
+function setActiveItemTitle(itemId, title){
+    const chatActiveItemText = document.getElementById('chat-active-item-title')
+    const chatActiveItemTitle = document.getElementById(`chat-active-item-title-text_${ itemId }`)
     const { itemId: id, } = chatActiveItemText.dataset
     if(id!==itemId)
         throw new Error('setActiveItemTitle::Error()::`itemId`\'s do not match')
@@ -372,6 +456,16 @@ async function startExperience(experienceId){
 function toggleVisibility(){
     mGlobals.toggleVisibility(...arguments)
 }
+function unsetActiveAction(){
+    const activeItem = document.getElementById('chat-active-item')
+    if(!activeItem)
+        return
+    const activeThumb = document.getElementById('chat-active-item-thumb')
+    if(activeThumb)
+        hide(activeThumb)
+    delete activeItem.dataset
+    hide(activeItem)
+}
 /**
  * Unsets the active item in the chat system.
  * @public
@@ -379,14 +473,6 @@ function toggleVisibility(){
  * @returns {void}
  */
 function unsetActiveItem(){
-    const chatActiveItemTitleText = document.getElementById('chat-active-item-text')
-    const chatActiveItemClose = document.getElementById('chat-active-item-close')
-    if(chatActiveItemTitleText){
-        chatActiveItemTitleText.innerHTML = ''
-        chatActiveItemTitleText.dataset.popupId = null
-        chatActiveItemTitleText.dataset.title = null
-        chatActiveItemTitleText.removeEventListener('click', mToggleItemPopup)
-    }
     delete chatActiveItem.dataset.id
     delete chatActiveItem.dataset.itemId
     hide(chatActiveItem)
@@ -487,6 +573,19 @@ async function mAddMessage(message, options={}){
     /* message container */
     const chatMessage = document.createElement('div')
     chatMessage.classList.add('chat-message-container', `chat-message-container-${ role }`)
+    /* message thumbnail */
+    const messageThumb = document.createElement('img')
+    messageThumb.classList.add('chat-thumb')
+    messageThumb.id = `message-thumb-${ mChatBubbleCount }`
+    if(role==='agent' || role==='system'){
+        const bot = activeBot()
+        const type = bot.type.split('-').pop()
+        console.log('mAddMessage::activeBot()', type, bot)
+        messageThumb.src = `/png/${ type }-thumb.png` // Set bot icon URL
+        messageThumb.alt = bot.name
+        messageThumb.title = bot.purpose
+            ?? `I'm ${ bot.name }, an artificial intelligence ${ type.replace('-', ' ') } designed to assist you!`
+    }
     /* message bubble */
 	const chatBubble = document.createElement('div')
 	chatBubble.classList.add('chat-bubble', ( bubbleClass ?? role+'-bubble' ))
@@ -498,8 +597,25 @@ async function mAddMessage(message, options={}){
     chatMessageTab.classList.add('chat-message-tab', `chat-message-tab-${ role }`)
     const chatCopy = document.createElement('i')
     chatCopy.classList.add('fas', 'fa-copy', 'chat-copy')
+    chatCopy.title = 'Copy content to clipboard'
+    const chatSave = document.createElement('i')
+    chatSave.classList.add('fas', 'fa-floppy-disk', 'chat-save')
+    chatSave.title = 'Save memory directly to MyLife'
+    const chatFeedbackPositive = document.createElement('i')
+    chatFeedbackPositive.classList.add('fas', 'fa-thumbs-up', 'chat-feedback')
+    chatFeedbackPositive.title = 'I like this!'
+    const chatFeedbackNegative = document.createElement('i')
+    chatFeedbackNegative.classList.add('fas', 'fa-thumbs-down', 'chat-feedback')
+    chatFeedbackNegative.title = `I don't care for this.`
     /* attach children */
     chatMessageTab.appendChild(chatCopy)
+    if(role==='member')
+        chatMessageTab.appendChild(chatSave)
+    else {
+        chatMessageTab.appendChild(chatFeedbackPositive)
+        chatMessageTab.appendChild(chatFeedbackNegative)
+    }
+    chatMessage.appendChild(messageThumb)
     chatMessage.appendChild(chatBubble)
     chatMessage.appendChild(chatMessageTab)
 	systemChat.appendChild(chatMessage)
@@ -519,6 +635,65 @@ async function mAddMessage(message, options={}){
             console.error('Failed to copy: ', err)
         })
     })
+    chatFeedbackNegative.addEventListener('click', async event=>{
+        const baseClass = 'fa-thumbs-down'
+        chatFeedbackNegative.classList.remove(baseClass)
+        chatFeedbackNegative.classList.add('fa-spinner', 'spin')
+        const feedbackTimeout = setTimeout(_=>{
+            chatFeedbackNegative.classList.remove('fa-spinner', 'spin')
+            chatFeedbackNegative.classList.add(baseClass)
+        }, 5000)
+        const success = await mGlobals.datamanager.feedback(false, message)
+        clearTimeout(feedbackTimeout)
+        const successClass = success ? 'fa-check' : 'fa-times'
+        chatFeedbackNegative.classList.add(successClass)
+        chatFeedbackNegative.classList.remove('fa-spinner', 'spin')
+        setTimeout(_=>{
+            chatFeedbackNegative.remove()
+            chatFeedbackPositive.remove()
+        }, 2000)
+    }, { once: true })
+    chatFeedbackPositive.addEventListener('click', async event=>{
+        const baseClass = 'fa-thumbs-up'
+        chatFeedbackPositive.classList.remove(baseClass)
+        chatFeedbackPositive.classList.add('fa-spinner', 'spin')
+        const feedbackTimeout = setTimeout(_=>{
+            chatFeedbackPositive.classList.remove('fa-spinner', 'spin')
+            chatFeedbackPositive.classList.add(baseClass)
+        }, 5000)
+        const success = await mGlobals.datamanager.feedback(true, message)
+        clearTimeout(feedbackTimeout)
+        const successClass = success ? 'fa-check' : 'fa-times'
+        chatFeedbackPositive.classList.add(successClass)
+        chatFeedbackPositive.classList.remove('fa-spinner', 'spin')
+        setTimeout(_=>{
+            chatFeedbackNegative.remove()
+            chatFeedbackPositive.remove()
+        }, 2000)
+    }, { once: true })
+    chatSave.addEventListener('click', async event=>{
+        const baseClass = 'fa-floppy-disk'
+        chatSave.classList.remove(baseClass)
+        chatSave.classList.add('fa-spinner', 'spin')
+        const feedbackTimeout = setTimeout(_=>{
+            chatFeedbackPositive.classList.remove('fa-spinner', 'spin')
+            chatFeedbackPositive.classList.add(baseClass)
+        }, 15000)
+        const saveMessage = `## PRINT\n${ message }\n`
+        const success = await submit(saveMessage, false)
+        clearTimeout(feedbackTimeout)
+        const successClass = success ? 'fa-check' : 'fa-exclamation-triangle'
+        chatSave.classList.add(successClass)
+        chatSave.classList.remove('fa-spinner', 'spin')
+        setTimeout(_=>{
+            if(success)
+                chatSave.remove()
+            else {
+                chatSave.classList.remove(successClass)
+                chatSave.classList.add(baseClass)
+            }
+        }, 2000)
+    }, { once: true })
     chatMessage.addEventListener('mouseleave', event => {
         chatMessageTab.classList.remove('chat-message-tab-hover', `chat-message-tab-hover-${ role }`)
     })
@@ -531,41 +706,13 @@ async function mAddMessage(message, options={}){
 	}
 }
 /**
- * Fetches the summary via PA for a specified file.
- * @private
- * @param {string} fileId - The file ID.
- * @param {string} fileName - The file name.
- * @returns {Promise<object>} - The return is the summary object.
- */
-async function mFetchSummary(fileId, fileName){
-    const url = '/members/summarize'
-    const data = {
-        fileId,
-        fileName,
-    }
-    let response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-    })
-    if(!response.ok)
-        throw new Error(`HTTP error! Status: ${response.status}`)
-    response = await response.json()
-    return response
-}
-function getActiveCategory(){
-	return activeCategory
-}
-/**
- * Initialize module variables based on server fetch.
+ * Initialize module variables from server.
  * @private
  * @requires mMemberId
  * @returns {Promise<boolean>} - The return is a boolean indicating success.
  */
 async function mInitialize(){
-    /* fetch primary collections */
+    /* retrieve primary collections */
     await refreshCollection('story') // memories required
     /* page listeners */
     mInitializePageListeners()
@@ -590,23 +737,6 @@ function mInitializePageListeners(){
             })
         }
     })
-}
-/**
- * MyLife function to obscure an item summary
- * @param {Guid} itemId - The item ID
- * @returns 
- */
-async function obscure(itemId){
-    const url = '/members/obscure/' + itemId
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-    })
-    if(!response.ok)
-        throw new Error(`HTTP error! Status: ${response.status}`)
-    return await response.json()
 }
 /**
  * Primitive step to set a "modality" or intercession for the member chat. Currently will key off dataset in `chatInputField`.
@@ -691,32 +821,18 @@ function mStageTransitionMember(includeSidebar=true){
 }
 /**
  * Submits a message to MyLife Member Services chat.
+ * @async
  * @requires chatActiveItem
- * @param {string} message - The message to submit.
- * @param {boolean} hideMemberChat - The hide member chat flag, default=`true`.
- * @returns {Promise<object>} - The return is the chat response object.
+ * @param {string} message - The message to submit
+ * @param {boolean} hideMemberChat - The hide member chat flag, default=`true`
+ * @returns {Promise<object>} - The return is the chat response object: { instruction, responses, success, }
  */
 async function submit(message, hideMemberChat=true){
 	if(!message?.length)
 		throw new Error('submit(): `message` argument is required')
     if(hideMemberChat)
         toggleMemberInput(false)
-	const chatResponse = await mSubmitChat(message)
-    if(hideMemberChat)
-        toggleMemberInput(true)
-    return chatResponse
-}
-/**
- * Submits message to chat service.
- * @private
- * @async
- * @requires chatActiveItem
- * @param {string} message - The message to submit to the server.
- * @returns {void}
- */
-async function mSubmitChat(message) {
     const { action, itemId, } = chatActiveItem.dataset
-	const url = window.location.origin + '/members'
     const { id: botId, } = activeBot()
 	const request = {
             action,
@@ -725,34 +841,10 @@ async function mSubmitChat(message) {
 			message,
 			role: 'member',
 		}
-    const options = {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request),
-    }
-    let response
-	try {
-		response = await fetch(url, options)
-        if(!response.ok)
-            throw new Error('Network response was not ok')
-		response = await response.json()
-        /* validate response */
-        if(typeof response!=='object' || !response?.success){
-            console.log('Chat Request Failed', response)
-            throw new Error('Chat Request Failed on Server')
-        }
-        if(!response?.responses?.length){
-            console.log('No Responses from Server', response)
-            /* add error default message */
-            response.responses = [{ message: 'I\'m sorry, Something happened with my server connection, please type `try again` to try again.', role: 'agent' }]
-        }
-		return response
-	} catch (err) {
-		console.log('fatal error', err, response)
-		return alert(`Error: ${ err.message }`)
-	}
+	const response = await mGlobals.datamanager.submitChat(request, true)
+    if(hideMemberChat)
+        toggleMemberInput(true)
+    return response
 }
 /**
  * Toggles the member input between input and server `waiting`.
@@ -798,7 +890,10 @@ function toggleInputTextarea(event){
 function mToggleItemPopup(event){
     event.stopPropagation()
     event.preventDefault()
-    togglePopup(event.target.dataset.popupId, true)
+    const { itemId, } = event.target.dataset
+    if(!itemId)
+        console.log('mToggleItemPopup::Error()::`itemId` is required', event.target.dataset, itemId)
+    togglePopup(itemId, true)
 }
 function toggleSubmitButtonState() {
 	memberSubmit.disabled = !(chatInputField.value?.trim()?.length ?? true)
@@ -837,7 +932,6 @@ export {
     escapeHtml,
     experiences,
     expunge,
-    fetchSummary,
     getActiveItemId,
     getInputValue,
     getSystemChat,
@@ -845,10 +939,10 @@ export {
     hide,
     hideMemberChat,
     inExperience,
-    obscure,
     replaceElement,
     sceneTransition,
     seedInput,
+    setActiveAction,
     setActiveBot,
     setActiveItem,
     setActiveItemTitle,

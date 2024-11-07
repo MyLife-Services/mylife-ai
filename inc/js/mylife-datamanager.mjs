@@ -64,10 +64,10 @@ class Datamanager {
 	}
 	/**
 	 * Deletes a specific item from container.
-	 * @param {guid} id - The item id to delete. 
-	 * @param {string} containerId - The container to use, defaults to `this.containerDefault`.
-	 * @param {object} options - The request options, defaults to `this.requestOptions`.
-	 * @returns {object} The document JSON item retrieved.
+	 * @param {guid} id - The item id to delete.
+	 * @param {string} containerId - The container to use, defaults to `this.containerDefault`
+	 * @param {object} options - The request options, defaults to `this.requestOptions`
+	 * @returns {Boolean} - Whether operation was successful and item was deleted, i.e., has no resource
 	 */
 	async deleteItem(id, containerId=this.containerDefault, options=this.requestOptions){
 		const { resource } = await this.#containers[containerId]

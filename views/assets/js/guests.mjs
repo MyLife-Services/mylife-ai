@@ -178,52 +178,17 @@ function mCreateChallengeElement(){
     return challengeInput
 }
 /**
- * Fetches the greeting messages from the server. The greeting object from server: { error, messages, success, }
- * @private
- * @param {boolean} dynamic - Whether or not greeting should be dynamically generated (true) or static (false).
- * @returns {Promise<Message[]>} - The response Message array.
- */
-async function mFetchGreetings(dynamic=false){
-    let query = window.location.search
-        ? window.location.search + '&'
-        : '?'
-    dynamic = `dyn=${ dynamic }&`
-    query += dynamic
-    let url = window.location.origin
-        + '/greeting'
-        + query
-    try {
-        const response = await fetch(url)
-        const { messages, success, } = await response.json()
-        return messages
-    } catch(error) {
-        return [`Error: ${ error.message }`, `Please try again. If this persists, check back with me later or contact support.`]
-    }
-}
-/**
- * Fetches the hosted members from the server.
- * @private
- * @returns {Promise<MemberList[]>} - The response Member List { id, name, } array.
- */
-async function mFetchHostedMembers(){
-    let url = window.location.origin
-        + '/select'
-    try {
-        const response = await fetch(url)
-        const hostedMembers = await response.json()
-        return hostedMembers
-    } catch(error) {
-        return [`Error: ${ error.message }`, `Please try again. If this persists, check back with me later or contact support.`]
-    }
-}
-/**
  * Fetches the greeting messages or start routine from the server.
  * @private
+ * @requires mGlobals
  * @requires mPageType
  * @returns {Object} - Fetch response object: { input, messages, }
  */
 async function mFetchStart(){
-    await mSignupStatus()
+    const isSignedUp = await mGlobals.datamanager.signupStatus()
+    !isSignedUp
+        ? retract(signupSuccess)
+        : mSignupSuccess()
     const messages = []
     let input // HTMLDivElement containing input element
     switch(mPageType){
@@ -232,7 +197,7 @@ async function mFetchStart(){
             break
         case 'challenge':
         case 'select':
-            const hostedMembers = await mFetchHostedMembers()
+            const hostedMembers = await mGlobals.datamanager.hostedMembers()
             if(!hostedMembers.length)
                 messages.push(`My sincere apologies, I'm unable to get the list of hosted members, the MyLife system must be down -- @Mookse`)
             else {
@@ -261,12 +226,7 @@ async function mFetchStart(){
             }
             break
         default:
-            const greetings = ( await mFetchGreetings() )
-                .map(greeting=>
-                    greeting?.message
-                        ?? greeting
-                )
-            messages.push(...greetings)
+            messages.push(...await mGlobals.datamanager.greetings())
             break
     }
     return {
@@ -319,7 +279,8 @@ async function mLoadStart(){
     /* fetch the greeting messages */
     mPageType = new URLSearchParams(window.location.search).get('type')
         ?? window.location.pathname.split('/').pop()
-    return await mFetchStart()
+    const startObject = await mFetchStart()
+    return startObject
 }
 /**
  * Scrolls overflow of system chat to bottom.
@@ -363,15 +324,7 @@ function mShowPage(){
         show(chatUser)
     else
         hide(chatUser)
-}
-async function mSignupStatus(){
-    const response = await fetch('/signup')
-    if(!response.ok)
-        throw new Error('Network response was not ok')
-    const isSignedUp = await response.json()
-    !isSignedUp
-        ? retract(signupSuccess)
-        : mSignupSuccess()
+    console.log('guests::mShowPage::shown')
 }
 function mSignupSuccess(){
     retract(signupForm)
@@ -394,15 +347,7 @@ async function mSubmitChallenge(event){
     if(!passphrase.trim().length > 3 || !mChallengeMemberId)
         return
     hide(challengeSubmit)
-	const url = window.location.origin+`/challenge/${ mChallengeMemberId }`
-	const options = {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-		},
-		body: JSON.stringify({ passphrase, }),
-	}
-	const validatePassphrase = await mSubmitPassphrase(url, options)
+	const validatePassphrase = await mGlobals.datamanager.submitPassphrase(passphrase, mChallengeMemberId)
 	if(validatePassphrase)
         location.href = '/members'
     else {
@@ -412,61 +357,6 @@ async function mSubmitChallenge(event){
         show(challengeError)
         challengeInputText.focus()
     }
-}
-/**
- * Submits message to chat service.
- * @param {string} message - The message to submit to the server.
- * @returns {void}
- */
-async function mSubmitChat(message) {
-    const url = window.location.origin
-    const options = {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            message,
-            role: 'user',
-        }),
-    }
-    let response
-	try {
-		response = await fetch(url, options)
-        if(!response.ok)
-            throw new Error('Network response was not ok')
-		response = await response.json()
-        /* validate response */
-        if(typeof response!=='object' || !response?.success){
-            console.log('Chat Request Failed', response)
-            throw new Error('Chat Request Failed on Server')
-        }
-        if(!response?.responses?.length){
-            console.log('No Responses from Server', response)
-            /* add error default message */
-            response.responses = [{ message: 'I\'m sorry, Something happened with my server connection, please type `try again` to try again.', role: 'agent' }]
-        }
-		return response
-	} catch (err) {
-		console.log('fatal error', err, response)
-		return alert(`Error: ${ err.message }`)
-	}
-}
-/**
- * Submits a passphrase to the server.
- * @param {string} url - The url to submit the passphrase to.
- * @param {object} options - The options for the fetch request.
- * @returns {object} - The response from the server.
- */
-async function mSubmitPassphrase(url, options) {
-	try {
-		const response = await fetch(url, options)
-		const jsonResponse = await response.json()
-		return jsonResponse
-	} catch (err) {
-		console.log('fatal error', err)
-		return false
-	}
 }
 /**
  * Submits a message to the server.
@@ -480,8 +370,12 @@ async function mSubmitInput(event, message){
 	event.preventDefault()
     hide(chatUser)
     show(awaitButton)
-	const response = await mSubmitChat(message)
-	response.responses.forEach(gptMessage=>{
+    const chatData = {
+        message,
+        role: 'user',
+    }
+	const { responses, success, } = await mGlobals.datamanager.submitChat(chatData)
+	responses.forEach(gptMessage=>{
 		mAddMessage(gptMessage.message)
 	})
     hide(awaitButton)
@@ -505,12 +399,8 @@ async function mSubmitSignup(event){
         humanName,
         type: mSignupType,
     }
-    const response = await fetch('/signup', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(formData)
-    })
-    if(response.ok)
+    const success = mGlobals.datamanager.signup(formData)
+    if(success)
         mSignupSuccess()
     else {
         const signupInputContainer = document.getElementById('signup-input-container')

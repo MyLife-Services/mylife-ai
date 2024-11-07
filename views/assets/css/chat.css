@@ -32,8 +32,7 @@
 	align-items: center;
 	display: flex;
 	flex: 1 0 auto;
-	flex-direction: column;
-	padding-left: 3rem;
+	flex-direction: row;
 	margin-bottom: 0.5rem;
 	max-width: 100%;
 }
@@ -45,36 +44,64 @@
 	flex: 1 0 auto;
     flex-direction: row;
     padding: 0.3rem;
-    width: 100%;
+	max-width: 100%;
 }
+.chat-active-action-button.button,
+.chat-active-item-button.button {
+	background-color: aliceblue;
+	color: darkslateblue;
+	margin: 0 0.5rem;
+	padding: 0 0.5rem;
+}
+.chat-active-action-close,
 .chat-active-item-close {
-	align-self: top;
 	color: maroon;
 	cursor: pointer;
 	font-size: 1.25rem;
-	margin-left: 2rem;
+	margin-left: 1.0rem;
 }
+.chat-active-action-icon,
 .chat-active-item-icon {
-	color: #e9eb5c;
+	color: whitesmoke;
 	font-size: 1.25rem;
 	margin-right: 0.5em;
 }
-.chat-active-item-text {
-	align-items: center;
-    color: aliceblue;
-    display: flex;
-    flex: 1 0 auto;
-	max-height: 1.2rem;
-    max-width: 80%;
+.chat-active-item-icon {
+	color: yellow;
 }
-.chat-active-item-text-active {
-	color: #e9eb5c;
+.chat-active-action-status,
+.chat-active-item-status {
+	color: whitesmoke;
 	font-weight: bold;
-	margin-right: 0.9rem;
 }
-.chat-active-item-text-title {
-	align-self: self-start;
-	color: gainsboro;
+.chat-active-item-status {
+	color: yellow;
+	margin-right: 0.3rem;
+}
+.chat-active-item-thumb,
+.chat-active-action-thumb {
+	border-radius: 50%;
+	height: 3rem;
+	margin-right: 0.5rem;
+	width: 3rem;
+}
+.chat-active-action-title,
+.chat-active-item-title {
+	align-items: center;
+    color: whitesmoke;
+    display: flex;
+}
+.chat-active-action-title {
+	flex: 1 0 auto;
+	width: fit-content;
+}
+.chat-active-item-title {
+	color: whitesmoke;
+	flex: 1 1 auto;
+	overflow: hidden;
+	white-space: nowrap;
+}
+.chat-active-item-title-text {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -119,15 +146,18 @@
 	width: 100%;
 }
 .chat-copy,
-.chat-feedback {
+.chat-feedback,
+.chat-save {
 	cursor: pointer;
 	font-size: 0.8rem;
 	margin: 0.2rem;
-	position: absolute;
 	top: 0.2rem;
 }
-.chat-feedback {
-	right: 0.6rem;
+.chat-copy:hover,
+.chat-feedback:hover,
+.chat-save:hover {
+    color: navy; /* Example hover effect: change text color to blue */
+	font-size: 1.1rem;
 }
 .chat-input {
 	background-color: #ffffff; /* White background color */
@@ -181,7 +211,6 @@
 	display: flex;
     flex-direction: column;
 	height: 100%;
-	justify-content: flex-end;
     opacity: 0;
 	padding: 0.2rem;
     pointer-events: none;
@@ -227,6 +256,10 @@
 	font-size: 24px; /* Icon size, adjust as needed */
 	cursor: pointer; /* Pointer cursor on hover */
 	z-index: calc(var(--chat-base-z-index) + 5);
+}
+.chat-thumb {
+	height: fit-content;
+	width: 3.5rem;
 }
 /* chat-submit button; requires special treament to overwrite button class for now */
 button.chat-submit { /* need specificity to overwrite button class */
