@@ -469,7 +469,7 @@ async function mRunFunctions(openai, run, factory, avatar){
                                     itemId: itemSummaryItem?.id,
                                     success,
                                 })
-                                console.log(`mRunFunctions()::${ name }`, confirmation, itemSummaryItem)
+                                console.log(`mRunFunctions()::${ name }::success`, itemSummarySuccess, itemSummaryItem?.id)
                                 return confirmation    
                             case 'getsummary':
                             case 'get_summary':

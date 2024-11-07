@@ -9,6 +9,7 @@ import {
     expunge,
     getActiveItemId,
     hide,
+    parseInstruction,
     seedInput,
     setActiveAction,
     setActiveItem,
@@ -18,6 +19,7 @@ import {
     submit,
     toggleMemberInput,
     toggleVisibility,
+    unsetActiveAction,
     unsetActiveItem,
 } from './members.mjs'
 import Globals from './globals.mjs'
@@ -63,6 +65,54 @@ document.addEventListener('DOMContentLoaded', async event=>{
  */
 function activeBot(){
     return mActiveBot
+}
+/**
+ * Get default Action population from active bot.
+ * @todo - remove hardcoding
+ * @public
+ * @returns {object} - The active bot default Action object
+ * @param {object} instructions - The action object describing how to populate { button, callback, icon, status, text, thumb, }.
+ * @property {string} button - The button text; if false-y, no button is displayed
+ * @property {function} callback - The callback function to execute on button click
+ * @property {string} icon - The icon class to display
+ * @property {string} status - The status text to display
+ * @property {string} text - The text to display
+ * @property {string} thumb - The thumbnail image URL
+ */
+function getAction(type='avatar'){
+    let instructions
+    switch(type){
+        case 'biographer':
+        case 'personal-biographer':
+            instructions = {
+                button: `Make a Memory`,
+                callback: async function(event){
+                    const actionButton = event.target
+                    actionButton.disabled = true
+                    const response = await submit('## PRINT\nCreate the summary from our conversation since the last saved memory.')
+                    unsetActiveAction()
+                    if(!response?.success)
+                        addMessage('An error occurred while talking to the server. Try again.')
+                    else {
+                        parseInstruction(response.instruction)
+                        addMessages(response.responses)
+                    }
+                },
+                icon: 'fa-play',
+                status: 'Let\'s',
+                text: 'from our chat',
+                thumb: '/png/Q.png',
+            }
+        case 'avatar':
+        case 'diary':
+        case 'diarist':
+        case 'journal':
+        case 'journaler':
+        case 'personal-avatar':
+        default:
+            break
+    }
+    return instructions
 }
 /**
  * Get specific bot by id (first) or type.
@@ -1527,10 +1577,8 @@ function mTogglePopup(event){
         popup.style.right = 'auto'
         popup.style.top = offsetY
         show(popup)
-        if(setActiveItem(popupId)){
-            // @todo - deactivate any other popups
-            popup.dataset.active = 'true'
-        }
+        setActiveItem(popupId)
+        popup.dataset.active = 'true'
     }
 }
 /**
@@ -2098,6 +2146,7 @@ function mVersion(version){
 /* exports */
 export {
     activeBot,
+    getAction,
     getBot,
     getItem,
     refreshCollection,
