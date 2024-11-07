@@ -440,7 +440,7 @@ class Avatar extends EventEmitter {
     async item(item, method){
         const { globals, mbr_id, } = this
         const response = { item, success: false, }
-        const instructions={ itemId: item.id, },
+        const instruction={},
             message={
                 agent: 'server',
                 message: `I encountered an error while trying to process your request; please try again.`,
@@ -456,7 +456,7 @@ class Avatar extends EventEmitter {
                 message.message = success
                     ? `I have successfully deleted your item.`
                     : `I encountered an error while trying to delete your item, id: ${ itemId }.`
-                instructions.command = success
+                instruction.command = success
                     ? 'removeItem'
                     : 'error'
                 break
@@ -491,15 +491,20 @@ class Avatar extends EventEmitter {
                     }}
                 /* execute request */
                 try {
-                    response.item = await this.#factory.createItem(item)
+                    response.item = mPruneItem(await this.#factory.createItem(item))
                 } catch(error) {
                     console.log('item()::error', error)
                 }
                 /* return response */
                 success = this.globals.isValidGuid(response.item?.id)
-                message.message = success
-                    ? `I have successfully created: "${ response.item.title }".`
-                    : `I encountered an error while trying to create: "${ title }".`
+                if(success){
+                    instruction.command = 'createItem'
+                    instruction.item = response.item
+                    message.message = `Item successfully created: "${ response.item.title }".`
+                } else {
+                    instruction.command = 'error'
+                    message.message = `I encountered an error while creating: "${ title }".`
+                }
                 break
             case 'put': /* update */
                 const updatedItem = await this.#factory.updateItem(item)
@@ -514,7 +519,8 @@ class Avatar extends EventEmitter {
                 console.log('item()::default', item)
                 break
         }
-        response.instructions = instructions
+        this.frontendInstruction = instruction // LLM-return safe
+        response.instruction = instruction // direct-access
         response.responses = [message]
         response.success = success
         return response

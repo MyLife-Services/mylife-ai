@@ -132,15 +132,23 @@ class Bot {
 		return this
 	}
 	/**
-	 * Retrieves the Conversation instance for this bot.
+	 * Retrieves the Conversation instance for this bot, creating a new one if .
 	 * @param {String} message - The member request (optional)
 	 * @returns {Promise<Conversation>} - The Conversation instance
 	 */
 	async getConversation(message){
 		if(!this.#conversation){
-			const { bot_id: _llm_id, id: bot_id, thread_id, type, } = this
-			let { llm_id=_llm_id, } = this // @stub - deprecate bot_id
-			this.#conversation = await mConversationStart('chat', type, bot_id, thread_id, llm_id, this.#llm, this.#factory, message)
+			const { bot_id: _llm_id, id, type, } = this
+			let { llm_id=_llm_id, thread_id, } = this // @stub - deprecate bot_id
+			this.#conversation = await mConversationStart('chat', type, id, thread_id, llm_id, this.#llm, this.#factory, message)
+			console.log(`getConversation::thread_id`, thread_id, this.#conversation.thread_id)
+			if(!thread_id?.length){
+				thread_id = this.#conversation.thread_id
+				this.update({
+					id,
+					thread_id,
+				})
+			}
 		}
 		return this.#conversation
 	}

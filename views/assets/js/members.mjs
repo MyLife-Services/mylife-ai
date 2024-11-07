@@ -9,6 +9,7 @@ import {
 } from './experience.mjs'
 import {
     activeBot,
+    getAction,
     getItem,
     refreshCollection,
     setActiveBot as _setActiveBot,
@@ -63,22 +64,9 @@ document.addEventListener('DOMContentLoaded', async event=>{
     /* determine mode, default = member bot interface */
     await mInitialize() // throws if error
     stageTransition()
-    setActiveAction({
-        button: `Make a Memory`,
-        callback: async function(event){
-            const actionButton = event.target
-            actionButton.disabled = true
-            unsetActiveAction()
-            console.log('members.mjs::setActiveAction::callback', event.target)
-        },
-        icon: 'fa-play',
-        status: 'Let\'s',
-        text: 'from our chat',
-        thumb: '/png/Q.png',
-    })
-    // unsetActiveAction()
+    unsetActiveAction()
     console.log('members.mjs::DOMContentLoaded')
-    /* **note**: bots run independently upon conclusion */
+    /* **note**: bots.mjs `onLoad` runs independently */
 })
 /* public functions */
 /**
@@ -124,11 +112,11 @@ function assignElements(parent=chatInput, elements, clear=true){
 }
 /**
  * Clears the system chat by removing all chat bubbles instances.
- * @todo - store chat locally for retrieval?
  * @public
  * @returns {void}
  */
 function clearSystemChat(){
+    activeBot().interactionCount = 0
     mGlobals.clearElement(systemChat)
 }
 /**
@@ -197,6 +185,43 @@ function inExperience(){
     return mExperience?.id?.length ?? false
 }
 /**
+ * Consumes instruction object and performs the requested actions.
+ * @param {object} instruction - The instruction object
+ * @returns {void}
+ */
+function parseInstruction(instruction){
+    if(!instruction)
+        return
+    console.log('parseInstruction::instruction', instruction)
+    const { command, item, summary, title, } = instruction
+    const { itemId=item?.id, } = instruction
+    switch(command){
+        case 'createItem':
+            refreshCollection('story')
+            if(itemId?.length)
+                setActiveItem(itemId)
+            console.log('mAddMemberMessage::createItem', command, itemId)
+            break
+        case 'updateItemSummary':
+            if(itemId?.length && summary?.length)
+                updateItem({ itemId, summary, })
+            console.log('parseInstruction::updateItemSummary', summary, itemId)
+            break
+        case 'updateItemTitle':
+            if(title?.length && itemId?.length){
+                setActiveItemTitle(title, itemId)
+                updateItem({ itemId, title, })
+                console.log('parseInstruction::updateItemTitle', title, itemId)
+            }
+            break
+        case 'experience':
+            break
+        default:
+            refreshCollection('story') // refresh memories
+            break
+    }
+}
+/**
  * Replaces an element (input/textarea) with a specified type.
  * @param {HTMLInputElement} element - The element to replace.
  * @param {string} newType - The new element type.
@@ -260,7 +285,7 @@ function replaceElement(element, newType, retainValue=true, onEvent, listenerFun
  */
 function setActiveAction(instructions){
     const activeItem = document.getElementById('chat-active-item')
-    if(!activeItem)
+    if(!activeItem || !instructions)
         return
     else
         delete activeItem.dataset
@@ -302,7 +327,6 @@ function setActiveAction(instructions){
         if(button?.length){
             activeButton.textContent = button
             if(callback){
-                console.log('setActiveAction::callback', callback)
                 activeButton.addEventListener('click', callback, { once: true })
                 activeButton.disabled = false
             }
@@ -339,11 +363,12 @@ async function setActiveBot(){
  * @returns {void}
  */
 function setActiveItem(itemId){
-    itemId = itemId?.split('_')?.pop()
-    const id = `popup-container_${ itemId }`
-    const popup = document.getElementById(id)
-    if(!itemId || !popup)
-        throw new Error('setActiveItem::Error()::valid `id` is required')
+    console.log('setActiveItem::itemId', itemId)
+    const popup = document.getElementById(`popup-container_${ itemId }`)
+    if(!itemId)
+        return // throw new Error('setActiveItem::Error()::valid `id` is required')
+    if(!popup)
+        return // throw new Error('setActiveItem::Error()::valid `popup` is required')
     const { title, type, } = popup.dataset
     const activeButton = document.getElementById('chat-active-item-button')
     const activeClose = document.getElementById('chat-active-item-close')
@@ -380,8 +405,7 @@ function setActiveItem(itemId){
         activeTitle.dataset.title = title
         activeTitle.addEventListener('dblclick', updateItemTitle, { once: true })
     }
-    chatActiveItem.dataset.id = id
-    chatActiveItem.dataset.itemId = itemId
+    chatActiveItem.dataset.id = itemId
     show(chatActiveItem)
 }
 /**
@@ -474,7 +498,6 @@ function unsetActiveAction(){
  */
 function unsetActiveItem(){
     delete chatActiveItem.dataset.id
-    delete chatActiveItem.dataset.itemId
     hide(chatActiveItem)
 }
 /**
@@ -504,6 +527,7 @@ function waitForUserAction(){
 async function mAddMemberMessage(event){
     event.stopPropagation()
 	event.preventDefault()
+    const Bot = activeBot() // lock in here before any competing selection events (which can happen during async)
     let memberMessage = chatInputField.value.trim()
     if (!memberMessage.length)
         return
@@ -516,34 +540,21 @@ async function mAddMemberMessage(event){
     })
     /* server request */
     const response = await submit(memberMessage)
-    let { instruction={}, responses=[], success=false, } = response
+    let { instruction, responses=[], success=false, } = response
     if(!success)
         mAddMessage('I\'m sorry, I didn\'t understand that, something went wrong on the server. Please try again.')
-    /* process instructions */
-    const { itemId, summary, title, } = instruction
-    if(instruction?.command?.length){
-        switch(instruction.command){
-            case 'updateItemSummary':
-                if(itemId?.length && summary?.length)
-                    updateItem({ itemId, summary, })
-                break
-            case 'updateItemTitle':
-                if(title?.length && itemId?.length){
-                    setActiveItemTitle(title, itemId)
-                    updateItem({ itemId, title, })
-                }
-                break
-            case 'experience':
-                break
-            default:
-                refreshCollection('story') // refresh memories
-                break
-        }
+    if(!!instruction)
+        parseInstruction(instruction)
+    else {
+        if(!Bot.interactionCount)
+            Bot.interactionCount = 0
+        Bot.interactionCount++
+        if(Bot.interactionCount>1)
+            setActiveAction(getAction(Bot.type))
     }
     /* process response */
 	responses
         .forEach(message=>{
-            console.log('mAddMemberMessage::responses', message)
             mAddMessage(message.message ?? message.content, {
                 bubbleClass: 'agent-bubble',
                 role: 'agent',
@@ -580,7 +591,6 @@ async function mAddMessage(message, options={}){
     if(role==='agent' || role==='system'){
         const bot = activeBot()
         const type = bot.type.split('-').pop()
-        console.log('mAddMessage::activeBot()', type, bot)
         messageThumb.src = `/png/${ type }-thumb.png` // Set bot icon URL
         messageThumb.alt = bot.name
         messageThumb.title = bot.purpose
@@ -939,6 +949,7 @@ export {
     hide,
     hideMemberChat,
     inExperience,
+    parseInstruction,
     replaceElement,
     sceneTransition,
     seedInput,
@@ -955,6 +966,7 @@ export {
     toggleMemberInput,
     toggleInputTextarea,
     toggleVisibility,
+    unsetActiveAction,
     unsetActiveItem,
     waitForUserAction,
 }

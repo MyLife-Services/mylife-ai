@@ -212,7 +212,9 @@ async function item(ctx){
 	const item = ctx.request.body // always `{}` by default
 	if(!item?.id && id?.length)
 		item.id = id
-	ctx.body = await avatar.item(item, method)
+	const response = await avatar.item(item, method)
+	delete avatar.frontendInstruction // already embedded in response
+	ctx.body = response
 }
 async function logout(ctx){
 	ctx.session = null
