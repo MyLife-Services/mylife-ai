@@ -155,20 +155,19 @@ app.use(koaBody({
 			console.error(err)
 		}
 	})
-	.use(async (ctx,next) => {	//	SESSION: member login
-		//	system context, koa: https://koajs.com/#request
+	//	system context, koa: https://koajs.com/#request
+	.use(async (ctx,next) => {
+		/* SESSION: member login */
 		if(!ctx.session?.MemberSession){
 			/* create generic session [references/leverages modular capabilities] */
 			ctx.session.MemberSession = await ctx.MyLife.getMyLifeSession()	//	create default locked session upon first request; does not require init(), _cannot_ have in fact, as it is referencing a global modular set of utilities and properties in order to charge-back to system as opposed to member
 			/* platform-required session-external variables */
 			ctx.session.signup = false
-			/* log */
-			console.log(chalk.bgBlue('created-member-session'))
 		}
 		ctx.state.locked = ctx.session.MemberSession.locked
 		ctx.state.MemberSession = ctx.session.MemberSession	//	lock-down session to state
 		ctx.state.member = ctx.state.MemberSession?.member
-			??	ctx.MyLife	//	point member to session member (logged in) or MAHT (not logged in)
+			?? ctx.MyLife
 		ctx.state.avatar = ctx.state.member.avatar
 		ctx.state.interfaceMode = ctx.state.avatar?.mode ?? 'standard'
 		ctx.state.menu = ctx.MyLife.menu

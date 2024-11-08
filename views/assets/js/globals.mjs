@@ -75,6 +75,11 @@ class Datamanager {
         return response
     }
     /* public functions */
+    async about(){
+        const url = `about`
+        const response = await this.#fetch(url)
+        return response
+    }
     async alerts(){
         const url = `alerts`
         const responses = await this.#fetch(url)

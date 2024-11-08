@@ -604,6 +604,23 @@ class Avatar extends EventEmitter {
         const narration = await mReliveMemoryNarration(item, memberInput, this.#botAgent, this)
         return narration
     }
+    async renderContent(html){
+        const processStartTime = Date.now()
+        const sectionRegex = /<section[^>]*>([\s\S]*?)<\/section>/gi
+        const responses = []
+        let match
+        while((match = sectionRegex.exec(html))!==null){
+            const sectionContent = match[1].trim()
+            if(!sectionContent?.length)
+                break
+            const Message = mPruneMessage(this.avatar.id, sectionContent, 'chat', processStartTime)
+            responses.push(Message)
+        }
+        return {
+            responses,
+            success: true,
+        }
+    }
     /**
      * Allows member to reset passphrase.
      * @param {string} passphrase 

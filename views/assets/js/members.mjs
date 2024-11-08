@@ -24,6 +24,7 @@ const mGlobals = new Globals()
 const mainContent = mGlobals.mainContent,
     navigation = mGlobals.navigation,
     sidebar = mGlobals.sidebar
+window.about = about
 /* variables */
 let mAutoplay=false,
     mChatBubbleCount=0,
@@ -70,6 +71,18 @@ document.addEventListener('DOMContentLoaded', async event=>{
 })
 /* public functions */
 /**
+ * Presents the `about` page as a series of sectional responses from your avatar.
+ * @public
+ * @async
+ * @returns {Promise<void>}
+ */
+async function about(){
+    const { error, responses=[], success, } = await mGlobals.datamanager.about()
+    if(!success || !responses?.length)
+        return // or make error version
+    addMessages(responses, { responseDelay: 4, typeDelay: 1, typewrite: true, })
+}
+/**
  * Adds an input element (button, input, textarea,) to the system chat column.
  * @param {HTMLElement} HTMLElement - The HTML element to add to the system chat column.
  * @returns {void}
@@ -93,8 +106,10 @@ function addMessage(message, options={}){
  * @param {object} options - The options object { bubbleClass, typeDelay, typewrite }.
  * @returns {void}
  */
-function addMessages(messages, options={}){
-    messages.forEach(message=>mAddMessage(message, options))
+function addMessages(messages, options = {}) {
+    const { responseDelay = 4 } = options
+    for(let i=0; i<messages.length; i++)
+        setTimeout(_=>mAddMessage(messages[i], options), i * responseDelay * 1000)
 }
 /**
  * Removes and attaches all payload elements to element.
