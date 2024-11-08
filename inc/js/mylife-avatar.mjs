@@ -216,8 +216,36 @@ class Avatar extends EventEmitter {
      * @returns {void}
      */
     async endMemory(){
-        // @stub - save conversation fragments */
+        const { Conversation, id, item, } = this.#livingMemory
+        const { bot_id, } = Conversation
+        if(mAllowSave)
+            await Conversation.save()
+        const instruction = {
+            command: `createInput`,
+            inputs: [{
+                endpoint: `chat`,
+                id: this.newGuid,
+                method: `POST`, // not PATCH as that is over; POST default?
+                prompt: `I enjoyed reliving the memory!`,
+                required: true, // force-display (no overrides by frontend)
+                secret: ``, // used for passing data
+                type: 'button',
+            },
+            {
+                id: this.newGuid,
+                prompt: `I didn't care for the experience.`,
+                required: true,
+                type: 'button',
+            }],
+        }
+        const responses = [mCreateSystemMessage(bot_id, `I've ended the memory, thank you for letting me share my interpretation. I hope you liked it.`, this.#factory.message)]
+        const response = {
+            instruction,
+            responses,
+            success: true,
+        }
         this.#livingMemory = null
+        return response
     }
 	/**
 	 * Submits a new diary or journal entry to MyLife. Currently called both from API _and_ LLM function.
@@ -250,7 +278,7 @@ class Avatar extends EventEmitter {
      * @returns {void} - Throws error if experience cannot be ended.
      */
     experienceEnd(experienceId){
-        const { experience, factory, mode, } = this
+        const { experience, mode, } = this
         try {
             if(this.isMyLife) // @stub - allow guest experiences
                 throw new Error(`MyLife avatar can neither conduct nor end experiences`)
@@ -264,13 +292,13 @@ class Avatar extends EventEmitter {
         }
         this.mode = 'standard'
         const { id, location, title, variables, } = experience
-        const { mbr_id, newGuid, } = this.#factory
+        const { mbr_id, } = this.#factory
         const completed = location?.completed
         this.#livedExperiences.push({ // experience considered concluded for session regardless of origin, sniffed below
             completed,
 			experience_date: Date.now(),
 			experience_id: id,
-			id: newGuid,
+			id: this.newGuid,
 			mbr_id,
 			title,
 			variables,
@@ -278,7 +306,7 @@ class Avatar extends EventEmitter {
         if(completed){ // ended "naturally," by event completion, internal initiation
             /* validate and cure `experience` */
             /* save experience to cosmos (no await) */
-            factory.saveExperience(experience)
+            this.#factory.saveExperience(experience)
         } else { // incomplete, force-ended by member, external initiation
             // @stub - create case for member ending with enough interaction to _consider_ complete, or for that matter, to consider _started_ in some cases
         }
@@ -482,7 +510,7 @@ class Avatar extends EventEmitter {
                     ...{
                         assistantType,
                         being,
-                        id: this.#factory.newGuid,
+                        id: this.newGuid,
                         mbr_id,
                         name: `${ type }_${ form }_${ title.substring(0,64) }_${ mbr_id }`,
                         summary,
@@ -601,8 +629,8 @@ class Avatar extends EventEmitter {
         const { id, } = item
         if(!id)
             throw new Error(`item does not exist in member container: ${ iid }`)
-        const narration = await mReliveMemoryNarration(item, memberInput, this.#botAgent, this)
-        return narration
+        const response = await mReliveMemoryNarration(item, memberInput, this.#botAgent, this)
+        return response
     }
     async renderContent(html){
         const processStartTime = Date.now()
@@ -1026,15 +1054,6 @@ class Avatar extends EventEmitter {
         this.#livedExperiences = livedExperiences
     }
     /**
-     * Get the Avatar's Factory.
-     * @todo - deprecate if possible, return to private
-     * @getter
-     * @returns {AgentFactory} - The Avatar's Factory.
-     */
-    get factory(){
-        return this.#factory
-    }
-    /**
      * Globals shortcut.
      * @getter
      * @returns {object} - The globals.
@@ -1219,6 +1238,14 @@ class Avatar extends EventEmitter {
         return this.experience.navigation
     }
     /**
+     * Creates a new guid via `this.#factory`.
+     * @getter
+     * @returns {Guid} - The new guid
+     */
+    get newGuid(){
+        return this.#factory.newGuid
+    }
+    /**
      * Get the nickname of the avatar.
      * @getter
      * @returns {string} - The avatar nickname.
@@ -1248,7 +1275,7 @@ class Avatar extends EventEmitter {
     /**
      * Set the `active` reliving memory.
      * @setter
-     * @param {Object} livingMemory - The new active reliving memory
+     * @param {Object} livingMemory - The new active reliving memory (or `null`)
      * @returns {void}
      */
     set livingMemory(livingMemory){
@@ -1580,7 +1607,7 @@ async function mCast(factory, cast){
  * Creates frontend system message from message String/Object.
  * @param {Guid} bot_id - The bot id
  * @param {String|Message} message - The message to be pruned
- * @param {*} factory 
+ * @param {messageClassDefinition} messageClassDefinition - The message class definition
  * @returns 
  */
 function mCreateSystemMessage(bot_id, message, messageClassDefinition){
@@ -2249,9 +2276,19 @@ async function mReliveMemoryNarration(item, memberInput, BotAgent, Avatar){
     Avatar.livingMemory = await BotAgent.liveMemory(item, memberInput, Avatar)
     const { Conversation, } = Avatar.livingMemory
     const { bot_id, type, } = Conversation
+    const instruction = {
+        command: 'createInputs',
+        inputs: [{
+            id: bot_id,
+            prompt: `I'd like to stop reliving this memory.`,
+            required: true,
+            type: 'button',
+        }],
+    }
     const responses = Conversation.getMessages()
         .map(message=>mPruneMessage(bot_id, message, type))
     const memory = {
+        instruction,
         item,
         responses,
         success: true,

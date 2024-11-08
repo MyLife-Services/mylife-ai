@@ -19,7 +19,7 @@ class Member extends EventEmitter {
 	 */
 	async init(avatar){
 		this.#avatar = avatar
-			?? await this.factory.getAvatar()
+			?? await this.#factory.getAvatar()
 		return this
 	}
 	//	getter/setter functions
@@ -56,7 +56,7 @@ class Member extends EventEmitter {
 	}
 	set avatar(_Avatar){
 		//	oops, hack around how to get dna of avatar class; review options [could block at factory-getter level, most efficient and logical]
-		if(!this.factory.isAvatar(_Avatar))
+		if(!this.#factory.isAvatar(_Avatar))
 			throw new Error('avatar requires Avatar Class')
 		this.#avatar = _Avatar
 	}
@@ -80,19 +80,19 @@ class Member extends EventEmitter {
 		return this.agent.chat
 	}
 	get consent(){
-		return this.factory.consent	//	**caution**: returns <<PROMISE>>
+		return this.#factory.consent	//	**caution**: returns <<PROMISE>>
 	}
 	set consent(_consent){
-		this.factory.consents.unshift(_consent.id)
+		this.#factory.consents.unshift(_consent.id)
 	}
 	get core(){
-		return this.factory.core
+		return this.#factory.core
 	}
 	get dataservice(){
 		return this.dataservices
 	}
 	get dataservices(){
-		return this.factory.dataservices
+		return this.#factory.dataservices
 	}
 	get description(){
 		return this.core.description
@@ -110,7 +110,7 @@ class Member extends EventEmitter {
 		return this.core.form
 	}
 	get globals(){
-		return this.factory.globals
+		return this.#factory.globals
 	}
 	get hobbies(){
 		return this.core.hobbies
@@ -122,7 +122,7 @@ class Member extends EventEmitter {
 		return this.sysid
 	}
 	get mbr_id(){
-		return this.factory.mbr_id
+		return this.#factory.mbr_id
 	}
 	get member(){
 		return this.core
@@ -138,6 +138,9 @@ class Member extends EventEmitter {
 	}
 	get preferences(){
 		return this.core.preferences
+	}
+	get schemas(){
+		return this.#factory.schemas
 	}
 	get skills(){
 		return this.core.skills
@@ -162,8 +165,8 @@ class Member extends EventEmitter {
 class Organization extends Member {	//	form=organization
 	#Menu
 	#Router
-	constructor(_Factory){
-		super(_Factory)
+	constructor(Factory){
+		super(Factory)
 	}
 	/* public functions */
 	async init(avatar){
@@ -190,7 +193,7 @@ class Organization extends Member {	//	form=organization
 	}
 	get menu(){
 		if(!this.#Menu){
-			this.#Menu = new (this.factory.schemas.menu)(this).menu
+			this.#Menu = new (this.schemas.menu)(this).menu
 		}
 		return this.#Menu
 	}
@@ -211,7 +214,7 @@ class Organization extends Member {	//	form=organization
 	}
 	get router(){
 		if(!this.#Router){
-			this.#Router = initRouter(new (this.factory.schemas.menu)(this))
+			this.#Router = initRouter(new (this.schemas.menu)(this))
 		}
 		return this.#Router
 	}
@@ -233,12 +236,14 @@ class Organization extends Member {	//	form=organization
 }
 class MyLife extends Organization {	// form=server
 	#avatar // MyLife's private class avatar, _same_ object reference as Member Class's `#avatar`
+	#factory
 	#version = '0.0.0' // indicates error
-	constructor(factory){ // no session presumed to exist
-		super(factory)
+	constructor(Factory){ // no session presumed to exist
+		super(Factory)
+		this.#factory = Factory
 	}
 	async init(){
-		this.#avatar = await this.factory.getAvatar()
+		this.#avatar = await this.#factory.getAvatar()
 		return await super.init(this.#avatar)
 	}
 	/* public functions */
@@ -247,7 +252,7 @@ class MyLife extends Organization {	// form=server
 	 * @returns {Object[]} - An array of the currently available public experiences.
 	 */
 	async availableExperiences(){
-		const experiences = ( await this.factory.availableExperiences() )
+		const experiences = ( await this.#factory.availableExperiences() )
 			.map(experience=>{ // map to display versions [from `mylife-avatar.mjs`]
 				const { autoplay=false, description, id, name, purpose, skippable=true,  } = experience
 				return {
@@ -277,7 +282,7 @@ class MyLife extends Organization {	// form=server
 	async datacore(mbr_id){
 		if(!mbr_id || mbr_id===this.mbr_id)
 			throw new Error('datacore cannot be accessed')
-		const core = this.globals.sanitize(await this.factory.datacore(mbr_id))
+		const core = this.globals.sanitize(await this.#factory.datacore(mbr_id))
 		return core
 	}
 	/**
@@ -302,10 +307,10 @@ class MyLife extends Organization {	// form=server
 	 * @returns {void} returns nothing, performs operation
 	 */
 	getAlerts(){
-		this.factory.getAlerts()
+		this.#factory.getAlerts()
 	}
 	async getMyLifeSession(){
-		return await this.factory.getMyLifeSession()
+		return await this.#factory.getMyLifeSession()
 	}
 	async hostedMemberList(){
 		let members = await this.hostedMembers()
@@ -317,7 +322,7 @@ class MyLife extends Organization {	// form=server
 	 * @returns {Promise<Array>} - Array of string ids, one for each hosted member.
 	 */
 	async hostedMembers(validations){
-		return await this.factory.hostedMembers(validations)
+		return await this.#factory.hostedMembers(validations)
 	}
 	/**
 	 * Returns whether a specified member id is hosted on this instance.
@@ -339,7 +344,7 @@ class MyLife extends Organization {	// form=server
 	 * @param {object} candidate { 'avatarName': string, 'email': string, 'humanName': string, }
 	 */
 	async registerCandidate(candidate){
-		return await this.factory.registerCandidate(candidate)
+		return await this.#factory.registerCandidate(candidate)
 	}
 	/**
 	 * Submits and returns the memory to MyLife via API.
@@ -378,7 +383,7 @@ class MyLife extends Organization {	// form=server
 			mbr_id,
 			name: `${ being }_${ title.substring(0,64) }_${ mbr_id }`,
 		}
-		const savedStory = this.globals.sanitize(await this.factory.summary(story))
+		const savedStory = this.globals.sanitize(await this.#factory.summary(story))
 		return savedStory
 	}
 	/**
@@ -388,7 +393,7 @@ class MyLife extends Organization {	// form=server
 	 * @returns {boolean} returns true if partition key is valid
 	 */
 	async testPartitionKey(_mbr_id){
-		return await this.factory.testPartitionKey(_mbr_id)
+		return await this.#factory.testPartitionKey(_mbr_id)
 	}
 	/* getters/setters */
 	/**

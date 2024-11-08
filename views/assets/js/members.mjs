@@ -10,6 +10,7 @@ import {
 import {
     activeBot,
     getAction,
+    getBotIcon,
     getItem,
     refreshCollection,
     setActiveBot as _setActiveBot,
@@ -107,9 +108,12 @@ function addMessage(message, options={}){
  * @returns {void}
  */
 function addMessages(messages, options = {}) {
-    const { responseDelay = 4 } = options
+    const { responseDelay=0, } = options
     for(let i=0; i<messages.length; i++)
-        setTimeout(_=>mAddMessage(messages[i], options), i * responseDelay * 1000)
+        if(responseDelay)
+            setTimeout(_=>mAddMessage(messages[i], options), i * responseDelay * 1000)
+        else
+            mAddMessage(messages[i], options)
 }
 /**
  * Removes and attaches all payload elements to element.
@@ -606,7 +610,7 @@ async function mAddMessage(message, options={}){
     if(role==='agent' || role==='system'){
         const bot = activeBot()
         const type = bot.type.split('-').pop()
-        messageThumb.src = `/png/${ type }-thumb.png` // Set bot icon URL
+        messageThumb.src = getBotIcon(type)
         messageThumb.alt = bot.name
         messageThumb.title = bot.purpose
             ?? `I'm ${ bot.name }, an artificial intelligence ${ type.replace('-', ' ') } designed to assist you!`

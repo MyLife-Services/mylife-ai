@@ -4,6 +4,7 @@ import {
     addInput,
     addMessage,
     addMessages,
+    clearSystemChat,
     decorateActiveBot,
     experiences,
     expunge,
@@ -47,6 +48,7 @@ const mAvailableCollections = ['entry', 'experience', 'file', 'story'], // ['cha
 let mActiveBot,
     mActiveTeam,
     mBots,
+    mRelivingMemory,
     mShadows
 /* onDomContentLoaded */
 document.addEventListener('DOMContentLoaded', async event=>{
@@ -122,6 +124,9 @@ function getAction(type='avatar'){
  */
 function getBot(type='personal-avatar', id){
     return mBot(id ?? type)
+}
+function getBotIcon(type){
+    return mBotIcon(type)
 }
 /**
  * Get collection item by id.
@@ -282,7 +287,7 @@ function mBotIcon(type){
             break
         case 'avatar':
         case 'personal-avatar':
-            image+='personal-avatar-thumb-02.png'
+            image+='avatar-thumb.png'
             break
         case 'diary':
         case 'diarist':
@@ -1138,14 +1143,16 @@ async function mReliveMemory(event){
     event.preventDefault()
     event.stopPropagation()
     const { id, inputContent, } = this.dataset
-    /* destroy previous instantiation, if any */
     const previousInput = document.getElementById(`relive-memory-input-container_${id}`)
     if(previousInput)
         expunge(previousInput)
-    /* close popup */
     const popupClose = document.getElementById(`popup-close_${ id }`)
     if(popupClose)
         popupClose.click()
+    if(!mRelivingMemory){
+        mRelivingMemory = id
+        clearSystemChat()
+    }
     toggleMemberInput(false, false, `Reliving memory with `)
     unsetActiveItem()
     const { instruction, item, responses, success, } = await mGlobals.datamanager.memoryRelive(id, inputContent)
@@ -1161,6 +1168,7 @@ async function mReliveMemory(event){
         const inputContent = document.createElement('textarea')
         inputContent.classList.add('memory-input')
         inputContent.name = `memory-input_${ id }`
+        inputContent.placeholder = `What did I get wrong? What important details were missed? Click 'Next' to just continue...`
         const inputSubmit = document.createElement('button')
         inputSubmit.classList.add('memory-input-button')
         inputSubmit.dataset.id = id
@@ -1401,7 +1409,11 @@ async function mStopRelivingMemory(id){
     const input = document.getElementById(`relive-memory-input-container_${ id }`)
     if(input)
         expunge(input)
-    await mGlobals.datamanager.memoryReliveEnd(id)
+    const { instruction, responses, success} = await mGlobals.datamanager.memoryReliveEnd(id)
+    if(success){
+        addMessages(responses, { responseDelay: 3, })
+        mRelivingMemory = null
+    }
     unsetActiveItem()
     toggleMemberInput(true)
 }
@@ -2148,6 +2160,7 @@ export {
     activeBot,
     getAction,
     getBot,
+    getBotIcon,
     getItem,
     refreshCollection,
     setActiveBot,
