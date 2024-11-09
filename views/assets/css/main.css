@@ -190,6 +190,10 @@ body {
 	animation: alertFadeIn 0.5s forwards;
 }
 /* MyLife main content */
+.input-button {
+	display: flex;
+	margin: 0.4rem;
+}
 .main-content {
     background: white; /* Assuming a card-like look typically has a white background */
     background-position: center; /* Centers the image in the area */
@@ -240,7 +244,6 @@ body {
 	resize: none;
 }
 .memory-input-container {
-	align-self: center;
     align-content: center;
     background-color: sienna;
     border-radius: 0.4rem;
@@ -283,18 +286,6 @@ body {
 	border-bottom: thin solid navy;
 	color: navy;
 	display: flex;
-}
-/* MyLife Contribution Request */
-.category-button {
-    background-color: #f0f0f0; /* Neutral color */
-    margin: 5px;
-    padding: 10px;
-    border: none;
-    cursor: pointer;
-}
-.category-button.active {
-    background-color: #4CAF50; /* Active state color */
-    color: white;
 }
 /* MyLife Signup Routine */
 .button {
@@ -364,6 +355,14 @@ body {
     animation: none !important;
     display: none !important;
 }
+.input-container {
+    align-self: center;
+    background-color: rgba(255, 255, 255, 0.2); /* light background */
+    border: 0.01rem solid #000;
+    border-radius: 22rem;
+    display: flex;
+    justify-content: center;
+}
 .ital {
 	font-style: italic;
 }
@@ -398,11 +397,11 @@ body {
 	background: linear-gradient(to right, rgba(94, 128, 191, 0.1), rgba(128, 0, 128, 0.1));
 	border: 1px solid #ccc;
 	border-radius: 4px;
+	box-shadow: inset 1px 1px 3px rgba(94, 128, 191, 0.2), inset -1px -1px 3px rgba(128, 0, 128, 0.3);
+	margin-bottom: 16px;
+	margin-top: 6px;
 	padding: 10px 12px;
 	width: 100%;
-	margin-top: 6px;
-	margin-bottom: 16px;
-	box-shadow: inset 1px 1px 3px rgba(94, 128, 191, 0.2), inset -1px -1px 3px rgba(128, 0, 128, 0.3);
 }
 .signup-input-label {
 	font-weight: bold;

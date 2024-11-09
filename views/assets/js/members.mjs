@@ -9,6 +9,7 @@ import {
 } from './experience.mjs'
 import {
     activeBot,
+    endMemory,
     getAction,
     getBotIcon,
     getItem,
@@ -107,7 +108,7 @@ function addMessage(message, options={}){
  * @param {object} options - The options object { bubbleClass, typeDelay, typewrite }.
  * @returns {void}
  */
-function addMessages(messages, options = {}) {
+function addMessages(messages, options={}) {
     const { responseDelay=0, } = options
     for(let i=0; i<messages.length; i++)
         if(responseDelay)
@@ -205,40 +206,18 @@ function inExperience(){
 }
 /**
  * Consumes instruction object and performs the requested actions.
+ * @todo - all interfaceLocations supported
  * @param {object} instruction - The instruction object
+ * @param {string} interfaceLocation - The interface location, default=`chat`
  * @returns {void}
  */
-function parseInstruction(instruction){
-    if(!instruction)
+function enactInstruction(instruction, interfaceLocation='chat'){
+    if(!instruction || interfaceLocation!='chat')
         return
-    console.log('parseInstruction::instruction', instruction)
-    const { command, item, summary, title, } = instruction
-    const { itemId=item?.id, } = instruction
-    switch(command){
-        case 'createItem':
-            refreshCollection('story')
-            if(itemId?.length)
-                setActiveItem(itemId)
-            console.log('mAddMemberMessage::createItem', command, itemId)
-            break
-        case 'updateItemSummary':
-            if(itemId?.length && summary?.length)
-                updateItem({ itemId, summary, })
-            console.log('parseInstruction::updateItemSummary', summary, itemId)
-            break
-        case 'updateItemTitle':
-            if(title?.length && itemId?.length){
-                setActiveItemTitle(title, itemId)
-                updateItem({ itemId, title, })
-                console.log('parseInstruction::updateItemTitle', title, itemId)
-            }
-            break
-        case 'experience':
-            break
-        default:
-            refreshCollection('story') // refresh memories
-            break
-    }
+    const addInputFunction = addInput
+    const addMessagesFunction = addMessages
+    const endMemoryFunction = endMemory
+    mGlobals.enactInstruction(instruction, addInputFunction, addMessagesFunction, endMemoryFunction)
 }
 /**
  * Replaces an element (input/textarea) with a specified type.
@@ -563,7 +542,7 @@ async function mAddMemberMessage(event){
     if(!success)
         mAddMessage('I\'m sorry, I didn\'t understand that, something went wrong on the server. Please try again.')
     if(!!instruction)
-        parseInstruction(instruction)
+        enactInstruction(instruction)
     else {
         if(!Bot.interactionCount)
             Bot.interactionCount = 0
@@ -968,7 +947,7 @@ export {
     hide,
     hideMemberChat,
     inExperience,
-    parseInstruction,
+    enactInstruction,
     replaceElement,
     sceneTransition,
     seedInput,

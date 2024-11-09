@@ -221,22 +221,9 @@ class Avatar extends EventEmitter {
         if(mAllowSave)
             await Conversation.save()
         const instruction = {
-            command: `createInput`,
-            inputs: [{
-                endpoint: `chat`,
-                id: this.newGuid,
-                method: `POST`, // not PATCH as that is over; POST default?
-                prompt: `I enjoyed reliving the memory!`,
-                required: true, // force-display (no overrides by frontend)
-                secret: ``, // used for passing data
-                type: 'button',
-            },
-            {
-                id: this.newGuid,
-                prompt: `I didn't care for the experience.`,
-                required: true,
-                type: 'button',
-            }],
+            command: `endMemory`,
+            itemId: item.id,
+            livingMemoryId: id,
         }
         const responses = [mCreateSystemMessage(bot_id, `I've ended the memory, thank you for letting me share my interpretation. I hope you liked it.`, this.#factory.message)]
         const response = {
@@ -670,7 +657,9 @@ class Avatar extends EventEmitter {
         const success = await this.#botAgent.deleteBot(bot_id)
         const response = {
             instruction: {
-                command: success ? 'removeBot' : 'error',
+                command: success
+                    ? 'removeBot'
+                    : 'error',
                 id: bot_id,
             },
             responses: [success
@@ -687,36 +676,8 @@ class Avatar extends EventEmitter {
             ],
             success,
         }
-        return response
-    }
-    /**
-     * Retire a Bot, deleting altogether.
-     * @param {Guid} bot_id - The bot id
-     * @returns {object} - The response object { instruction, responses, success, }
-     */
-    async retireBot(bot_id){
-        if(!this.globals.isValidGuid(bot_id))
-            throw new Error(`Invalid bot id: ${ bot_id }`)
-        const success = await this.#botAgent.botDelete(bot_id)
-        const response = {
-            instruction: {
-                command: success ? 'retireBot' : 'error',
-                id: bot_id,
-            },
-            responses: [success
-                ? {
-                    agent: 'server',
-                    message: `I have removed this bot from the team.`,
-                    type: 'chat',
-                }
-                : {
-                    agent: 'server',
-                    message: `I'm sorry - I encountered an error while trying to retire this bot; please try again.`,
-                    type: 'system',
-                }
-            ],
-            success,
-        }
+        if(!success)
+            instruction.error = 'I encountered an error while trying to retire this bot; please try again.'
         return response
     }
     /**
@@ -794,8 +755,7 @@ class Avatar extends EventEmitter {
      */
     async summarize(fileId, fileName, processStartTime=Date.now()){
         /* validate request */
-        let instruction,
-            responses = [],
+        let responses = [],
             success = false
         this.backupResponse = {
             message: `I received your request to summarize, but an error occurred in the process. Perhaps try again with another file.`,
@@ -807,15 +767,10 @@ class Avatar extends EventEmitter {
         if(!responses?.length)
             responses.push(this.backupResponse)
         else {
-            instruction = {
-                command: 'updateFileSummary',
-                itemId: fileId,
-            }
             responses = mPruneMessages(this.avatar.id, responses, 'mylife-file-summary', processStartTime)
             success = true
         }
         return {
-            instruction,
             responses,
             success,
         }
@@ -2274,12 +2229,16 @@ function mPruneMessages(bot_id, messageArray, type='chat', processStartTime=Date
  */
 async function mReliveMemoryNarration(item, memberInput, BotAgent, Avatar){
     Avatar.livingMemory = await BotAgent.liveMemory(item, memberInput, Avatar)
-    const { Conversation, } = Avatar.livingMemory
+    const { Conversation, item: livingMemoryItem, } = Avatar.livingMemory
     const { bot_id, type, } = Conversation
+    const endpoint = `/members/memory/end/${ livingMemoryItem.id }`
     const instruction = {
-        command: 'createInputs',
+        command: 'createInput',
         inputs: [{
-            id: bot_id,
+            endpoint,
+            id: Avatar.newGuid,
+            interfaceLocation: 'chat', // enum: ['avatar', 'team', 'chat', 'bot', 'experience', 'system', 'admin'], defaults to chat
+            method: 'PATCH',
             prompt: `I'd like to stop reliving this memory.`,
             required: true,
             type: 'button',

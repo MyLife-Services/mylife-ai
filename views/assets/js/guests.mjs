@@ -3,14 +3,14 @@ import Globals from './globals.mjs'
 /* precursor constants */
 const mGlobals = new Globals()
 /* constants */
-const mAvatarName = mGlobals.getAvatar()?.name ?? 'MyLife'
+const mAvatarName = mGlobals.getAvatar()?.name
+    ?? 'MyLife'
 const hide = mGlobals.hide
 const mPlaceholder = `Type your message to ${ mAvatarName }...`
 const retract = mGlobals.retract
 const show = mGlobals.show
 /* variables */
-let mAvatarNameEdited = false,
-    mChallengeMemberId,
+let mChallengeMemberId,
     mChatBubbleCount = 0,
     mDefaultTypeDelay = 7,
     mPageType = null,

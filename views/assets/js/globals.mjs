@@ -192,6 +192,18 @@ class Datamanager {
         return response
     }
     /**
+     * Calls a dynamic endpoint. Dynamic endpoints are sent from the server to the frontend during an instruction command that requires the creation of an input for a member to interact with.
+     * @param {string} endpoint - The endpoint to fetch
+     * @param {object} options - The fetch options, defaults to GET
+     * @param {object} payload - The payload to send (optional)
+     * @returns 
+     */
+    async dynamicInput(endpoint, options, payload){
+        const url = `${ endpoint }`
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
      * End experience on server.
      * @public
      * @async
@@ -586,6 +598,66 @@ class Globals {
      */
     clearElement(element){
         mClearElement(element)
+    }
+    /**
+     * Consumes instruction object and performs the requested actions.
+     * @param {object} instruction - The instruction object: { command, input, inputs, item, itemId, summary, title, }
+     * @param {function} addInputFunction - Injected function to add input object
+     * @param {function} addMessagesFunction - Injected function to add messages; required for: createInput, createInputs
+     * @param {function} endMemoryFunction - Injected function to end memory; required for: endMemory
+     * @returns {void}
+     */
+    enactInstruction(instruction, addInputFunction, addMessagesFunction, endMemoryFunction){
+        const { command, input, inputs=[], item, itemId, livingMemoryId, summary, title, } = instruction
+        switch(command){
+            case 'createInput':
+            case 'createInputs':
+                if(input?.length && !inputs.find(_input=>_input.id===input.id))
+                    inputs.push(input) // normalize to array
+                for(let _input of inputs){
+                    const { disappear, endpoint, id, interfaceLocation='chat', method, prompt, required, type, } = _input
+                    const inputElement = document.createElement('div')
+                    inputElement.classList.add('input-container')
+                    inputElement.id = `input-container_${ id }`
+                    inputElement.name = `dynamic-input`
+                    const inputObject = document.createElement('input')
+                    inputObject.type = type
+                        ?? 'text'
+                    if(type==='button'){
+                        inputObject.classList.add('button', 'input-button')
+                        inputObject.value = prompt
+                        if(endpoint)
+                            inputObject.addEventListener('click', async event=>{
+                                const { instruction: dynamicInputResponseInstruction, responses, success, } = await mDatamanager.dynamicInput(endpoint, { method, })
+                                if(responses?.length && success){
+                                    addMessagesFunction(responses)
+                                    if(!!dynamicInputResponseInstruction)
+                                        this.enactInstruction(dynamicInputResponseInstruction, addInputFunction, addMessagesFunction, endMemoryFunction)
+                                }
+                                this.expunge(inputObject)
+                            }, { once: true })
+                    }
+                    inputElement.appendChild(inputObject)
+                    addInputFunction(inputElement, interfaceLocation)
+                    console.log('enactInstruction::inputElement:', inputElement)
+                }
+                break
+            case 'createItem':
+                break
+            case 'endMemory': // server has already ended, call frontend cleanup
+                endMemoryFunction(itemId)
+                break
+            case 'error':
+                break
+            case 'removeBot': // retireBot in Avatar
+                break
+            case 'removeItem':
+                break
+            case 'updateItem':
+                break
+            default:
+                break
+        }
     }
 	/**
 	 * Escapes HTML characters in a string.

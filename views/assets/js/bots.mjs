@@ -10,7 +10,7 @@ import {
     expunge,
     getActiveItemId,
     hide,
-    parseInstruction,
+    enactInstruction,
     seedInput,
     setActiveAction,
     setActiveItem,
@@ -68,6 +68,9 @@ document.addEventListener('DOMContentLoaded', async event=>{
 function activeBot(){
     return mActiveBot
 }
+async function endMemory(id){
+    await mStopRelivingMemory(id, false)
+}
 /**
  * Get default Action population from active bot.
  * @todo - remove hardcoding
@@ -96,7 +99,7 @@ function getAction(type='avatar'){
                     if(!response?.success)
                         addMessage('An error occurred while talking to the server. Try again.')
                     else {
-                        parseInstruction(response.instruction)
+                        enactInstruction(response.instruction)
                         addMessages(response.responses)
                     }
                 },
@@ -1159,6 +1162,10 @@ async function mReliveMemory(event){
     if(success){
         toggleMemberInput(false, true)
         addMessages(responses, { bubbleClass: 'relive-bubble' })
+        /* add input options */
+        if(!!instruction)
+            enactInstruction(instruction)
+        /* direct relive structure */
         const input = document.createElement('div')
         input.classList.add('memory-input-container')
         input.id = `relive-memory-input-container_${ id }`
@@ -1405,15 +1412,25 @@ async function mStartDiary(event){
     const response = await submit(`How do I get started?`, true)
     addMessages(response.responses)
 }
-async function mStopRelivingMemory(id){
+/**
+ * Stop reliving memory and clean up memory input.
+ * @param {Guid} id - The memory id
+ * @param {Boolean} server - Whether or not to execute server response, defaults to `true`
+ * @returns {void}
+ */
+async function mStopRelivingMemory(id, server=true){
     const input = document.getElementById(`relive-memory-input-container_${ id }`)
     if(input)
         expunge(input)
-    const { instruction, responses, success} = await mGlobals.datamanager.memoryReliveEnd(id)
-    if(success){
-        addMessages(responses, { responseDelay: 3, })
-        mRelivingMemory = null
+    if(server){
+        const { instruction, responses, success} = await mGlobals.datamanager.memoryReliveEnd(id)
+        if(success){
+            addMessages(responses, { responseDelay: 3, })
+            if(!!instruction)
+                enactInstruction(instruction)
+        }
     }
+    mRelivingMemory = null
     unsetActiveItem()
     toggleMemberInput(true)
 }
@@ -2158,6 +2175,7 @@ function mVersion(version){
 /* exports */
 export {
     activeBot,
+    endMemory,
     getAction,
     getBot,
     getBotIcon,
