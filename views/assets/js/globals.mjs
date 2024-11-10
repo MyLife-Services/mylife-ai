@@ -615,11 +615,13 @@ class Globals {
                 if(input?.length && !inputs.find(_input=>_input.id===input.id))
                     inputs.push(input) // normalize to array
                 for(let _input of inputs){
-                    const { disappear, endpoint, id, interfaceLocation='chat', method, prompt, required, type, } = _input
+                    const { disappear=true, endpoint, id, interfaceLocation='chat', method, prompt, required, type, } = _input
                     const inputElement = document.createElement('div')
                     inputElement.classList.add('input-container')
+                    if(disappear)
+                        inputElement.classList.add('input-disappear')
                     inputElement.id = `input-container_${ id }`
-                    inputElement.name = `dynamic-input`
+                    inputElement.name = `dynamic-input` + ( disappear ? '-disappear' : '' )
                     const inputObject = document.createElement('input')
                     inputObject.type = type
                         ?? 'text'
@@ -639,7 +641,6 @@ class Globals {
                     }
                     inputElement.appendChild(inputObject)
                     addInputFunction(inputElement, interfaceLocation)
-                    console.log('enactInstruction::inputElement:', inputElement)
                 }
                 break
             case 'createItem':
@@ -766,6 +767,16 @@ class Globals {
         this.getAttribute('data-locked')==='true'
             ? mLogin()
             : mLogout()
+    }
+    /**
+     * Remove an element from the DOM based upon its class name of `input-disappear`.
+     * @returns {void}
+     */
+    removeDisappearingElements(){
+        const dynamicInputs = document.getElementsByClassName('input-disappear')
+        console.log('mRemoveDynamicInputs', dynamicInputs)
+        Array.from(dynamicInputs)
+            .forEach(inputElement=>this.retract(inputElement))
     }
     /**
      * Remove an element from the DOM.

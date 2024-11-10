@@ -1156,6 +1156,7 @@ async function mReliveMemory(event){
         mRelivingMemory = id
         clearSystemChat()
     }
+    mGlobals.removeDisappearingElements()
     toggleMemberInput(false, false, `Reliving memory with `)
     unsetActiveItem()
     const { instruction, item, responses, success, } = await mGlobals.datamanager.memoryRelive(id, inputContent)
