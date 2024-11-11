@@ -9,6 +9,7 @@ import {
 } from './experience.mjs'
 import {
     activeBot,
+    createItem,
     endMemory,
     getAction,
     getBotIcon,
@@ -207,17 +208,22 @@ function inExperience(){
 /**
  * Consumes instruction object and performs the requested actions.
  * @todo - all interfaceLocations supported
+ * @todo - currently just force-feeding _all_ the functions I need; make more contextual
  * @param {object} instruction - The instruction object
  * @param {string} interfaceLocation - The interface location, default=`chat`
+ * @param {object} additionalFunctions - The additional functions object, coming from other module requests
  * @returns {void}
  */
-function enactInstruction(instruction, interfaceLocation='chat'){
+function enactInstruction(instruction, interfaceLocation='chat', additionalFunctions={}){
     if(!instruction || interfaceLocation!='chat')
         return
-    const addInputFunction = addInput
-    const addMessagesFunction = addMessages
-    const endMemoryFunction = endMemory
-    mGlobals.enactInstruction(instruction, addInputFunction, addMessagesFunction, endMemoryFunction)
+    const functions = {
+        addInput,
+        addMessages,
+        endMemory,
+        ...additionalFunctions, // overloads feasible
+    }
+    mGlobals.enactInstruction(instruction, functions)
 }
 /**
  * Replaces an element (input/textarea) with a specified type.
@@ -354,7 +360,7 @@ async function setActiveBot(){
     return await _setActiveBot(...arguments)
 }
 /**
- * Sets the active item, ex. `memory`, `entry`, `story` in the chat system for member operation(s).
+ * Sets the active item, ex. `memory`, `entry` in the chat system for member operation(s).
  * @public
  * @requires chatActiveItem
  * @param {Guid} itemId - The item id to set as active
@@ -542,7 +548,7 @@ async function mAddMemberMessage(event){
     if(!success)
         mAddMessage('I\'m sorry, I didn\'t understand that, something went wrong on the server. Please try again.')
     if(!!instruction)
-        enactInstruction(instruction)
+        enactInstruction(instruction, 'chat', { createItem, })
     else {
         if(!Bot.interactionCount)
             Bot.interactionCount = 0
@@ -721,7 +727,7 @@ async function mAddMessage(message, options={}){
  */
 async function mInitialize(){
     /* retrieve primary collections */
-    await refreshCollection('story') // memories required
+    await refreshCollection('memory') // memories required
     /* page listeners */
     mInitializePageListeners()
 }

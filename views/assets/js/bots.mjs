@@ -24,7 +24,7 @@ import {
     unsetActiveItem,
 } from './members.mjs'
 import Globals from './globals.mjs'
-const mAvailableCollections = ['entry', 'experience', 'file', 'story'], // ['chat', 'conversation'],
+const mAvailableCollections = ['entry', 'experience', 'file', 'memory'], // ['chat', 'conversation'],
     mAvailableMimeTypes = [],
     mAvailableUploaderTypes = ['collections', 'personal-avatar'],
     botBar = document.getElementById('bot-bar'),
@@ -56,7 +56,8 @@ document.addEventListener('DOMContentLoaded', async event=>{
     const { bots, activeBotId: id } = await mGlobals.datamanager.bots()
     if(!bots?.length)
         throw new Error(`ERROR: No bots returned from server`)
-    updatePageBots(bots) // includes p-a
+    updatePageBots(bots)
+    await mCreateCollections()
     await setActiveBot(id, true)
 })
 /* public functions */
@@ -67,6 +68,22 @@ document.addEventListener('DOMContentLoaded', async event=>{
  */
 function activeBot(){
     return mActiveBot
+}
+/**
+ * Creates a new collection item from server item object data, and activates the new summary.
+ * @param {object} item - The collection item data
+ * @returns {void}
+ */
+function createItem(item){
+    const { id, type, } = item
+    if(getItem(id))
+        return // already exists
+    item = mCreateCollectionItem(item)
+    const collectionList = document.getElementById(`collection-list-${ type }`)
+    if(collectionList){
+        collectionList.insertBefore(item, collectionList.firstChild)
+        setActiveItem(id)
+    }
 }
 async function endMemory(id){
     await mStopRelivingMemory(id, false)
@@ -99,7 +116,7 @@ function getAction(type='avatar'){
                     if(!response?.success)
                         addMessage('An error occurred while talking to the server. Try again.')
                     else {
-                        enactInstruction(response.instruction)
+                        enactInstruction(response.instruction, 'chat', { createItem, })
                         addMessages(response.responses)
                     }
                 },
@@ -137,8 +154,9 @@ function getBotIcon(type){
  * @returns {object} - The collection item object.
  */
 function getItem(id){
-    /* return collection elements by id */
-
+    console.log('getItem::id', id)
+    const _ = document.getElementById(`collection-item_${ id }`)
+    return _
 }
 /**
  * Refresh designated collection from server. **note**: external calls denied option to identify collectionList parameter, ergo must always be of same type.
@@ -224,6 +242,13 @@ function togglePopup(id, bForceState=null){
     toggleVisibility(popup, bForceState)
 }
 /**
+ * Pulls and creates/refreshes member collections from the server.
+ * @returns {void}
+ */
+async function updateCollections(){
+    await mUpdateCollections()
+}
+/**
  * Update collection item title.
  * @todo - Only update local memory and data(sets), not full local refresh
  * @param {object} item - The collection item fields to update, requires `{ itemId, }`
@@ -234,7 +259,7 @@ function updateItem(item){
         throw new Error(`No item provided to update.`)
     /* update collection elements indicated as object keys with this itemId */
     // @stub - force-refresh memories; could be more savvy
-    refreshCollection('story')
+    refreshCollection('memory')
 }
 function updateItemTitle(event){
     return mUpdateCollectionItemTitle(event)
@@ -253,7 +278,7 @@ async function updatePageBots(bots=mBots, includeGreeting=false, dynamic=false){
     if(mBots!==bots)
         mBots = bots
     await mUpdateTeams() // sets `mActiveBot`
-    await mUpdateBotContainers()
+    mUpdateBotContainers()
     if(includeGreeting)
         addMessage(mActiveBot.greeting)
 }
@@ -528,6 +553,36 @@ function mCreateBotThumb(bot=getBot()){
     botIconImage.dataset.bot_id = id
     botThumbContainer.appendChild(botIconImage)
     return botThumbContainer
+}
+async function mCreateCollections(){
+    /* scrapbook (collections) */
+    if(!mCollections || !mCollections.children.length)
+        return
+    for(let collection of mCollections.children){
+        const { id, } = collection
+        const type = id.split('-').pop()
+        if(!mAvailableCollections.includes(type))
+            continue
+        const collectionBar = document.getElementById(`collection-bar-${ type }`)
+        if(collectionBar){
+            const { dataset, } = collectionBar
+            dataset.id = id
+            dataset.type = type
+            const itemList = document.getElementById(`collection-list-${ type }`)
+            dataset.init = itemList.querySelectorAll(`.${ type }-collection-item`).length > 0
+                    ? 'true' // externally refreshed
+                    : dataset.init // tested empty
+                        ?? 'false'
+            /* update collection list */
+            const refresh = document.getElementById(`collection-refresh-${ type }`)
+            if(dataset.init!=='true' && refresh)
+                hide(refresh)
+            collectionBar.addEventListener('click', mToggleCollectionItems)
+        }
+    }
+    mCollectionsContainer.addEventListener('click', mToggleBotContainers)
+    if(mCollectionsUpload)
+        mCollectionsUpload.addEventListener('click', mUploadFiles)
 }
 /**
  * Create a popup for viewing collection item.
@@ -1164,8 +1219,16 @@ async function mReliveMemory(event){
         toggleMemberInput(false, true)
         addMessages(responses, { bubbleClass: 'relive-bubble' })
         /* add input options */
-        if(!!instruction)
-            enactInstruction(instruction)
+        const functions = {
+            'add': mAddMemory,
+        }
+        if(!!instruction){
+            const functions = {
+                addMessages,
+                endMemory,
+            }
+            enactInstruction(instruction, 'chat', functions)
+        }
         /* direct relive structure */
         const input = document.createElement('div')
         input.classList.add('memory-input-container')
@@ -1217,7 +1280,7 @@ async function mRetireBot(event){
         /* reset active bot */
         if(mActiveBot.id===botId)
             setActiveBot()
-        response = await mGlobals.datamanager.botRetire(botId)
+        const response = await mGlobals.datamanager.botRetire(botId)
         addMessages(response.responses)
     } catch(err) {
         console.log('Error posting bot data:', err)
@@ -1714,48 +1777,18 @@ function mUpdateBotBar(){
  * Updates bot-widget containers for whom there is data. If no bot data exists, ignores container.
  * @todo - creation mechanism for new bots or to `reinitialize` or `reset` current bots, like avatar.
  * @todo - architect  better mechanic for populating and managing bot-specific options
- * @async
  * @requires mBots
  * @param {boolean} includePersonalAvatar - Include personal avatar, use false when switching teams.
  * @returns {void}
  */
-async function mUpdateBotContainers(includePersonalAvatar=true){
+function mUpdateBotContainers(includePersonalAvatar=true){
     if(!mBots?.length)
         throw new Error(`mBots not populated.`)
     const botContainers = Array.from(document.querySelectorAll('.bot-container'))
     if(!botContainers.length)
         throw new Error(`No bot containers found on page`)
     botContainers
-        .forEach(async botContainer=>mUpdateBotContainer(botContainer, includePersonalAvatar))
-    /* library container */
-    if(!mCollections || !mCollections.children.length)
-        return
-    for(let collection of mCollections.children){
-        let { id, } = collection
-        id = id.split('-').pop()
-        if(!mAvailableCollections.includes(id)){
-            console.log('Library collection not found.', id)
-            continue
-        }
-        const collectionBar = document.getElementById(`collection-bar-${ id }`)
-        if(collectionBar){
-            const { dataset, } = collectionBar
-            const itemList = document.getElementById(`collection-list-${ id }`)
-            dataset.init = itemList.querySelectorAll(`.${ id }-collection-item`).length > 0
-                    ? 'true' // externally refreshed
-                    : dataset.init // tested empty
-                        ?? 'false'
-            /* update collection list */
-            const refresh = document.getElementById(`collection-refresh-${ id }`)
-            if(dataset.init!=='true' && refresh) // first click
-                hide(refresh)
-            collectionBar.addEventListener('click', mToggleCollectionItems)
-        }
-    }
-    mCollectionsContainer.addEventListener('click', mToggleBotContainers)
-    if(mCollectionsUpload)
-        mCollectionsUpload.addEventListener('click', mUploadFiles)
-
+        .forEach(botContainer=>mUpdateBotContainer(botContainer, includePersonalAvatar))
 }
 /**
  * Updates the bot container with specifics.
@@ -1781,7 +1814,6 @@ function mUpdateBotContainer(botContainer, includePersonalAvatar=true) {
     mUpdateInterests(botContainer)
     /* type-specific logic */
     mUpdateBotContainerAddenda(botContainer, bot)
-    show(botContainer)
 }
 /**
  * Updates the bot container with specifics based on `type`.
@@ -1916,17 +1948,16 @@ function mUpdateCollection(type, collectionList, collection){
     collection
         .map(item=>({
             ...item,
-            being: item.being
-                ?? item.type,
+            being: item.being,
             name: item.title
                 ?? item.filename
                 ?? item.name
                 ?? type,
             type: item.type
-                ?? item.being
-                ?? type,
+                ?? type
+                ?? item.being,
         }))
-        .filter(item=>item.type===type || item.being===type)
+        .filter(item=>item.type===type)
         .sort((a, b)=>a.name.localeCompare(b.name))
         .forEach(item=>collectionList.appendChild(mCreateCollectionItem(item)))
 }
@@ -2176,6 +2207,7 @@ function mVersion(version){
 /* exports */
 export {
     activeBot,
+    createItem,
     endMemory,
     getAction,
     getBot,

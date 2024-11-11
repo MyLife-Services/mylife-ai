@@ -602,16 +602,20 @@ class Globals {
     /**
      * Consumes instruction object and performs the requested actions.
      * @param {object} instruction - The instruction object: { command, input, inputs, item, itemId, summary, title, }
-     * @param {function} addInputFunction - Injected function to add input object
-     * @param {function} addMessagesFunction - Injected function to add messages; required for: createInput, createInputs
-     * @param {function} endMemoryFunction - Injected function to end memory; required for: endMemory
+     * @param {object} functions - Object with access to injected functions, populated by case
      * @returns {void}
      */
-    enactInstruction(instruction, addInputFunction, addMessagesFunction, endMemoryFunction){
+    enactInstruction(instruction, functions){
+        console.log('enactInstruction::instruction', instruction)
         const { command, input, inputs=[], item, itemId, livingMemoryId, summary, title, } = instruction
+        console.log('enactInstruction::command', command)
         switch(command){
             case 'createInput':
             case 'createInputs':
+                const { addInput, addMessages, } = functions
+                if(typeof addInputFunction !== 'function' || typeof addMessages !== 'function')
+                    return
+                this.removeDisappearingElements()
                 if(input?.length && !inputs.find(_input=>_input.id===input.id))
                     inputs.push(input) // normalize to array
                 for(let _input of inputs){
@@ -632,20 +636,28 @@ class Globals {
                             inputObject.addEventListener('click', async event=>{
                                 const { instruction: dynamicInputResponseInstruction, responses, success, } = await mDatamanager.dynamicInput(endpoint, { method, })
                                 if(responses?.length && success){
-                                    addMessagesFunction(responses)
+                                    addMessages(responses)
                                     if(!!dynamicInputResponseInstruction)
-                                        this.enactInstruction(dynamicInputResponseInstruction, addInputFunction, addMessagesFunction, endMemoryFunction)
+                                        this.enactInstruction(dynamicInputResponseInstruction, functions)
                                 }
                                 this.expunge(inputObject)
                             }, { once: true })
                     }
                     inputElement.appendChild(inputObject)
-                    addInputFunction(inputElement, interfaceLocation)
+                    addInput(inputElement, interfaceLocation)
                 }
-                break
+                return
             case 'createItem':
-                break
+                const { createItem, } = functions
+                console.log('enactInstruction', functions, createItem)
+                if(!item || typeof createItem !== 'function')
+                    return
+                createItem(item)
+                return
             case 'endMemory': // server has already ended, call frontend cleanup
+                const { endMemoryFunction, } = functions
+                if(typeof endMemoryFunction !== 'function')
+                    return
                 endMemoryFunction(itemId)
                 break
             case 'error':

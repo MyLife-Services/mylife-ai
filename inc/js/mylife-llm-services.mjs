@@ -145,12 +145,19 @@ class LLMServices {
             await mAssignRequestToThread(this.openai, thread_id, prompt)
         } catch(error) {
             console.log('LLMServices::getLLMResponse()::error', error.message)
-            if(error.status==400)
-                await mRunCancel(this.openai, thread_id, llm_id)
             try{
-                await mAssignRequestToThread(this.openai, thread_id, prompt)
+                if(error.status==400){
+                    const cancelRun = await mRunCancel(this.openai, thread_id, llm_id)
+                    console.log('LLMServices::getLLMResponse()::cancelRun', cancelRun)
+                    if(!!cancelRun)
+                        await mAssignRequestToThread(this.openai, thread_id, prompt)
+                    else {
+                        console.log('LLMServices::getLLMResponse()::cancelRun::unable to cancel run', cancelRun)
+                        return []
+                    }
+                }
             } catch(error) {
-                console.log('LLMServices::getLLMResponse()::error', error.message, error.status)
+                console.log('LLMServices::getLLMResponse()::error re-running', error.message, error.status)
                 return []
             }
         }
@@ -307,7 +314,9 @@ async function mRunCancel(openai, threadId, runId){
     try {
         const run = await openai.beta.threads.runs.cancel(threadId, runId)
         return run
-    } catch(err) { return false }
+    } catch(err) {
+        return false
+    }
 }
 /**
  * Maintains vigil for status of openAI `run = 'completed'`.

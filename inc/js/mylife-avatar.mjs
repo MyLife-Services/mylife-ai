@@ -158,7 +158,6 @@ class Avatar extends EventEmitter {
                 switch(type){
                     case 'entry':
                     case 'memory':
-                    case 'story':
                         return mPruneItem(item)
                     case 'experience':
                     case 'lived-experience':
@@ -180,6 +179,8 @@ class Avatar extends EventEmitter {
                             title,
                             variables,
                         }
+                    case 'story':
+                        throw new Error('Story collection not yet implemented.')
                     default:
                         return item
                 }
@@ -654,7 +655,7 @@ class Avatar extends EventEmitter {
      * @returns {object} - The Response object: { instruction, responses, success, }
      */
     async retireBot(bot_id){
-        const success = await this.#botAgent.deleteBot(bot_id)
+        const success = await this.#botAgent.botDelete(bot_id)
         const response = {
             instruction: {
                 command: success
@@ -2146,6 +2147,7 @@ function mPruneItem(item){
         relationships,
         summary,
         title,
+        type,
     } = item
     item = {
         assistantType,
@@ -2158,6 +2160,7 @@ function mPruneItem(item){
         relationships,
         summary,
         title,
+        type,
     }
     return item
 }
