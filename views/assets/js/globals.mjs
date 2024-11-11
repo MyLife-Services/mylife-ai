@@ -608,12 +608,18 @@ class Globals {
     enactInstruction(instruction, functions){
         console.log('enactInstruction::instruction', instruction)
         const { command, input, inputs=[], item, itemId, livingMemoryId, summary, title, } = instruction
-        console.log('enactInstruction::command', command)
+        const {
+            addInput,
+            addMessages,
+            createItem,
+            endMemory,
+            removeItem,
+            updateItem,
+        } = functions
         switch(command){
             case 'createInput':
             case 'createInputs':
-                const { addInput, addMessages, } = functions
-                if(typeof addInputFunction !== 'function' || typeof addMessages !== 'function')
+                if(typeof addInput!=='function' || typeof addMessages!=='function')
                     return
                 this.removeDisappearingElements()
                 if(input?.length && !inputs.find(_input=>_input.id===input.id))
@@ -648,28 +654,33 @@ class Globals {
                 }
                 return
             case 'createItem':
-                const { createItem, } = functions
-                console.log('enactInstruction', functions, createItem)
-                if(!item || typeof createItem !== 'function')
+                if(!item || typeof createItem!=='function')
                     return
                 createItem(item)
                 return
             case 'endMemory': // server has already ended, call frontend cleanup
-                const { endMemoryFunction, } = functions
-                if(typeof endMemoryFunction !== 'function')
+                if(!itemId?.length || typeof endMemory!=='function')
                     return
-                endMemoryFunction(itemId)
-                break
+                endMemory(itemId)
+                return
             case 'error':
-                break
+                console.log('enactInstruction::error', instruction, functions)
+                return
             case 'removeBot': // retireBot in Avatar
-                break
+            return
             case 'removeItem':
-                break
+                if(typeof removeItem !== 'function')
+                    return
+                removeItem(itemId)
+                return
             case 'updateItem':
-                break
+                console.log('enactInstruction::updateItem', instruction, functions)
+                if(typeof updateItem!=='function')
+                    return
+                updateItem(item)
+                return
             default:
-                break
+                return
         }
     }
 	/**
@@ -695,6 +706,8 @@ class Globals {
      * @returns {void}
      */
     expunge(element){
+        if(!element)
+            return
         this.hide(element) /* trigger any animations */
         element.remove()
     }

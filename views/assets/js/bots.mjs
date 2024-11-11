@@ -77,7 +77,7 @@ function activeBot(){
 function createItem(item){
     const { id, type, } = item
     if(getItem(id))
-        return // already exists
+        removeItem(id) // already exists, expunge
     item = mCreateCollectionItem(item)
     const collectionList = document.getElementById(`collection-list-${ type }`)
     if(collectionList){
@@ -154,9 +154,8 @@ function getBotIcon(type){
  * @returns {object} - The collection item object.
  */
 function getItem(id){
-    console.log('getItem::id', id)
-    const _ = document.getElementById(`collection-item_${ id }`)
-    return _
+    const item = document.getElementById(`collection-item_${ id }`)
+    return item
 }
 /**
  * Refresh designated collection from server. **note**: external calls denied option to identify collectionList parameter, ergo must always be of same type.
@@ -165,6 +164,14 @@ function getItem(id){
  */
 async function refreshCollection(type){
     return await mRefreshCollection(type)
+}
+/**
+ * Removes a collection item from the DOM, does not update server.
+ * @param {Guid} id - The collection item id
+ * @returns {void}
+ */
+function removeItem(id){
+    expunge(getItem(id))
 }
 /**
  * Set active bot on server and update page bots.
@@ -249,17 +256,15 @@ async function updateCollections(){
     await mUpdateCollections()
 }
 /**
- * Update collection item title.
- * @todo - Only update local memory and data(sets), not full local refresh
- * @param {object} item - The collection item fields to update, requires `{ itemId, }`
+ * Update collection item.
+ * @todo - determine whether more nuance is needed, or recreating is sufficient
+ * @param {object} item - The collection item fields to update, requires `{ id, }`
  * @returns {void}
  */
 function updateItem(item){
-    if(!item?.itemId)
-        throw new Error(`No item provided to update.`)
-    /* update collection elements indicated as object keys with this itemId */
-    // @stub - force-refresh memories; could be more savvy
-    refreshCollection('memory')
+    if(!item?.id)
+        return
+    createItem(item)
 }
 function updateItemTitle(event){
     return mUpdateCollectionItemTitle(event)
@@ -1078,12 +1083,13 @@ async function mDeleteCollectionItem(event){
     const collectionItemDelete = event.target
     const id = collectionItemDelete.id.split('_').pop()
     const item = document.getElementById(`collection-item_${ id }`)
-    /* confirmation dialog */
-    const userConfirmed = confirm("Are you sure you want to delete this item?")
+    const userConfirmed = confirm("Are you sure you want to delete this item?") /* confirmation dialog */
     if(getActiveItemId()===id)
         unsetActiveItem()
     if(userConfirmed){
         const { instruction, responses, success, } = await mGlobals.datamanager.itemDelete(id)
+        if(!!instruction)
+            enactInstruction(instruction, 'chat', { removeItem, })
         if(success){
             expunge(item)
             if(responses?.length)

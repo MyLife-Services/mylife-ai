@@ -380,34 +380,28 @@ async function mRunFunctions(openai, run, factory, avatar){
                                 tool_call_id: id,
                                 output: '',
                             },
+                            item,
                             success = false
                         if(typeof toolArguments==='string')
                             toolArguments = await JSON.parse(toolArguments)
                                 ?? {}
                         toolArguments.thread_id = thread_id
                         const { itemId, } = toolArguments
-                        let item
-                        if(itemId)
-                            item = await factory.item(itemId)
                         switch(name.toLowerCase()){
                             case 'changetitle':
                             case 'change_title':
                             case 'change title':
-                                const { itemId: titleItemId, title, } = toolArguments
-                                console.log('mRunFunctions()::changeTitle::begin', itemId, titleItemId, title)
-                                avatar.backupResponse = {
-                                    message: `I was unable to retrieve the item indicated.`,
-                                    type: 'system',
-                                }
-                                if(!itemId?.length || !title?.length || itemId!==titleItemId)
+                                const { title, } = toolArguments
+                                console.log('mRunFunctions()::changeTitle::begin', itemId, title)
+                                if(!itemId?.length || !title?.length)
                                     action = 'apologize for lack of clarity - member should click on the collection item (like a memory, story, etc) to make it active so I can use the `changeTitle` tool'
                                 else {
-                                    let item = { id: titleItemId, title, }
+                                    let item = { id, title, }
                                     await avatar.item(item, 'put')
-                                    action = `Relay that title change to "${ title }" was successful`
+                                    action = `Title change successful: "${ title }"`
                                     avatar.frontendInstruction = {
                                         command: 'updateItemTitle',
-                                        itemId: titleItemId,
+                                        itemId,
                                         title,
                                     }
                                     success = true
@@ -416,7 +410,7 @@ async function mRunFunctions(openai, run, factory, avatar){
                                         type: 'system',
                                     }
                                 }
-                                confirmation.output = JSON.stringify({ action, success, })
+                                confirmation.output = JSON.stringify({ action, itemId, success, })
                                 console.log('mRunFunctions()::changeTitle::end', success, item)
                                 return confirmation
                             case 'confirmregistration':
@@ -468,43 +462,29 @@ async function mRunFunctions(openai, run, factory, avatar){
                             case 'story_summary':
                             case 'story summary':
                                 console.log(`mRunFunctions()::${ name }`, toolArguments?.title)
-                                const { item: itemSummaryItem, success: itemSummarySuccess, } = await avatar.item(toolArguments, 'POST')
-                                success = itemSummarySuccess
+                                const createSummaryResponse = await avatar.item(toolArguments, 'POST')
+                                success = createSummaryResponse.success
                                 action = success
-                                    ? `confirm item creation was successful; save for **internal AI reference** this itemId: ${ itemSummaryItem.id }`
+                                    ? `item creation was successful; save for **internal AI reference** this itemId: ${ createSummaryResponse.item.id }`
                                     : `error creating summary for item given argument title: ${ toolArguments?.title } - DO NOT TRY AGAIN until member asks for it`
                                 confirmation.output = JSON.stringify({
                                     action,
-                                    itemId: itemSummaryItem?.id,
                                     success,
                                 })
-                                console.log(`mRunFunctions()::${ name }::success`, itemSummarySuccess, itemSummaryItem?.id)
+                                console.log(`mRunFunctions()::${ name }::success`, success, createSummaryResponse?.item?.id)
                                 return confirmation    
                             case 'getsummary':
                             case 'get_summary':
                             case 'get summary':
                                 console.log('mRunFunctions()::getSummary::begin', itemId)
-                                if(avatar)
-                                    avatar.backupResponse = {
-                                        message: `I'm sorry, I couldn't find this summary. I believe the issue might have been temporary. Would you like me to try again?`,
-                                        type: 'system',
-                                    }
-                                let { summary: _getSummary, title: _getSummaryTitle, } = item
-                                    ?? {}
-                                if(!_getSummary?.length){
-                                    action = `error getting summary for itemId: ${ itemId ?? 'missing itemId' } - halt any further processing and instead ask user to paste summary into chat and you will continue from there to incorporate their message.`
-                                    _getSummary = 'no summary found for itemId'
-                                } else {
-                                    if(avatar)
-                                        avatar.backupResponse = {
-                                            message: `I was able to retrieve the summary indicated.`,
-                                            type: 'system',
-                                        }
-                                    action = `with the summary in this JSON payload, incorporate the most recent member request into a new summary and run the \`updateSummary\` function and follow its action`
-                                    success = true
-                                }
-                                confirmation.output = JSON.stringify({ action, itemId, success, summary: _getSummary, })
-                                console.log('mRunFunctions()::getSummary::end', success, _getSummary)
+                                const getSummaryResponse = await avatar.item({ id: itemId, })
+                                item = getSummaryResponse?.item
+                                success = item?.summary?.length
+                                action = success
+                                    ? 'Most recent summary content found in payload as `summary`'
+                                    : `no summary found for item ${ itemId }, refer to conversation content`
+                                confirmation.output = JSON.stringify({ action, success, summary: getSummaryResponse.summary, })
+                                console.log('mRunFunctions()::getSummary::end', success, getSummaryResponse?.summary?.substring(0, 32))
                                 return confirmation
                             case 'hijackattempt':
                             case 'hijack_attempt':
@@ -542,33 +522,20 @@ async function mRunFunctions(openai, run, factory, avatar){
                             case 'update_summary':
                             case 'update summary':
                                 console.log('mRunFunctions()::updatesummary::begin', itemId)
-                                if(avatar)
-                                    avatar.backupResponse = {
-                                        message: `I'm very sorry, an error occured before we could update your summary. Please try again as the problem is likely temporary.`,
-                                        type: 'system',
-                                    }
-                                const { summary: updatedSummary, } = toolArguments
-                                await factory.updateItem({ id: itemId, summary: updatedSummary, })
-                                if(avatar)
-                                    avatar.frontendInstruction = {
-                                        command: 'updateItemSummary',
-                                        itemId,
-                                        summary: updatedSummary,
-                                    }
-                                action=`confirm that summary update was successful`
-                                success = true
+                                const update = {
+                                    id: itemId,
+                                    summary: toolArguments.summary,
+                                }
+                                const updateSummaryResponse = await avatar.item(update, 'PUT')
+                                success = updateSummaryResponse?.success
+                                action = success
+                                    ? `Summary update was successful`
+                                    : `Error updating ${ itemId }, halt any other processing and tell member to ensure the right memory is active and try again`
                                 confirmation.output = JSON.stringify({
                                     action,
-                                    itemId,
                                     success,
-                                    summary: updatedSummary,
                                 })
-                                if(avatar)
-                                    avatar.backupResponse = {
-                                        message: 'Your summary has been updated, please review and let me know if you would like to make any changes.',
-                                        type: 'system',
-                                    }
-                                console.log('mRunFunctions()::updatesummary::end', itemId, updatedSummary)
+                                console.log('mRunFunctions()::updatesummary::end', success, action.substring(0, 32))
                                 return confirmation
                             default:
                                 console.log(`ERROR::mRunFunctions()::toolFunction not found: ${ name }`, toolFunction)

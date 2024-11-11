@@ -548,7 +548,7 @@ async function mAddMemberMessage(event){
     if(!success)
         mAddMessage('I\'m sorry, I didn\'t understand that, something went wrong on the server. Please try again.')
     if(!!instruction)
-        enactInstruction(instruction, 'chat', { createItem, })
+        enactInstruction(instruction, 'chat', { createItem, updateItem, })
     else {
         if(!Bot.interactionCount)
             Bot.interactionCount = 0

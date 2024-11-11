@@ -95,7 +95,7 @@ class Avatar extends EventEmitter {
             throw new Error('No message provided in context')
         const originalMessage = message
         this.backupResponse = {
-            message: `I received your request to chat, and sent the request to the central intelligence, but no response was received. Please try again, as the issue is likely aberrant.`,
+            message: `I got your message, but I'm having trouble processing it. Please try again.`,
             type: 'system',
         }
         /* execute request */
@@ -111,6 +111,8 @@ class Avatar extends EventEmitter {
         }
         const Conversation = await this.activeBot.chat(message, originalMessage, mAllowSave, this)
         const responses = mPruneMessages(this.activeBotId, Conversation.getMessages() ?? [], 'chat', Conversation.processStartTime)
+        if(!responses.length)
+            responses.push(this.backupResponse)
         /* respond request */
         const response = {
             instruction: this.frontendInstruction,
@@ -453,7 +455,7 @@ class Avatar extends EventEmitter {
      * @param {String} method - The http method used to indicate response
      * @returns {Promise<Object>} - Returns { instruction, item, responses, success, }
      */
-    async item(item, method){
+    async item(item, method='get'){
         const { globals, mbr_id, } = this
         const response = { item, success: false, }
         const instruction={},
@@ -462,7 +464,7 @@ class Avatar extends EventEmitter {
                 message: `I encountered an error while trying to process your request; please try again.`,
                 type: 'system',
             }
-        let { id: itemId, title, } = item
+        let { id: itemId, summary, title, } = item
         let success = false
         if(itemId && !globals.isValidGuid(itemId))
             throw new Error(`Invalid item id: ${ itemId }`)
@@ -475,6 +477,7 @@ class Avatar extends EventEmitter {
                 instruction.command = success
                     ? 'removeItem'
                     : 'error'
+                instruction.itemId = itemId
                 break
             case 'post': /* create */
                 /* validate request */
@@ -524,15 +527,25 @@ class Avatar extends EventEmitter {
                 break
             case 'put': /* update */
                 const updatedItem = await this.#factory.updateItem(item)
-                success = this.globals.isValidGuid(updatedItem?.id)
                 const updatedTitle = updatedItem?.title
                     ?? title
-                message.message = success
-                    ? `I have successfully updated: "${ updatedTitle }".`
-                    : `I encountered an error while trying to update: "${ updatedTitle }".`
+                success = this.globals.isValidGuid(updatedItem?.id)
+                if(success){
+                    instruction.command = 'updateItem'
+                    instruction.item = mPruneItem(updatedItem)
+                    message.message = `I have successfully updated: "${ updatedTitle }".`
+                    response.item = mPruneItem(updatedItem)
+                } else
+                    message.message = `I encountered an error while trying to update: "${ updatedTitle }".`
                 break
             default:
-                console.log('item()::default', item)
+                console.log('item()::itemId', itemId)
+                const retrievedItem = await this.#factory.item(itemId)
+                success = !!retrievedItem
+                console.log('item()::itemId', success)
+                if(success)
+                    response.item = mPruneItem(retrievedItem)
+                console.log('item()::itemId', retrievedItem, response.item)
                 break
         }
         this.frontendInstruction = instruction // LLM-return safe
@@ -2211,8 +2224,6 @@ function mPruneMessage(activeBotId, message, type='chat', processStartTime=Date.
  * @returns {Object[]} - Concatenated message object
  */
 function mPruneMessages(bot_id, messageArray, type='chat', processStartTime=Date.now()){
-    if(!messageArray.length)
-        throw new Error('No messages to prune')
     messageArray = messageArray
         .map(message=>mPruneMessage(bot_id, message, type, processStartTime))
     return messageArray
