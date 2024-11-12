@@ -12,7 +12,6 @@ const mAllowSave = JSON.parse(
         ?? 'false'
 )
 const mAvailableModes = ['standard', 'admin', 'evolution', 'experience', 'restoration']
-const mMigrateThreadOnVersionChange = false // hack currently to avoid thread migration on bot version change when it's not required, theoretically should be managed by Bot * Version
 /**
  * @class - Avatar
  * @extends EventEmitter
@@ -100,13 +99,12 @@ class Avatar extends EventEmitter {
         }
         /* execute request */
         if(this.globals.isValidGuid(itemId)){
-            // @todo - check if item exists in memory, fewer pings and inclusions overall
             let { summary, } = await this.#factory.item(itemId)
             if(summary?.length)
-                message = `possible **update-summary-request**: itemId=${ itemId }\n`
-                    + `**member-update-request**:\n`
+                message = `**active-item**: itemId=${ itemId }\n`
+                    + `**member-input**:\n`
                     + message
-                    + `\n**current-summary-in-database**:\n`
+                    + `\n**newest-summary**:\n`
                     + summary
         }
         const Conversation = await this.activeBot.chat(message, originalMessage, mAllowSave, this)
@@ -539,13 +537,10 @@ class Avatar extends EventEmitter {
                     message.message = `I encountered an error while trying to update: "${ updatedTitle }".`
                 break
             default:
-                console.log('item()::itemId', itemId)
                 const retrievedItem = await this.#factory.item(itemId)
                 success = !!retrievedItem
-                console.log('item()::itemId', success)
                 if(success)
                     response.item = mPruneItem(retrievedItem)
-                console.log('item()::itemId', retrievedItem, response.item)
                 break
         }
         this.frontendInstruction = instruction // LLM-return safe
@@ -825,7 +820,7 @@ class Avatar extends EventEmitter {
      * @returns {object} - The updated bot object
      */
     async updateBotInstructions(bot_id=this.activeBot.id){
-        const Bot = await this.#botAgent.updateBotInstructions(bot_id, mMigrateThreadOnVersionChange)
+        const Bot = await this.#botAgent.updateBotInstructions(bot_id)
         return Bot.bot
     }
     /**

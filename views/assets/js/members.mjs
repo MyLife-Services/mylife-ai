@@ -288,11 +288,9 @@ function replaceElement(element, newType, retainValue=true, onEvent, listenerFun
  * @returns {void}
  */
 function setActiveAction(instructions){
-    const activeItem = document.getElementById('chat-active-item')
-    if(!activeItem || !instructions)
+    if(!instructions)
         return
-    else
-        delete activeItem.dataset
+    mGlobals.clearDataset(chatActiveItem.dataset)
     const { button, callback, icon, status, text, thumb, } = instructions
     const activeButton = document.getElementById('chat-active-item-button')
     const activeClose = document.getElementById('chat-active-item-close')
@@ -301,7 +299,7 @@ function setActiveAction(instructions){
     const activeThumb = document.getElementById('chat-active-item-thumb')
     const activeTitle = document.getElementById('chat-active-item-title')
     if(activeThumb){
-        delete activeThumb.dataset
+        mGlobals.clearDataset(activeThumb.dataset)
         activeThumb.className = 'fas chat-active-action-thumb'
         if(thumb?.length)
             activeThumb.src = thumb
@@ -309,7 +307,7 @@ function setActiveAction(instructions){
             hide(activeThumb)
     }
     if(activeIcon){
-        delete activeIcon.dataset
+        mGlobals.clearDataset(activeIcon.dataset)
         activeIcon.className = 'fas chat-active-action-icon'
         if(icon?.length)
             activeIcon.classList.add(icon)
@@ -317,7 +315,7 @@ function setActiveAction(instructions){
             hide(activeIcon)
     }
     if(activeStatus){
-        delete activeStatus.dataset
+        mGlobals.clearDataset(activeStatus.dataset)
         activeStatus.className = 'chat-active-action-status'
         activeStatus.removeEventListener('click', mToggleItemPopup)
         if(status?.length)
@@ -326,7 +324,7 @@ function setActiveAction(instructions){
             hide(activeStatus)
     }
     if(activeButton){
-        delete activeButton.dataset
+        mGlobals.clearDataset(activeButton.dataset)
         activeButton.className = 'button chat-active-action-button'
         if(button?.length){
             activeButton.textContent = button
@@ -338,7 +336,7 @@ function setActiveAction(instructions){
             hide(activeButton)
     }
     if(activeTitle){
-        delete activeTitle.dataset
+        mGlobals.clearDataset(activeTitle.dataset)
         activeTitle.className = 'chat-active-action-title'
         if(text?.length)
             activeTitle.textContent = text
@@ -346,9 +344,10 @@ function setActiveAction(instructions){
             hide(activeTitle)
     }
     if(activeClose){
+        mGlobals.clearDataset(activeClose.dataset)
         activeClose.addEventListener('click', unsetActiveAction, { once: true })
     }
-    show(activeItem)
+    show(chatActiveItem)
 }
 /**
  * Proxy to set the active bot (via `bots.mjs`).
@@ -367,10 +366,9 @@ async function setActiveBot(){
  * @returns {void}
  */
 function setActiveItem(itemId){
-    console.log('setActiveItem::itemId', itemId)
+    if(!mGlobals.isGuid(itemId))
+        return
     const popup = document.getElementById(`popup-container_${ itemId }`)
-    if(!itemId)
-        return // throw new Error('setActiveItem::Error()::valid `id` is required')
     if(!popup)
         return // throw new Error('setActiveItem::Error()::valid `popup` is required')
     const { title, type, } = popup.dataset
@@ -410,6 +408,7 @@ function setActiveItem(itemId){
         activeTitle.addEventListener('dblclick', updateItemTitle, { once: true })
     }
     chatActiveItem.dataset.id = itemId
+    chatActiveItem.dataset.itemId = itemId
     show(chatActiveItem)
 }
 /**
@@ -484,15 +483,18 @@ async function startExperience(experienceId){
 function toggleVisibility(){
     mGlobals.toggleVisibility(...arguments)
 }
+/**
+ * Unsets the active action in the chat system.
+ * @public
+ * @requires chatActiveItem
+ * @returns {void}
+ */
 function unsetActiveAction(){
-    const activeItem = document.getElementById('chat-active-item')
-    if(!activeItem)
-        return
+    delete chatActiveItem.dataset
     const activeThumb = document.getElementById('chat-active-item-thumb')
     if(activeThumb)
         hide(activeThumb)
-    delete activeItem.dataset
-    hide(activeItem)
+    hide(chatActiveItem)
 }
 /**
  * Unsets the active item in the chat system.
@@ -501,7 +503,7 @@ function unsetActiveAction(){
  * @returns {void}
  */
 function unsetActiveItem(){
-    delete chatActiveItem.dataset.id
+    mGlobals.clearDataset(chatActiveItem.dataset)
     hide(chatActiveItem)
 }
 /**

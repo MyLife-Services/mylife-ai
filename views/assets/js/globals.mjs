@@ -592,6 +592,19 @@ class Globals {
 		a.length = 0
 	}
     /**
+     * Operates on a dataset to clear all frontend-defined keys.
+     * @param {DOMStringMap} dataset - The dataset to clear
+     * @returns {void}
+     */
+    clearDataset(dataset){
+        if(!(dataset instanceof DOMStringMap))
+            return
+        for(let key in dataset){
+            if(dataset.hasOwnProperty(key))
+                delete dataset[key]
+        }
+    }
+    /**
      * Clears an element of its contents, brute force currently via innerHTML.
      * @param {HTMLElement} element - The element to clear.
      * @returns {void}
@@ -606,7 +619,6 @@ class Globals {
      * @returns {void}
      */
     enactInstruction(instruction, functions){
-        console.log('enactInstruction::instruction', instruction)
         const { command, input, inputs=[], item, itemId, livingMemoryId, summary, title, } = instruction
         const {
             addInput,
@@ -674,7 +686,6 @@ class Globals {
                 removeItem(itemId)
                 return
             case 'updateItem':
-                console.log('enactInstruction::updateItem', instruction, functions)
                 if(typeof updateItem!=='function')
                     return
                 updateItem(item)

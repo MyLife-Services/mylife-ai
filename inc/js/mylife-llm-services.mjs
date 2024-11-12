@@ -101,9 +101,9 @@ class LLMServices {
                 if(typeof response==='string' && response.length)
                     responses.push(response)
                 const { assistant_id: llm_id, content, created_at, id, run_id, thread_id, } = response
-                if(content?.length)
+                if(!!content?.length)
                     content.forEach(content=>{
-                        if(content?.text?.value?.length)
+                        if(!!content?.text?.value?.length)
                             responses.push(content.text.value)
                     })
 
@@ -396,7 +396,7 @@ async function mRunFunctions(openai, run, factory, avatar){
                                 if(!itemId?.length || !title?.length)
                                     action = 'apologize for lack of clarity - member should click on the collection item (like a memory, story, etc) to make it active so I can use the `changeTitle` tool'
                                 else {
-                                    let item = { id, title, }
+                                    let item = { id: itemId, title, }
                                     await avatar.item(item, 'put')
                                     action = `Title change successful: "${ title }"`
                                     avatar.frontendInstruction = {
@@ -406,12 +406,12 @@ async function mRunFunctions(openai, run, factory, avatar){
                                     }
                                     success = true
                                     avatar.backupResponse = {
-                                        message: `I was able to retrieve change the title to: "${ title }"`,
+                                        message: `I was able to change the title to: "${ title }"`,
                                         type: 'system',
                                     }
                                 }
                                 confirmation.output = JSON.stringify({ action, itemId, success, })
-                                console.log('mRunFunctions()::changeTitle::end', success, item)
+                                console.log('mRunFunctions()::changeTitle::end', success, itemId, title.substring(0, 32))
                                 return confirmation
                             case 'confirmregistration':
                             case 'confirm_registration':
@@ -478,8 +478,9 @@ async function mRunFunctions(openai, run, factory, avatar){
                             case 'get summary':
                                 console.log('mRunFunctions()::getSummary::begin', itemId)
                                 const getSummaryResponse = await avatar.item({ id: itemId, })
+                                console.log('mRunFunctions()::getSummary::response', getSummaryResponse)
                                 item = getSummaryResponse?.item
-                                success = item?.summary?.length
+                                success = !!item?.summary?.length
                                 action = success
                                     ? 'Most recent summary content found in payload as `summary`'
                                     : `no summary found for item ${ itemId }, refer to conversation content`
