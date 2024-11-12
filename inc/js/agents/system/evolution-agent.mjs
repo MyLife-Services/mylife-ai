@@ -280,7 +280,6 @@ function mSetContribution(evoAgent, _current, _proposed) {
         /* @todo: verify that categories are changing */
             const _currentContribution = evoAgent.contributions
                 .find(_contribution => _contribution.id === _current.contributionId)
-            console.log('evolution-assistant:mSetContribution():320', _currentContribution.inspect(true))
             if(_currentContribution.stage === 'prepared'){ // ready to process
                 // join array and submit for gpt-summarization
                 mSubmitContribution(evoAgent, _contributions.responses.join('\n'))

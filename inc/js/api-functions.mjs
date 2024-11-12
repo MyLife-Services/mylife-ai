@@ -25,14 +25,12 @@ async function entry(ctx){
     const { assistantType, mbr_id } = ctx.state
     if(!ctx.request.body?.summary?.length)
         throw new Error('No entry summary provided. Use `summary` field.')
-    console.log(chalk.yellowBright('entry()::entry attempted:'), ctx.request.body)
     const summary = {
         ...ctx.request.body,
         assistantType,
         mbr_id,
     }
     const entry = await ctx.MyLife.entry(summary)
-    console.log(chalk.yellowBright('entry()::entry submitted:'), entry, summary)
     ctx.status = 200
     ctx.body = {
         id: entry.id,
@@ -48,7 +46,6 @@ async function experienceBuilder(ctx){
     const { assistantType, mbr_id } = ctx.state
     const { eid, sid } = ctx.params
     const { experience } = ctx.request.body?.experience
-    console.log(chalk.yellowBright('experienceBuilder()'), { assistantType, mbr_id, eid, sid, experience })
     if(!experience)
         ctx.throw(400, 'No experience provided for builder. Use `experience` field.')
 }
@@ -231,14 +228,12 @@ async function memory(ctx){
     const { assistantType, mbr_id } = ctx.state
     if(!ctx.request.body?.summary?.length)
         throw new Error('No memory summary provided. Use `summary` field.')
-    console.log(chalk.yellowBright('memory()::memory attempted:'), ctx.request.body)
     const summary = {
         ...ctx.request.body,
         assistantType,
         mbr_id,
     }
     const memory = await ctx.MyLife.memory(summary)
-    console.log(chalk.yellowBright('memory()::memory submitted:'), memory, summary)
     ctx.status = 200
     ctx.body = {
         id: memory.id,

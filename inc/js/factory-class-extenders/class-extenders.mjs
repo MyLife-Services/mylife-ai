@@ -432,7 +432,6 @@ function extendClass_message(originClass, referencesObject) {
             try{
                 this.#content = assignContent(content ?? obj)
             } catch(e){
-                console.log('Message::constructor::ERROR', e)
                 this.#content = ''
             }
         }
@@ -443,9 +442,7 @@ function extendClass_message(originClass, referencesObject) {
         set content(_content){
             try{
                 this.#content = assignContent(_content)
-            } catch(e){
-                console.log('Message::content::ERROR', e)
-            }
+            } catch(e){}
         }
         get message(){
             return this

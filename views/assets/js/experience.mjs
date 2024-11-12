@@ -157,7 +157,6 @@ async function experiencePlay(memberInput){
             break
     }
     /* play experience */
-    console.log('experiencePlay::animationSequence', animationSequence)
     if(!await mAnimateEvents(animationSequence))
         throw new Error("Animation sequence failed!")
     mExperience.currentScene = mExperience.events?.[mExperience.events.length-1]?.sceneId
@@ -227,7 +226,7 @@ function submitInput(event){
     if(value?.length){
         const memberInput = { [inputVariableName ?? variable ?? 'input']: value }
         experiencePlay(memberInput)
-            .catch(err=> console.log('submitInput::experiencePlay independent fire ERROR', err.stack, err, memberInput))
+            .catch(error=>console.log('submitInput::experiencePlay independent fire ERROR', error.message, memberInput))
     }
 }
 /* private functions */
@@ -326,14 +325,11 @@ async function mAnimateEvents(animationSequence){
         const { action, dismissable, elementId, halt, sceneId, type, } = animationEvent
         /* special case: end-scene/act stage animation */
         if(action==='end'){
-            console.log('mAnimateEvents::end', action, type, sceneId,)
             await waitForUserAction()
             if(type==='experience'){ /* close show */
-                console.log('experienceEnd', animationEvent)
                 experienceEnd()
                 return true
             } else { /* scene */
-                console.log('sceneEnd', animationEvent)
                 mMainstagePrepared = false // @todo - check for backdrop differences here
                 experiencePlay()
                 return true
@@ -341,7 +337,6 @@ async function mAnimateEvents(animationSequence){
         }
         const element = document.getElementById(elementId)
         if(!element){
-            console.log('experiencePlay::ERROR::element not found', elementId)
             continue
         }
         try {
@@ -350,7 +345,6 @@ async function mAnimateEvents(animationSequence){
                 ||  animationEvent.action==='disappear' && !element.classList.contains('show')
             )
                 continue
-            console.log('experiencePlay::animationEvent', animationEvent, element)
             if(
                     ['interface', 'chat'].includes(mBackdrop)
                 &&  type==='character'

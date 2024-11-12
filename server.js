@@ -23,7 +23,6 @@ const _Maht = await MyLife // Mylife is the pre-instantiated exported version of
 if(!process.env.MYLIFE_HOSTING_KEY || process.env.MYLIFE_HOSTING_KEY !== _Maht.avatar.hosting_key)
 	throw new Error('Invalid hosting key. Server will not start.')
 _Maht.version = version
-console.log(chalk.bgBlue('created-core-entity:'), _Maht.version)
 const MemoryStore = new session.MemoryStore()
 const mimeTypesToExtensions = {
 	/* text formats */
@@ -74,7 +73,7 @@ const mimeTypesToExtensions = {
     'video/quicktime': ['.mov'],
 }
 const serverRouter = await _Maht.router
-console.log(chalk.bgBlue('created-core-entity:', chalk.bgRedBright('MAHT')))
+console.log(chalk.bgBlue('created-core-entity:', chalk.bgRedBright('MAHT'), chalk.bgGreenBright(_Maht.version)))
 /** RESERVED: test harness **/
 /** application startup **/
 render(app, {
@@ -124,7 +123,6 @@ app.use(koaBody({
 			/* @stub - create temp user sub-dir? */
 			file.newFilename = safeName
 			file.filepath = path.join(uploadDir, safeName)
-			console.log(chalk.bgBlue('file-upload', chalk.yellowBright(file.filepath)))
         }
     },
 }))
@@ -184,10 +182,10 @@ app.use(koaBody({
 	.use(serverRouter.routes())	//	enable system routes
 	.use(serverRouter.allowedMethods())	//	enable system routes
 	.listen(port, () => {	//	start the server
-		console.log(chalk.bgGreenBright('server available')+chalk.yellow(`\nlistening on port ${port}`))
+		console.log(chalk.greenBright('server available'))
+		console.log(chalk.yellow(`listening on port ${port}`))
 	})
 /** server functions **/
-function checkForLiveAlerts() {
-    console.log("Checking for live alerts...")
-	_Maht.getAlerts()	
+function checkForLiveAlerts(){
+	_Maht.getAlerts()
 }

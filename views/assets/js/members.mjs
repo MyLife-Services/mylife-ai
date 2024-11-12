@@ -272,7 +272,6 @@ function replaceElement(element, newType, retainValue=true, onEvent, listenerFun
         element.parentNode.replaceChild(newElement, element)
         return newElement
     } catch(error){
-        console.log('replaceElement::Error()', error)
         return element
     }
 }
@@ -928,8 +927,6 @@ function mToggleItemPopup(event){
     event.stopPropagation()
     event.preventDefault()
     const { itemId, } = event.target.dataset
-    if(!itemId)
-        console.log('mToggleItemPopup::Error()::`itemId` is required', event.target.dataset, itemId)
     togglePopup(itemId, true)
 }
 function mToggleSubmitButtonState() {

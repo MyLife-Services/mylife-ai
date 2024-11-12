@@ -1444,7 +1444,6 @@ class Q extends Avatar {
         if(!this.globals.isValidGuid(key) || key!==this.hosting_key)
             throw new Error('Invalid key for hosted members.')
         if(!this.#hostedMembers.length){ // on-demand creation
-            console.log('hostedMembers', this.#hostedMembers)
             const hostedMembers = await this.#factory.hostedMembers()
             if(!hostedMembers.length)
                 throw new Error('No hosted members found.')
@@ -2020,7 +2019,6 @@ async function mExperienceStart(avatar, factory, experienceId, avatarExperienceV
     if(id!==experienceId)
         throw new Error('Experience failure, unexpected id mismatch.')
     experience.cast = await mCast(factory, experience.cast) // hydrates cast data
-    console.log('mExperienceStart::experience', experience.cast[0].inspect(true))
     experience.events = []
     experience.location = {
         experienceId: experience.id,
@@ -2312,7 +2310,6 @@ function mValidateMode(_requestedMode, _currentMode){
         throw new Error('Invalid interface mode request. Mode not altered.')
     switch(_requestedMode){
         case 'admin':
-            console.log('Admin interface not currently implemented. Mode not altered.')
             return _currentMode
         case 'experience':
         case 'standard':

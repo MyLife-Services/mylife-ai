@@ -118,7 +118,6 @@ class Dataservices {
 			throw new Error('`core` must be a pre-formed object with id and mbr_id')
 		const extantCore = await this.getItem(id, undefined, mbr_id)
 		if(extantCore){
-			console.log(`core already exists for ${mbr_id} with id ${id}`) // `core` already exists
 			return { core: extantCore, success: false, } // no alterations, failure
 		}
 		core = { // enforce core data structure
@@ -519,10 +518,8 @@ class Dataservices {
 					populateQuotaInfo: false, // set this to true to include quota information in the response headers
 				},
 			)
-		}
-		catch(_error){
-			console.log('mylife-data-service::getItems() error')
-			console.log(_error, being, query, paramsArray, container_id,)
+		} catch(_error){
+			console.log('mylife-data-service::getItems() error', _error, being, query, paramsArray, container_id,)
 		}
 	}
 	/**

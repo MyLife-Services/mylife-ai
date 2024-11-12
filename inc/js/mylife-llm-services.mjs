@@ -148,7 +148,6 @@ class LLMServices {
             try{
                 if(error.status==400){
                     const cancelRun = await mRunCancel(this.openai, thread_id, llm_id)
-                    console.log('LLMServices::getLLMResponse()::cancelRun', cancelRun)
                     if(!!cancelRun)
                         await mAssignRequestToThread(this.openai, thread_id, prompt)
                     else {
@@ -333,8 +332,10 @@ async function mRunFinish(llmServices, run, factory, avatar){
         const checkInterval = setInterval(async ()=>{
             try {
                 const functionRun = await mRunStatus(llmServices, run, factory, avatar)
-                if(functionRun?.status ?? functionRun ?? false){
-                    console.log('mRunFinish::functionRun()', functionRun.status)
+                const functionRunStatus = functionRun?.status
+                    ?? functionRun
+                    ?? false
+                if(functionRunStatus){
                     clearInterval(checkInterval)
                     resolve(functionRun)
                 }
@@ -385,7 +386,7 @@ async function mRunFunctions(openai, run, factory, avatar){
                         if(typeof toolArguments==='string')
                             toolArguments = await JSON.parse(toolArguments)
                                 ?? {}
-                        toolArguments.thread_id = thread_id
+                        toolArguments.thread_id = thread_id // deprecate?
                         const { itemId, } = toolArguments
                         switch(name.toLowerCase()){
                             case 'changetitle':
@@ -393,26 +394,27 @@ async function mRunFunctions(openai, run, factory, avatar){
                             case 'change title':
                                 const { title, } = toolArguments
                                 console.log('mRunFunctions()::changeTitle::begin', itemId, title)
-                                if(!itemId?.length || !title?.length)
+                                if(!itemId?.length || !title?.length){
                                     action = 'apologize for lack of clarity - member should click on the collection item (like a memory, story, etc) to make it active so I can use the `changeTitle` tool'
-                                else {
-                                    let item = { id: itemId, title, }
-                                    await avatar.item(item, 'put')
-                                    action = `Title change successful: "${ title }"`
-                                    avatar.frontendInstruction = {
-                                        command: 'updateItemTitle',
-                                        itemId,
-                                        title,
-                                    }
-                                    success = true
-                                    avatar.backupResponse = {
-                                        message: `I was able to change the title to: "${ title }"`,
-                                        type: 'system',
-                                    }
+                                    confirmation.output = JSON.stringify({ action, success, })
+                                    return confirmation
                                 }
-                                confirmation.output = JSON.stringify({ action, itemId, success, })
+                                item = { id: itemId, title, }
+                                await avatar.item(item, 'put')
+                                avatar.frontendInstruction = {
+                                    command: 'updateItemTitle',
+                                    itemId,
+                                    title,
+                                }
+                                success = true
+                                avatar.backupResponse = {
+                                    message: `I was able to change our title to: ${ title }`,
+                                    type: 'system',
+                                }
+                                
                                 console.log('mRunFunctions()::changeTitle::end', success, itemId, title.substring(0, 32))
-                                return confirmation
+                                await mRunCancel(openai, thread_id, runId)
+                                throw new Error('changeTitle successful, and aborted')
                             case 'confirmregistration':
                             case 'confirm_registration':
                             case 'confirm registration':
@@ -529,15 +531,28 @@ async function mRunFunctions(openai, run, factory, avatar){
                                 }
                                 const updateSummaryResponse = await avatar.item(update, 'PUT')
                                 success = updateSummaryResponse?.success
-                                action = success
-                                    ? `Summary update was successful`
-                                    : `Error updating ${ itemId }, halt any other processing and tell member to ensure the right memory is active and try again`
-                                confirmation.output = JSON.stringify({
-                                    action,
-                                    success,
-                                })
-                                console.log('mRunFunctions()::updatesummary::end', success, action.substring(0, 32))
-                                return confirmation
+                                if(!success || !updateSummaryResponse?.item){
+                                    action = `Error updating ${ itemId }, halt processing to tell member to ensure the correct memory is active and then try again`
+                                    confirmation.output = JSON.stringify({
+                                        action,
+                                        success,
+                                    })
+                                    console.log('mRunFunctions()::updatesummary::fail', success, action.substring(0, 32))
+                                    return confirmation
+                                }
+                                item = updateSummaryResponse.item
+                                avatar.frontendInstruction = {
+                                    command: 'updateItem',
+                                    item,
+                                    itemId,
+                                }
+                                avatar.backupResponse = {
+                                    message: `I made the requested update to: ${ item.title }`,
+                                    type: 'system',
+                                }
+                                await mRunCancel(openai, thread_id, runId)
+                                console.log('mRunFunctions()::updatesummary::end', success, runId, item.title.substring(0, 32))
+                                throw new Error('updateSummary successful, and aborted')
                             default:
                                 console.log(`ERROR::mRunFunctions()::toolFunction not found: ${ name }`, toolFunction)
                                 action = `toolFunction not found: ${ name }, apologize for the error and continue on with the conversation; system notified to fix`
@@ -553,10 +568,10 @@ async function mRunFunctions(openai, run, factory, avatar){
             )
             return finalOutput /* undefined indicates to ping again */
         }
-    }
-    catch(error){
-        console.log('mRunFunctions()::error::canceling-run', error.message, error.stack)
-        rethrow(error)
+    } catch(error){
+        console.log('mRunFunctions()::error', error.message.substring(0, 64))
+        if(error.status!==400)
+            throw error
     }
 }
 /**
@@ -589,8 +604,12 @@ async function mRunStatus(openai, run, factory, avatar){
         )
     switch(run.status){
         case 'requires_action':
-            const completedRun = await mRunFunctions(openai, run, factory, avatar)
-            return completedRun /* if undefined, will ping again */
+            try {
+                const completedRun = await mRunFunctions(openai, run, factory, avatar)
+                return completedRun /* if undefined, will ping again */
+            } catch(error){
+                return run
+            }
         case 'completed':
             return run // run
         case 'failed':

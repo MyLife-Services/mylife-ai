@@ -158,7 +158,7 @@ class Member extends EventEmitter {
 	async testEmitters(){
 		//	test emitters with callbacks
 		this.emit('testEmitter',_response=>{
-			console.log('callback emitters enabled:',_response)
+
 		})
 	}
 }
@@ -335,7 +335,6 @@ class MyLife extends Organization {	// form=server
 		let isValidated = false
         if(isHosted)
             isValidated = await this.testPartitionKey(memberId)
-		console.log('isMemberHosted:', isHosted, isValidated, memberId)
 		return isValidated
 	}
 	/**

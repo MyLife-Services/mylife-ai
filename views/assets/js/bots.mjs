@@ -255,7 +255,6 @@ function updateItem(item){
  * @param {String} title - The title to set for the item
  */
 async function updateItemTitle(itemId, title){
-    console.log('updateItemTitle', itemId, title)
     const titleSpan = document.getElementById(`collection-item-title_${ itemId }`)
     const titleInput = document.getElementById(`collection-item-title-input__${ itemId }`)
     const popupTitle = document.getElementById(`popup-header-title_${ itemId }`)
@@ -499,7 +498,6 @@ async function mSummarize(event){
     event.preventDefault()
     event.stopPropagation()
     const { dataset, } = this
-    console.log('mSummarize::dataset', dataset, this)
     if(!dataset)
         throw new Error(`No dataset found for summary request.`)
     const { fileId, fileName, type, } = dataset
@@ -727,7 +725,6 @@ function mCreateCollectionPopup(collectionItem){
         emoticonButton.textContent = emoticon
         emoticonButton.addEventListener('click', (event)=>{
             event.stopPropagation()
-            console.log('Emoticon:write', emoticon, popupContent.readOnly, popupContent)
             const { lastCursorPosition, } = popupContent.dataset
             const insert = ` ${ emoticon }`
             if(lastCursorPosition){
@@ -876,10 +873,6 @@ function mCreateMemoryShadows(itemId){
     shadowBox.dataset.itemId = itemId
     shadowBox.id = `memory-shadow_${ itemId }`
     shadowBox.name = 'memory-shadow'
-    // @stub - add mousewheel event listener to scroll through shadows
-    // shadowBox.addEventListener('wheel', _=>console.log('wheel', _.deltaMode)) // no scroll
-    /* shadow vertical carousel */
-    // @stub - include vertical carousel with more visible prompts, as if on a cylinder
     /* single shadow text */
     const { categories, id, text, type, } = shadow
     const shadowText = document.createElement('div')
@@ -1012,7 +1005,6 @@ function mCreateTeamPopup(type, clickX=0, clickY=0, showPopup=true){
             popup = memberSelect
             break
         case 'selectTeam':
-            console.log('Create team select popup:', mTeams, mActiveTeam)
             const teamSelect = document.createElement('select')
             teamSelect.id = `team-select`
             teamSelect.name = `team-select`
@@ -1742,7 +1734,6 @@ function mToggleSwitchPrivacy(event){
     let { id, } = this
     id = id.replace('-toggle', '') // remove toggle
     const type = mGlobals.HTMLIdToType(id)
-    console.log('mToggleSwitchPrivacy', type)
     const publicityCheckbox = document.getElementById(`${ type }-publicity-input`)
     const viewIcon = document.getElementById(`${ type }-publicity-toggle-view-icon`)
     const { checked=false, } = publicityCheckbox
@@ -2009,7 +2000,6 @@ function mUpdateCollectionItemTitle(event){
     let idType = id.split('_')
     const itemId = idType.pop()
     idType = idType.join('_')
-    console.log('mUpdateCollectionItemTitle', itemId, idType)
     /* create input */
     const input = document.createElement('input')
     const inputName = `${ idType }-input`
@@ -2018,7 +2008,6 @@ function mUpdateCollectionItemTitle(event){
     input.type = 'text'
     input.value = textContent
     input.className = inputName
-    console.log('mUpdateCollectionItemTitle', input.id, inputName)
     /* replace span with input */
     span.replaceWith(input)
     /* add listeners */
@@ -2164,8 +2153,7 @@ async function mUploadFiles(event){
     if(!mAvailableUploaderTypes.includes(type))
         throw new Error(`Uploader "${ type }" not found, upload function unavailable for this bot.`)
     let fileInput
-    try{
-        console.log('mUploadFiles()::uploader', document.activeElement)
+    try {
         mCollectionsUpload.disabled = true
         fileInput = document.createElement('input')
         fileInput.id = `file-input-${ type }`
@@ -2178,9 +2166,8 @@ async function mUploadFiles(event){
         window.addEventListener('focus', async event=>{
             await mUploadFilesInput(fileInput, uploadParent, mCollectionsUpload)
         }, { once: true })
-    } catch(error) {
+    } catch(error){
         mUploadFilesInputRemove(fileInput, uploadParent, mCollectionsUpload)
-        console.log('mUploadFiles()::ERROR uploading files:', error)
     }
 }
 async function mUploadFilesInput(fileInput, uploadParent, uploadButton){
@@ -2196,7 +2183,6 @@ async function mUploadFilesInput(fileInput, uploadParent, uploadButton){
             const type = 'file'
             const itemList = document.getElementById(`collection-list-${ type }`)
             mUpdateCollection(type, itemList, files)
-            console.log('mUploadFilesInput()::files', files, uploads, type)
         }
     }, { once: true })
     mUploadFilesInputRemove(fileInput, uploadParent, uploadButton)

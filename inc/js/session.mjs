@@ -15,10 +15,6 @@ class MylifeMemberSession extends EventEmitter {
 		super()
 		this.#factory = factory
 		this.#mbr_id = this.isMyLife ? this.factory.mbr_id : false
-		console.log(
-			chalk.bgGray('MylifeMemberSession:constructor(factory):generic-mbr_id::end'),
-			chalk.bgYellowBright(this.factory.mbr_id),
-		)
 	}
 	/**
 	 * Initializes the member session. If `isMyLife`, then session requires chat thread unique to visitor; session has singleton System Avatar who maintains all running Conversations.
@@ -73,7 +69,6 @@ class MylifeMemberSession extends EventEmitter {
 				events = eventSequence
 			} 
 		} catch (error){
-			console.log(chalk.redBright('experience() error'), error, avatar.experience)
 			const { experience } = avatar
 			if(experience){ // embed error in experience
 				experience.errors = experience.errors ?? []
@@ -89,10 +84,8 @@ class MylifeMemberSession extends EventEmitter {
 			title,
 		}
 		this.#experienceLocked = false
-		if(events.find(event=>{ return event.action==='end' && event.type==='experience' })){
-			if(!this.experienceEnd(experienceId))
-				console.log(chalk.redBright('experienceEnd() failed'))
-		}
+		if(events.find(event=>{ return event.action==='end' && event.type==='experience' }))
+			this.experienceEnd(experienceId)
 		return frontendExperience
 	}
 	/**
@@ -152,7 +145,6 @@ class MylifeMemberSession extends EventEmitter {
 		const _object_id = ctx.request.header?.referer?.split('/').pop()
 		//	not guid, not consent request, no blocking
 		if(!this.globals.isValidGuid(_object_id)) return true
-		console.log('session.requestConsent()', 'mbr_id', this.mbr_id)
 		//	ultimately, applying a disposable agent of intelligence to consent request might be the answer
 		let _consent = this.consents
 			.filter(_=>{ return _.id==_object_id })
@@ -178,7 +170,6 @@ class MylifeMemberSession extends EventEmitter {
 		_consent = (_consent_id)
 			?	{}	//	retrieve from Cosmos
 			:	new (this.schemas.consent)(_request, this)	//	generate new consent
-		console.log('_consent', _consent)
 		//	manipulate session through ctx (although won't exist in initial test case)
 		await (this.ctx.session.MemberSession.consents = _consent)	//	will add consent to session list
 		return _consent
@@ -191,7 +182,6 @@ class MylifeMemberSession extends EventEmitter {
 	 * @param {boolean} outcome - The challenge outcome; `true` was successful
 	 */
 	set challengeOutcome(outcome){
-		console.log('challengeOutcome', outcome)
 		if(outcome)
 			this.#sessionLocked = false
 	}

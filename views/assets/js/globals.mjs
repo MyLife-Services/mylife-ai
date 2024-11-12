@@ -677,7 +677,6 @@ class Globals {
                 endMemory(itemId)
                 return
             case 'error':
-                console.log('enactInstruction::error', instruction, functions)
                 return
             case 'removeBot': // retireBot in Avatar
             return
@@ -815,7 +814,6 @@ class Globals {
      */
     removeDisappearingElements(){
         const dynamicInputs = document.getElementsByClassName('input-disappear')
-        console.log('mRemoveDynamicInputs', dynamicInputs)
         Array.from(dynamicInputs)
             .forEach(inputElement=>this.retract(inputElement))
     }
@@ -1239,7 +1237,6 @@ async function mSubmitHelp(event){
     try{
         response = await mSubmitHelpToServer(value, type)
     } catch(error){
-        console.log('mSubmitHelp()::error', error)
         mHelpErrorText.innerHTML = `There was an error submitting your help request.<br />${error.message}`
         mHelpErrorClose.addEventListener('click', ()=>mHide(mHelpError), { once: true })
         response = {
