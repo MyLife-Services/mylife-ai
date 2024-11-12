@@ -63,7 +63,6 @@ class AssetAgent {
 					uploadFiles.push(this.#extractFile(file))
 			})
 		if(uploadFiles.length){ // only upload new files
-			console.log('upload::uploadFiles', uploadFiles)
 			const fileStreams = uploadFiles.map(file=>fs.createReadStream(file.filepath))
 			const dataRecord = await this.#llm.upload(this.#vectorstoreId, fileStreams, this.mbr_id)
 			const { response, success } = dataRecord

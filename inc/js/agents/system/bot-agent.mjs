@@ -36,7 +36,6 @@ class Bot {
 	#llm
 	#type
 	constructor(botData, llm, factory){
-		console.log(`bot pre-created`, this.feedback)
 		this.#factory = factory
 		this.#llm = llm
 		const { feedback=[], greeting=mDefaultGreeting, greetings=mDefaultGreetings, type=mDefaultBotType, ..._botData } = botData
@@ -141,7 +140,6 @@ class Bot {
 			const { bot_id: _llm_id, id, type, } = this
 			let { llm_id=_llm_id, thread_id, } = this // @stub - deprecate bot_id
 			this.#conversation = await mConversationStart('chat', type, id, thread_id, llm_id, this.#llm, this.#factory, message)
-			console.log(`getConversation::thread_id`, thread_id, this.#conversation.thread_id)
 			if(!thread_id?.length){
 				thread_id = this.#conversation.thread_id
 				this.update({
@@ -1042,7 +1040,6 @@ async function mConversationDelete(Conversation, factory, llm){
     })
     await factory.deleteItem(Conversation.id) /* delete conversation from Cosmos */
     await llm.deleteThread(thread_id) /* delete thread from LLM */
-    console.log('mDeleteConversation', Conversation.id, thread_id)
     return true
 }
 /**

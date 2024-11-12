@@ -2,8 +2,8 @@
     <a href="/"><img src="../png/logotype-knockout.png" class="d-inline-block align-middle" width="120" alt="MyLife logo"></a>
 </div>
 <div id="navigation-nav" class="navigation-nav">
-    <% menu.forEach(_menuItem => { %>
-        <a class="navigation-link" href="<%= _menuItem.route %>"><%= _menuItem.display %></a>
+    <% menu.forEach(_menuItem=>{ %>
+        <a class="navigation-link" <%= !locked && _menuItem?.memberClick?.length ? `onClick=${ _menuItem.memberClick }` : '' %> href="<%= locked ? _menuItem.route : _menuItem?.memberRoute ??_menuItem.route %>"><%= _menuItem.display %></a>
     <% }) %>
 </div>
 <div id="navigation-version" class="navigation-version"><%= version ? `v.${ version }` : '' %></div>

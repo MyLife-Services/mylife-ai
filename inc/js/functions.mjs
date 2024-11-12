@@ -1,11 +1,30 @@
 /* imports */
+import fs from 'fs/promises'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import {
 	upload as apiUpload,
 } from './api-functions.mjs'
+/* variables */
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 /* module export functions */
+/**
+ * Renders the about page for the application. Visitors see the rendered page, members see the page as responses from their Avatar.
+ * @param {Koa} ctx - Koa Context object
+ * @returns {object|void} - Renders page in place (visitor) or Koa Context object (member)
+ */
 async function about(ctx){
-	ctx.state.title = `About MyLife`
-	await ctx.render('about')
+	if(ctx.state.locked){
+		ctx.state.title = `About MyLife`
+		await ctx.render('about')
+	} else {
+		const { avatar: Avatar, } = ctx.state
+		const aboutFilePath = path.resolve(__dirname, '../..', 'views/about.html')
+		const html = await fs.readFile(aboutFilePath, 'utf-8')
+		const response = await Avatar.renderContent(html)
+		ctx.body = response
+	}
 }
 /**
  * Activate a specific Bot.

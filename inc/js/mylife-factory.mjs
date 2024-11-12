@@ -149,8 +149,6 @@ class BotFactory extends EventEmitter{
 			throw new Error('MyLife server cannot be accessed as a BotFactory alone')
 		else if(mIsMyLife(this.mbr_id))
 			this.#dataservices = mDataservices
-		else if(directHydration)
-			console.log(chalk.blueBright('BotFactory class instance for hydration request'), chalk.bgRed(this.mbr_id))
 	}
 	/* public functions */
 	/**
@@ -996,8 +994,6 @@ function mExtractClassesFromSchema(_schema){
 function mExtendClass(_class) {
 	const _className = _class.name.toLowerCase()
 	if (typeof mExtensionFunctions?.[`extendClass_${_className}`]==='function'){
-		console.log(`Extension function found for ${_className}`)
-		//	add extension decorations
 		const _references = { openai: mLLMServices }
 		_class = mExtensionFunctions[`extendClass_${_className}`](_class, _references)
 	}

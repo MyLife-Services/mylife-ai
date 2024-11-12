@@ -44,7 +44,6 @@ class Datamanager {
 				this.#partitionId
 			)
 			.read()
-		console.log(chalk.yellowBright('database, container, core initialized:',chalk.bgYellowBright(`${this.#containers['members'].id} :: ${this.database.id} :: ${this.#core.resource.id}`) ))
 		return this
 	}
 	/* public functions */

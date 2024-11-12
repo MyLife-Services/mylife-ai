@@ -75,6 +75,11 @@ class Datamanager {
         return response
     }
     /* public functions */
+    async about(){
+        const url = `about`
+        const response = await this.#fetch(url)
+        return response
+    }
     async alerts(){
         const url = `alerts`
         const responses = await this.#fetch(url)
@@ -184,6 +189,18 @@ class Datamanager {
     async collections(type=''){
         const url = `/members/collections/${ type }`
         const response = await this.#fetch(url)
+        return response
+    }
+    /**
+     * Calls a dynamic endpoint. Dynamic endpoints are sent from the server to the frontend during an instruction command that requires the creation of an input for a member to interact with.
+     * @param {string} endpoint - The endpoint to fetch
+     * @param {object} options - The fetch options, defaults to GET
+     * @param {object} payload - The payload to send (optional)
+     * @returns 
+     */
+    async dynamicInput(endpoint, options, payload){
+        const url = `${ endpoint }`
+        const response = await this.#fetch(url, options)
         return response
     }
     /**
@@ -575,12 +592,111 @@ class Globals {
 		a.length = 0
 	}
     /**
+     * Operates on a dataset to clear all frontend-defined keys.
+     * @param {DOMStringMap} dataset - The dataset to clear
+     * @returns {void}
+     */
+    clearDataset(dataset){
+        if(!(dataset instanceof DOMStringMap))
+            return
+        for(let key in dataset){
+            if(dataset.hasOwnProperty(key))
+                delete dataset[key]
+        }
+    }
+    /**
      * Clears an element of its contents, brute force currently via innerHTML.
      * @param {HTMLElement} element - The element to clear.
      * @returns {void}
      */
     clearElement(element){
         mClearElement(element)
+    }
+    /**
+     * Consumes instruction object and performs the requested actions.
+     * @param {object} instruction - The instruction object: { command, input, inputs, item, itemId, summary, title, }
+     * @param {object} functions - Object with access to injected functions, populated by case
+     * @returns {void}
+     */
+    enactInstruction(instruction, functions){
+        const { command, input, inputs=[], item, itemId, livingMemoryId, summary, title, } = instruction
+        const {
+            addInput,
+            addMessages,
+            createItem,
+            endMemory,
+            removeItem,
+            updateItem,
+            updateItemTitle,
+        } = functions
+        switch(command){
+            case 'createInput':
+            case 'createInputs':
+                if(typeof addInput!=='function' || typeof addMessages!=='function')
+                    return
+                this.removeDisappearingElements()
+                if(input?.length && !inputs.find(_input=>_input.id===input.id))
+                    inputs.push(input) // normalize to array
+                for(let _input of inputs){
+                    const { disappear=true, endpoint, id, interfaceLocation='chat', method, prompt, required, type, } = _input
+                    const inputElement = document.createElement('div')
+                    inputElement.classList.add('input-container')
+                    if(disappear)
+                        inputElement.classList.add('input-disappear')
+                    inputElement.id = `input-container_${ id }`
+                    inputElement.name = `dynamic-input` + ( disappear ? '-disappear' : '' )
+                    const inputObject = document.createElement('input')
+                    inputObject.type = type
+                        ?? 'text'
+                    if(type==='button'){
+                        inputObject.classList.add('button', 'input-button')
+                        inputObject.value = prompt
+                        if(endpoint)
+                            inputObject.addEventListener('click', async event=>{
+                                const { instruction: dynamicInputResponseInstruction, responses, success, } = await mDatamanager.dynamicInput(endpoint, { method, })
+                                if(responses?.length && success){
+                                    addMessages(responses)
+                                    if(!!dynamicInputResponseInstruction)
+                                        this.enactInstruction(dynamicInputResponseInstruction, functions)
+                                }
+                                this.expunge(inputObject)
+                            }, { once: true })
+                    }
+                    inputElement.appendChild(inputObject)
+                    addInput(inputElement, interfaceLocation)
+                }
+                return
+            case 'createItem':
+                if(!item || typeof createItem!=='function')
+                    return
+                createItem(item)
+                return
+            case 'endMemory': // server has already ended, call frontend cleanup
+                if(!itemId?.length || typeof endMemory!=='function')
+                    return
+                endMemory(itemId)
+                return
+            case 'error':
+                return
+            case 'removeBot': // retireBot in Avatar
+            return
+            case 'removeItem':
+                if(typeof removeItem !== 'function')
+                    return
+                removeItem(itemId)
+                return
+            case 'updateItem':
+                if(typeof updateItem!=='function')
+                    return
+                updateItem(item)
+                return
+            case 'updateItemTitle':
+                if(typeof updateItemTitle!=='function')
+                    return
+                updateItemTitle(itemId, title)
+            default:
+                return
+        }
     }
 	/**
 	 * Escapes HTML characters in a string.
@@ -605,6 +721,8 @@ class Globals {
      * @returns {void}
      */
     expunge(element){
+        if(!element)
+            return
         this.hide(element) /* trigger any animations */
         element.remove()
     }
@@ -689,6 +807,15 @@ class Globals {
         this.getAttribute('data-locked')==='true'
             ? mLogin()
             : mLogout()
+    }
+    /**
+     * Remove an element from the DOM based upon its class name of `input-disappear`.
+     * @returns {void}
+     */
+    removeDisappearingElements(){
+        const dynamicInputs = document.getElementsByClassName('input-disappear')
+        Array.from(dynamicInputs)
+            .forEach(inputElement=>this.retract(inputElement))
     }
     /**
      * Remove an element from the DOM.
@@ -1110,7 +1237,6 @@ async function mSubmitHelp(event){
     try{
         response = await mSubmitHelpToServer(value, type)
     } catch(error){
-        console.log('mSubmitHelp()::error', error)
         mHelpErrorText.innerHTML = `There was an error submitting your help request.<br />${error.message}`
         mHelpErrorClose.addEventListener('click', ()=>mHide(mHelpError), { once: true })
         response = {

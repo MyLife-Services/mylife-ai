@@ -13,7 +13,7 @@ import chalk from 'chalk'
 /* local service imports */
 import MyLife from './inc/js/mylife-factory.mjs'
 /** variables **/
-const version = '0.0.26'
+const version = '0.0.27'
 const app = new Koa()
 const port = process.env.PORT
 	?? '3000'
@@ -23,7 +23,6 @@ const _Maht = await MyLife // Mylife is the pre-instantiated exported version of
 if(!process.env.MYLIFE_HOSTING_KEY || process.env.MYLIFE_HOSTING_KEY !== _Maht.avatar.hosting_key)
 	throw new Error('Invalid hosting key. Server will not start.')
 _Maht.version = version
-console.log(chalk.bgBlue('created-core-entity:'), _Maht.version)
 const MemoryStore = new session.MemoryStore()
 const mimeTypesToExtensions = {
 	/* text formats */
@@ -74,7 +73,7 @@ const mimeTypesToExtensions = {
     'video/quicktime': ['.mov'],
 }
 const serverRouter = await _Maht.router
-console.log(chalk.bgBlue('created-core-entity:', chalk.bgRedBright('MAHT')))
+console.log(chalk.bgBlue('created-core-entity:', chalk.bgRedBright('MAHT'), chalk.bgGreenBright(_Maht.version)))
 /** RESERVED: test harness **/
 /** application startup **/
 render(app, {
@@ -124,7 +123,6 @@ app.use(koaBody({
 			/* @stub - create temp user sub-dir? */
 			file.newFilename = safeName
 			file.filepath = path.join(uploadDir, safeName)
-			console.log(chalk.bgBlue('file-upload', chalk.yellowBright(file.filepath)))
         }
     },
 }))
@@ -155,20 +153,19 @@ app.use(koaBody({
 			console.error(err)
 		}
 	})
-	.use(async (ctx,next) => {	//	SESSION: member login
-		//	system context, koa: https://koajs.com/#request
+	//	system context, koa: https://koajs.com/#request
+	.use(async (ctx,next) => {
+		/* SESSION: member login */
 		if(!ctx.session?.MemberSession){
 			/* create generic session [references/leverages modular capabilities] */
 			ctx.session.MemberSession = await ctx.MyLife.getMyLifeSession()	//	create default locked session upon first request; does not require init(), _cannot_ have in fact, as it is referencing a global modular set of utilities and properties in order to charge-back to system as opposed to member
 			/* platform-required session-external variables */
 			ctx.session.signup = false
-			/* log */
-			console.log(chalk.bgBlue('created-member-session'))
 		}
 		ctx.state.locked = ctx.session.MemberSession.locked
 		ctx.state.MemberSession = ctx.session.MemberSession	//	lock-down session to state
 		ctx.state.member = ctx.state.MemberSession?.member
-			??	ctx.MyLife	//	point member to session member (logged in) or MAHT (not logged in)
+			?? ctx.MyLife
 		ctx.state.avatar = ctx.state.member.avatar
 		ctx.state.interfaceMode = ctx.state.avatar?.mode ?? 'standard'
 		ctx.state.menu = ctx.MyLife.menu
@@ -185,10 +182,10 @@ app.use(koaBody({
 	.use(serverRouter.routes())	//	enable system routes
 	.use(serverRouter.allowedMethods())	//	enable system routes
 	.listen(port, () => {	//	start the server
-		console.log(chalk.bgGreenBright('server available')+chalk.yellow(`\nlistening on port ${port}`))
+		console.log(chalk.greenBright('server available'))
+		console.log(chalk.yellow(`listening on port ${port}`))
 	})
 /** server functions **/
-function checkForLiveAlerts() {
-    console.log("Checking for live alerts...")
-	_Maht.getAlerts()	
+function checkForLiveAlerts(){
+	_Maht.getAlerts()
 }

@@ -83,13 +83,6 @@ export class EvolutionAgent extends EventEmitter {
        return this.#contributions
     }
     /**
-     * Get the factory object.
-     * @returns {AgentFactory} The avatar's factory object.
-     */
-    get factory() {
-        return this.#avatar.factory
-    }
-    /**
      * Get the owning member id.
      * @returns {string} The avatar member-owner id.
      */
@@ -254,37 +247,6 @@ function mFormatCategory(_category) {
        .slice(0, 64)
 }
 /**
- * Digest a request to generate a new Contribution.
- * @module
- * @emits {on-contribution-new} - Emitted when a new Contribution is generated.
- * @param {EvolutionAgent} evoAgent - `this` Evolution Assistant.
- * @param {string} _category - The category to process.
- * @param {string} _phase - The phase to process.
- * @returns {Contribution} A new Contribution object.
-*/
-async function mGetContribution(evoAgent, _category, _phase) {
-    const _avatar = evoAgent.avatar
-    _category = mFormatCategory(_category)
-    // Process question and map to `new Contribution` class
-    const _contribution = new (_avatar.factory.contribution)({
-        avatar_id: _avatar.id,
-        context: `I am a contribution object in MyLife, comprising data and functionality around a data evolution request to my associated avatar [${_avatar.id}]`,
-//        id: _avatar.factory.newGuid,
-        mbr_id: _avatar.mbr_id,    //  Contributions are system objects
-        phase: _phase,
-        purpose: `Contribute to the data evolution of underlying avatar for category [${_category}]`,
-        request: {
-            category: _category,
-            content: _avatar?.[_category]??false,
-            impersonation: _avatar.being,
-            phase: _phase,
-        },
-        responses: [],
-    })
-    mAssignContributionListeners(evoAgent, _contribution)
-    return await _contribution.init(_avatar.factory)   //  fires emitters
-}
-/**
  * Log an object to the console and emit it to the parent.
  * @module
  * @emits {_emit_text} - Emitted when an object is logged.
@@ -318,7 +280,6 @@ function mSetContribution(evoAgent, _current, _proposed) {
         /* @todo: verify that categories are changing */
             const _currentContribution = evoAgent.contributions
                 .find(_contribution => _contribution.id === _current.contributionId)
-            console.log('evolution-assistant:mSetContribution():320', _currentContribution.inspect(true))
             if(_currentContribution.stage === 'prepared'){ // ready to process
                 // join array and submit for gpt-summarization
                 mSubmitContribution(evoAgent, _contributions.responses.join('\n'))
