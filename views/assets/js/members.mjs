@@ -38,6 +38,7 @@ let activeCategory,
     awaitButton,
     botBar,
     chatActiveItem,
+    chatActiveThumb,
     chatContainer,
     chatInput,
     chatInputField,
@@ -55,6 +56,7 @@ document.addEventListener('DOMContentLoaded', async event=>{
     awaitButton = document.getElementById('await-button')
     botBar = document.getElementById('bot-bar')
     chatActiveItem = document.getElementById('chat-active-item')
+    chatActiveThumb = document.getElementById('chat-active-item-thumb')
     chatContainer = document.getElementById('chat-container')
     chatInput = document.getElementById('chat-member')
     chatInputField = document.getElementById('chat-member-input')
@@ -71,7 +73,6 @@ document.addEventListener('DOMContentLoaded', async event=>{
     stageTransition()
     unsetActiveAction()
     console.log('members.mjs::DOMContentLoaded')
-    /* **note**: bots.mjs `onLoad` runs independently */
 })
 /* public functions */
 /**
@@ -279,6 +280,7 @@ function replaceElement(element, newType, retainValue=true, onEvent, listenerFun
  * Sets the active item to an `action` determined by the requesting bot.
  * @public
  * @requires chatActiveItem
+ * @requires chatActiveThumb
  * @param {object} instructions - The action object describing how to populate { button, callback, icon, status, text, thumb, }.
  * @property {string} button - The button text; if false-y, no button is displayed
  * @property {function} callback - The callback function to execute on button click
@@ -292,21 +294,19 @@ function setActiveAction(instructions){
     if(!instructions)
         return
     mGlobals.clearDataset(chatActiveItem.dataset)
+    chatActiveItem.dataset.inAction = "true"
     const { button, callback, icon, status, text, thumb, } = instructions
     const activeButton = document.getElementById('chat-active-item-button')
     const activeClose = document.getElementById('chat-active-item-close')
     const activeIcon = document.getElementById('chat-active-item-icon')
     const activeStatus = document.getElementById('chat-active-item-status')
-    const activeThumb = document.getElementById('chat-active-item-thumb')
     const activeTitle = document.getElementById('chat-active-item-title')
-    if(activeThumb){
-        mGlobals.clearDataset(activeThumb.dataset)
-        activeThumb.className = 'fas chat-active-action-thumb'
-        if(thumb?.length)
-            activeThumb.src = thumb
-        else
-            hide(activeThumb)
-    }
+    mGlobals.clearDataset(chatActiveThumb.dataset)
+    chatActiveThumb.className = 'fas chat-active-action-thumb'
+    if(thumb?.length)
+        chatActiveThumb.src = thumb
+    else
+        hide(chatActiveThumb)
     if(activeIcon){
         mGlobals.clearDataset(activeIcon.dataset)
         activeIcon.className = 'fas chat-active-action-icon'
@@ -367,6 +367,7 @@ async function setActiveBot(){
  * @returns {void}
  */
 function setActiveItem(itemId){
+    mGlobals.clearDataset(chatActiveItem.dataset)
     if(!mGlobals.isGuid(itemId))
         return
     const popup = document.getElementById(`popup-container_${ itemId }`)
@@ -409,6 +410,7 @@ function setActiveItem(itemId){
         activeTitle.addEventListener('dblclick', updateTitle, { once: true })
     }
     chatActiveItem.dataset.id = itemId
+    chatActiveItem.dataset.inAction = null
     chatActiveItem.dataset.itemId = itemId
     show(chatActiveItem)
 }
@@ -463,7 +465,66 @@ async function startExperience(experienceId){
     await experienceStart(experienceId)
 }
 /**
- * Toggle visibility functionality.
+ * Submits a message to MyLife Member Services chat.
+ * @async
+ * @requires chatActiveItem
+ * @param {string} message - The message to submit
+ * @param {boolean} hideMemberChat - The hide member chat flag, default=`true`
+ * @returns {Promise<object>} - The return is the chat response object: { instruction, responses, success, }
+ */
+async function submit(message, hideMemberChat=true){
+	if(!message?.length)
+		throw new Error('submit(): `message` argument is required')
+    if(hideMemberChat)
+        toggleMemberInput(false)
+    const { itemId, } = chatActiveItem.dataset
+    const { id: botId, } = activeBot()
+	const request = {
+			botId,
+            itemId,
+			message,
+			role: 'member',
+		}
+	const response = await mGlobals.datamanager.submitChat(request, true)
+    if(hideMemberChat)
+        toggleMemberInput(true)
+    return response
+}
+/**
+ * Toggles the member input between input and server `waiting`.
+ * @public
+ * @param {boolean} display - Whether to show/hide (T/F), default `true`.
+ * @param {boolean} hidden - Whether to force-hide (T/F), default `false`. **Note**: used in `experience.mjs`
+ * @param {boolean} connectingText - The server-connecting text, default: `Connecting with `.
+ * @returns {void}
+ */
+function toggleMemberInput(display=true, hidden=false, connectingText='Connecting with '){
+    const { id, name, } = activeBot()
+    if(display){
+        hide(awaitButton)
+        awaitButton.classList.remove('slide-up')
+        chatInput.classList.add('slide-up')
+        chatInputField.style.height = 'auto'
+        chatInputField.placeholder = `type your message to ${ name }...`
+        chatInputField.value = null
+        show(chatInput)
+    } else {
+        hide(chatInput)
+        chatInput.classList.remove('fade-in')
+        chatInput.classList.remove('slide-up')
+        awaitButton.classList.add('slide-up')
+        awaitButton.innerHTML = connectingText + name + '...'
+        show(awaitButton)
+    }
+    if(hidden){
+        hide(chatInput)
+        hide(awaitButton)
+    }
+}
+/**
+ * Toggles the visibility of an element with option to force state.
+ * @param {HTMLElement} element - The element to toggle.
+ * @param {boolean} bForceState - The state to force the element to, defaults to `null`.
  * @returns {void}
  */
 function toggleVisibility(){
@@ -473,13 +534,12 @@ function toggleVisibility(){
  * Unsets the active action in the chat system.
  * @public
  * @requires chatActiveItem
+ * @requires chatActiveThumb
  * @returns {void}
  */
 function unsetActiveAction(){
-    delete chatActiveItem.dataset
-    const activeThumb = document.getElementById('chat-active-item-thumb')
-    if(activeThumb)
-        hide(activeThumb)
+    mGlobals.clearDataset(chatActiveItem.dataset)
+    hide(chatActiveThumb)
     hide(chatActiveItem)
 }
 /**
@@ -534,7 +594,7 @@ function waitForUserAction(){
 async function mAddMemberMessage(event){
     event.stopPropagation()
 	event.preventDefault()
-    const Bot = activeBot() // lock in here before any competing selection events (which can happen during async)
+    const Bot = activeBot() // lock in here `await`
     let memberMessage = chatInputField.value.trim()
     if (!memberMessage.length)
         return
@@ -560,8 +620,10 @@ async function mAddMemberMessage(event){
         if(!Bot.interactionCount)
             Bot.interactionCount = 0
         Bot.interactionCount++
-        if(Bot.interactionCount>1)
+        if(Bot.interactionCount>2){
             setActiveAction(getAction(Bot.type))
+            Bot.interactionCount = 0
+        }
     }
     /* process response */
 	responses
@@ -745,7 +807,7 @@ async function mInitialize(){
  */
 function mInitializePageListeners(){
     /* page listeners */
-    chatInputField.addEventListener('input', toggleInputTextarea)
+    chatInputField.addEventListener('input', mToggleInputTextarea)
     memberSubmit.addEventListener('click', mAddMemberMessage) /* note default listener */
     chatRefresh.addEventListener('click', clearSystemChat)
     const currentPath = window.location.pathname // Get the current path
@@ -773,7 +835,8 @@ function seedInput(itemId, shadowId, value, placeholder){
     chatActiveItem.dataset.itemId = itemId
     chatActiveItem.dataset.shadowId = shadowId
     chatInputField.value = value
-    chatInputField.placeholder = placeholder ?? chatInputField.placeholder
+    chatInputField.placeholder = placeholder
+        ?? chatInputField.placeholder
     chatInputField.focus()
 }
 /**
@@ -841,71 +904,25 @@ function mStageTransitionMember(includeSidebar=true){
     }
 }
 /**
- * Submits a message to MyLife Member Services chat.
- * @async
- * @requires chatActiveItem
- * @param {string} message - The message to submit
- * @param {boolean} hideMemberChat - The hide member chat flag, default=`true`
- * @returns {Promise<object>} - The return is the chat response object: { instruction, responses, success, }
- */
-async function submit(message, hideMemberChat=true){
-	if(!message?.length)
-		throw new Error('submit(): `message` argument is required')
-    if(hideMemberChat)
-        toggleMemberInput(false)
-    const { itemId, } = chatActiveItem.dataset
-    const { id: botId, } = activeBot()
-	const request = {
-			botId,
-            itemId,
-			message,
-			role: 'member',
-		}
-	const response = await mGlobals.datamanager.submitChat(request, true)
-    if(hideMemberChat)
-        toggleMemberInput(true)
-    return response
-}
-/**
- * Toggles the member input between input and server `waiting`.
+ * Toggles the input textarea, currently triggered with `event`.
  * @public
- * @param {boolean} display - Whether to show/hide (T/F), default `true`.
- * @param {boolean} hidden - Whether to force-hide (T/F), default `false`. **Note**: used in `experience.mjs`
- * @param {boolean} connectingText - The server-connecting text, default: `Connecting with `.
+ * @requires chatActiveItem
+ * @requires chatActiveThumb
+ * @requires chatInputField
  * @returns {void}
  */
-function toggleMemberInput(display=true, hidden=false, connectingText='Connecting with '){
-    const { id, name, } = activeBot()
-    if(display){
-        hide(awaitButton)
-        awaitButton.classList.remove('slide-up')
-        chatInput.classList.add('slide-up')
-        chatInputField.style.height = 'auto'
-        chatInputField.placeholder = `type your message to ${ name }...`
-        chatInputField.value = null
-        show(chatInput)
-    } else {
-        hide(chatInput)
-        chatInput.classList.remove('fade-in')
-        chatInput.classList.remove('slide-up')
-        awaitButton.classList.add('slide-up')
-        awaitButton.innerHTML = connectingText + name + '...'
-        show(awaitButton)
-    }
-    if(hidden){
-        hide(chatInput)
-        hide(awaitButton)
-    }
-}
-/**
- * Toggles the input textarea.
- * @param {Event} event - The event object.
- * @returns {void} - The return is void.
- */
-function toggleInputTextarea(event){
+function mToggleInputTextarea(){
     chatInputField.style.height = 'auto' // Reset height to shrink if text is removed
     chatInputField.style.height = chatInputField.scrollHeight + 'px' // Set height based on content
-	toggleSubmitButtonState()
+	mToggleSubmitButtonState()
+    if(chatActiveItem.dataset.inAction)
+        if(!chatInputField.value.length){
+            show(chatActiveItem)
+            show(chatActiveThumb)
+        } else {
+            hide(chatActiveItem)
+            hide(chatActiveThumb)
+        }
 }
 function mToggleItemPopup(event){
     event.stopPropagation()
@@ -915,7 +932,7 @@ function mToggleItemPopup(event){
         console.log('mToggleItemPopup::Error()::`itemId` is required', event.target.dataset, itemId)
     togglePopup(itemId, true)
 }
-function toggleSubmitButtonState() {
+function mToggleSubmitButtonState() {
 	memberSubmit.disabled = !(chatInputField.value?.trim()?.length ?? true)
 }
 /**
@@ -974,7 +991,6 @@ export {
     startExperience,
     submit,
     toggleMemberInput,
-    toggleInputTextarea,
     toggleVisibility,
     unsetActiveAction,
     unsetActiveItem,
