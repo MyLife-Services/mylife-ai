@@ -410,7 +410,7 @@ function setActiveItem(itemId){
         activeTitle.addEventListener('dblclick', updateTitle, { once: true })
     }
     chatActiveItem.dataset.id = itemId
-    chatActiveItem.dataset.inAction = null
+    chatActiveItem.dataset.inAction = "false"
     chatActiveItem.dataset.itemId = itemId
     show(chatActiveItem)
 }
@@ -915,7 +915,7 @@ function mToggleInputTextarea(){
     chatInputField.style.height = 'auto' // Reset height to shrink if text is removed
     chatInputField.style.height = chatInputField.scrollHeight + 'px' // Set height based on content
 	mToggleSubmitButtonState()
-    if(chatActiveItem.dataset.inAction)
+    if(chatActiveItem.dataset.inAction==='true')
         if(!chatInputField.value.length){
             show(chatActiveItem)
             show(chatActiveThumb)
