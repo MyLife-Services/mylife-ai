@@ -118,7 +118,6 @@ class Dataservices {
 			throw new Error('`core` must be a pre-formed object with id and mbr_id')
 		const extantCore = await this.getItem(id, undefined, mbr_id)
 		if(extantCore){
-			console.log(`core already exists for ${mbr_id} with id ${id}`) // `core` already exists
 			return { core: extantCore, success: false, } // no alterations, failure
 		}
 		core = { // enforce core data structure
@@ -217,7 +216,10 @@ class Dataservices {
 	 * @returns {array} - The journal entry items.
 	 */
 	async collectionEntries(){
-		return await this.getItems('entry')
+		return await this.getItemsByFields(
+			'story',
+			[{ name: '@type', value: 'entry' }],
+		)
 	}
 	/**
 	 * Proxy to retrieve lived experiences.
@@ -234,49 +236,64 @@ class Dataservices {
 		return await this.getItems('file')
 	}
 	/**
-	 * Proxy to retrieve biographical story items.
-	 * @returns {array} - The biographical story items.
+	 * Proxy to retrieve biographical items.
+	 * @returns {array} - The biographical items
+	 */
+	async collectionMemories(){
+		return await this.getItemsByFields(
+			'story',
+			[{ name: '@type', value: 'memory' }],
+		)
+	}
+	/**
+	 * Proxy to retrieve all story items.
+	 * @returns {array} - The story items
 	 */
 	async collectionStories(){
 		return await this.getItems('story')
 	}
     /**
      * Get member collection items.
-	 * @todo - eliminate corrections
+	 * @todo - only roughed in by hand atm
 	 * @public
 	 * @async
      * @param {string} type - The type of collection to retrieve, `false`-y = all.
      * @returns {array} - The collection items with no wrapper.
      */
 	async collections(type){
-		/* validate request */
-		if(type==='experience')
-			type = 'lived-experience'
-		if(type==='memory')
-			type = 'story'
-		/* execute request */
-		const response = type?.length && this.#collectionTypes.includes(type)
-			? await this.getItems(type)
-			: await Promise.all([
-				this.collectionConversations(),
-				this.collectionEntries(),
-				this.collectionLivedExperiences(),
-				this.collectionFiles(),
-				this.collectionStories(),
-			])
-				.then(([conversations, entries, experiences, files, stories])=>[
-					...conversations,
-					...entries,
-					...experiences,
-					...files,
-					...stories,
+		switch(type){
+			case 'conversation':
+				return await this.collectionConversations()
+			case 'entry':
+				return await this.collectionEntries()
+			case 'experience':
+				return await this.collectionLivedExperiences()
+			case 'file':
+				return await this.collectionFiles()
+			case 'memory':
+				return await this.collectionMemories()
+			case 'story':
+				return await this.collectionStories()
+			default:
+				return await Promise.all([
+					this.collectionConversations(),
+					this.collectionEntries(),
+					this.collectionLivedExperiences(),
+					this.collectionFiles(),
+					this.collectionMemories(),
 				])
-				.catch(err=>{
-					console.log('mylife-data-service::collections() error', err)
-					return []
-				})
-		/* respond request */
-		return response
+					.then(([conversations, entries, experiences, files, memories])=>[
+						...conversations,
+						...entries,
+						...experiences,
+						...files,
+						...memories,
+					])
+					.catch(err=>{
+						console.log('mylife-data-service::collections() error', err)
+						return []
+					})
+		}
 	}
 	/**
 	 * Creates a new bot in the database.
@@ -501,10 +518,8 @@ class Dataservices {
 					populateQuotaInfo: false, // set this to true to include quota information in the response headers
 				},
 			)
-		}
-		catch(_error){
-			console.log('mylife-data-service::getItems() error')
-			console.log(_error, being, query, paramsArray, container_id,)
+		} catch(_error){
+			console.log('mylife-data-service::getItems() error', _error, being, query, paramsArray, container_id,)
 		}
 	}
 	/**

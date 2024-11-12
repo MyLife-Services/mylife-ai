@@ -12,7 +12,6 @@ const mAllowSave = JSON.parse(
         ?? 'false'
 )
 const mAvailableModes = ['standard', 'admin', 'evolution', 'experience', 'restoration']
-const mMigrateThreadOnVersionChange = false // hack currently to avoid thread migration on bot version change when it's not required, theoretically should be managed by Bot * Version
 /**
  * @class - Avatar
  * @extends EventEmitter
@@ -95,22 +94,23 @@ class Avatar extends EventEmitter {
             throw new Error('No message provided in context')
         const originalMessage = message
         this.backupResponse = {
-            message: `I received your request to chat, and sent the request to the central intelligence, but no response was received. Please try again, as the issue is likely aberrant.`,
+            message: `I got your message, but I'm having trouble processing it. Please try again.`,
             type: 'system',
         }
         /* execute request */
         if(this.globals.isValidGuid(itemId)){
-            // @todo - check if item exists in memory, fewer pings and inclusions overall
             let { summary, } = await this.#factory.item(itemId)
             if(summary?.length)
-                message = `possible **update-summary-request**: itemId=${ itemId }\n`
-                    + `**member-update-request**:\n`
+                message = `**active-item**: itemId=${ itemId }\n`
+                    + `**member-input**:\n`
                     + message
-                    + `\n**current-summary-in-database**:\n`
+                    + `\n**newest-summary**:\n`
                     + summary
         }
         const Conversation = await this.activeBot.chat(message, originalMessage, mAllowSave, this)
         const responses = mPruneMessages(this.activeBotId, Conversation.getMessages() ?? [], 'chat', Conversation.processStartTime)
+        if(!responses.length)
+            responses.push(this.backupResponse)
         /* respond request */
         const response = {
             instruction: this.frontendInstruction,
@@ -158,7 +158,6 @@ class Avatar extends EventEmitter {
                 switch(type){
                     case 'entry':
                     case 'memory':
-                    case 'story':
                         return mPruneItem(item)
                     case 'experience':
                     case 'lived-experience':
@@ -180,6 +179,8 @@ class Avatar extends EventEmitter {
                             title,
                             variables,
                         }
+                    case 'story':
+                        throw new Error('Story collection not yet implemented.')
                     default:
                         return item
                 }
@@ -216,8 +217,23 @@ class Avatar extends EventEmitter {
      * @returns {void}
      */
     async endMemory(){
-        // @stub - save conversation fragments */
+        const { Conversation, id, item, } = this.#livingMemory
+        const { bot_id, } = Conversation
+        if(mAllowSave)
+            await Conversation.save()
+        const instruction = {
+            command: `endMemory`,
+            itemId: item.id,
+            livingMemoryId: id,
+        }
+        const responses = [mCreateSystemMessage(bot_id, `I've ended the memory, thank you for letting me share my interpretation. I hope you liked it.`, this.#factory.message)]
+        const response = {
+            instruction,
+            responses,
+            success: true,
+        }
         this.#livingMemory = null
+        return response
     }
 	/**
 	 * Submits a new diary or journal entry to MyLife. Currently called both from API _and_ LLM function.
@@ -250,7 +266,7 @@ class Avatar extends EventEmitter {
      * @returns {void} - Throws error if experience cannot be ended.
      */
     experienceEnd(experienceId){
-        const { experience, factory, mode, } = this
+        const { experience, mode, } = this
         try {
             if(this.isMyLife) // @stub - allow guest experiences
                 throw new Error(`MyLife avatar can neither conduct nor end experiences`)
@@ -264,13 +280,13 @@ class Avatar extends EventEmitter {
         }
         this.mode = 'standard'
         const { id, location, title, variables, } = experience
-        const { mbr_id, newGuid, } = this.#factory
+        const { mbr_id, } = this.#factory
         const completed = location?.completed
         this.#livedExperiences.push({ // experience considered concluded for session regardless of origin, sniffed below
             completed,
 			experience_date: Date.now(),
 			experience_id: id,
-			id: newGuid,
+			id: this.newGuid,
 			mbr_id,
 			title,
 			variables,
@@ -278,7 +294,7 @@ class Avatar extends EventEmitter {
         if(completed){ // ended "naturally," by event completion, internal initiation
             /* validate and cure `experience` */
             /* save experience to cosmos (no await) */
-            factory.saveExperience(experience)
+            this.#factory.saveExperience(experience)
         } else { // incomplete, force-ended by member, external initiation
             // @stub - create case for member ending with enough interaction to _consider_ complete, or for that matter, to consider _started_ in some cases
         }
@@ -437,7 +453,7 @@ class Avatar extends EventEmitter {
      * @param {String} method - The http method used to indicate response
      * @returns {Promise<Object>} - Returns { instruction, item, responses, success, }
      */
-    async item(item, method){
+    async item(item, method='get'){
         const { globals, mbr_id, } = this
         const response = { item, success: false, }
         const instruction={},
@@ -446,7 +462,7 @@ class Avatar extends EventEmitter {
                 message: `I encountered an error while trying to process your request; please try again.`,
                 type: 'system',
             }
-        let { id: itemId, title, } = item
+        let { id: itemId, summary, title, } = item
         let success = false
         if(itemId && !globals.isValidGuid(itemId))
             throw new Error(`Invalid item id: ${ itemId }`)
@@ -459,6 +475,7 @@ class Avatar extends EventEmitter {
                 instruction.command = success
                     ? 'removeItem'
                     : 'error'
+                instruction.itemId = itemId
                 break
             case 'post': /* create */
                 /* validate request */
@@ -482,7 +499,7 @@ class Avatar extends EventEmitter {
                     ...{
                         assistantType,
                         being,
-                        id: this.#factory.newGuid,
+                        id: this.newGuid,
                         mbr_id,
                         name: `${ type }_${ form }_${ title.substring(0,64) }_${ mbr_id }`,
                         summary,
@@ -508,15 +525,22 @@ class Avatar extends EventEmitter {
                 break
             case 'put': /* update */
                 const updatedItem = await this.#factory.updateItem(item)
-                success = this.globals.isValidGuid(updatedItem?.id)
                 const updatedTitle = updatedItem?.title
                     ?? title
-                message.message = success
-                    ? `I have successfully updated: "${ updatedTitle }".`
-                    : `I encountered an error while trying to update: "${ updatedTitle }".`
+                success = this.globals.isValidGuid(updatedItem?.id)
+                if(success){
+                    instruction.command = 'updateItem'
+                    instruction.item = mPruneItem(updatedItem)
+                    message.message = `I have successfully updated: "${ updatedTitle }".`
+                    response.item = mPruneItem(updatedItem)
+                } else
+                    message.message = `I encountered an error while trying to update: "${ updatedTitle }".`
                 break
             default:
-                console.log('item()::default', item)
+                const retrievedItem = await this.#factory.item(itemId)
+                success = !!retrievedItem
+                if(success)
+                    response.item = mPruneItem(retrievedItem)
                 break
         }
         this.frontendInstruction = instruction // LLM-return safe
@@ -601,8 +625,25 @@ class Avatar extends EventEmitter {
         const { id, } = item
         if(!id)
             throw new Error(`item does not exist in member container: ${ iid }`)
-        const narration = await mReliveMemoryNarration(item, memberInput, this.#botAgent, this)
-        return narration
+        const response = await mReliveMemoryNarration(item, memberInput, this.#botAgent, this)
+        return response
+    }
+    async renderContent(html){
+        const processStartTime = Date.now()
+        const sectionRegex = /<section[^>]*>([\s\S]*?)<\/section>/gi
+        const responses = []
+        let match
+        while((match = sectionRegex.exec(html))!==null){
+            const sectionContent = match[1].trim()
+            if(!sectionContent?.length)
+                break
+            const Message = mPruneMessage(this.avatar.id, sectionContent, 'chat', processStartTime)
+            responses.push(Message)
+        }
+        return {
+            responses,
+            success: true,
+        }
     }
     /**
      * Allows member to reset passphrase.
@@ -622,40 +663,12 @@ class Avatar extends EventEmitter {
      * @returns {object} - The Response object: { instruction, responses, success, }
      */
     async retireBot(bot_id){
-        const success = await this.#botAgent.deleteBot(bot_id)
-        const response = {
-            instruction: {
-                command: success ? 'removeBot' : 'error',
-                id: bot_id,
-            },
-            responses: [success
-                ? {
-                    agent: 'server',
-                    message: `I have removed this bot from the team.`,
-                    type: 'chat',
-                }
-                : {
-                    agent: 'server',
-                    message: `I'm sorry - I encountered an error while trying to retire this bot; please try again.`,
-                    type: 'system',
-                }
-            ],
-            success,
-        }
-        return response
-    }
-    /**
-     * Retire a Bot, deleting altogether.
-     * @param {Guid} bot_id - The bot id
-     * @returns {object} - The response object { instruction, responses, success, }
-     */
-    async retireBot(bot_id){
-        if(!this.globals.isValidGuid(bot_id))
-            throw new Error(`Invalid bot id: ${ bot_id }`)
         const success = await this.#botAgent.botDelete(bot_id)
         const response = {
             instruction: {
-                command: success ? 'retireBot' : 'error',
+                command: success
+                    ? 'removeBot'
+                    : 'error',
                 id: bot_id,
             },
             responses: [success
@@ -672,6 +685,8 @@ class Avatar extends EventEmitter {
             ],
             success,
         }
+        if(!success)
+            instruction.error = 'I encountered an error while trying to retire this bot; please try again.'
         return response
     }
     /**
@@ -749,8 +764,7 @@ class Avatar extends EventEmitter {
      */
     async summarize(fileId, fileName, processStartTime=Date.now()){
         /* validate request */
-        let instruction,
-            responses = [],
+        let responses = [],
             success = false
         this.backupResponse = {
             message: `I received your request to summarize, but an error occurred in the process. Perhaps try again with another file.`,
@@ -762,15 +776,10 @@ class Avatar extends EventEmitter {
         if(!responses?.length)
             responses.push(this.backupResponse)
         else {
-            instruction = {
-                command: 'updateFileSummary',
-                itemId: fileId,
-            }
             responses = mPruneMessages(this.avatar.id, responses, 'mylife-file-summary', processStartTime)
             success = true
         }
         return {
-            instruction,
             responses,
             success,
         }
@@ -811,7 +820,7 @@ class Avatar extends EventEmitter {
      * @returns {object} - The updated bot object
      */
     async updateBotInstructions(bot_id=this.activeBot.id){
-        const Bot = await this.#botAgent.updateBotInstructions(bot_id, mMigrateThreadOnVersionChange)
+        const Bot = await this.#botAgent.updateBotInstructions(bot_id)
         return Bot.bot
     }
     /**
@@ -1009,15 +1018,6 @@ class Avatar extends EventEmitter {
         this.#livedExperiences = livedExperiences
     }
     /**
-     * Get the Avatar's Factory.
-     * @todo - deprecate if possible, return to private
-     * @getter
-     * @returns {AgentFactory} - The Avatar's Factory.
-     */
-    get factory(){
-        return this.#factory
-    }
-    /**
      * Globals shortcut.
      * @getter
      * @returns {object} - The globals.
@@ -1202,6 +1202,14 @@ class Avatar extends EventEmitter {
         return this.experience.navigation
     }
     /**
+     * Creates a new guid via `this.#factory`.
+     * @getter
+     * @returns {Guid} - The new guid
+     */
+    get newGuid(){
+        return this.#factory.newGuid
+    }
+    /**
      * Get the nickname of the avatar.
      * @getter
      * @returns {string} - The avatar nickname.
@@ -1231,7 +1239,7 @@ class Avatar extends EventEmitter {
     /**
      * Set the `active` reliving memory.
      * @setter
-     * @param {Object} livingMemory - The new active reliving memory
+     * @param {Object} livingMemory - The new active reliving memory (or `null`)
      * @returns {void}
      */
     set livingMemory(livingMemory){
@@ -1436,7 +1444,6 @@ class Q extends Avatar {
         if(!this.globals.isValidGuid(key) || key!==this.hosting_key)
             throw new Error('Invalid key for hosted members.')
         if(!this.#hostedMembers.length){ // on-demand creation
-            console.log('hostedMembers', this.#hostedMembers)
             const hostedMembers = await this.#factory.hostedMembers()
             if(!hostedMembers.length)
                 throw new Error('No hosted members found.')
@@ -1563,7 +1570,7 @@ async function mCast(factory, cast){
  * Creates frontend system message from message String/Object.
  * @param {Guid} bot_id - The bot id
  * @param {String|Message} message - The message to be pruned
- * @param {*} factory 
+ * @param {messageClassDefinition} messageClassDefinition - The message class definition
  * @returns 
  */
 function mCreateSystemMessage(bot_id, message, messageClassDefinition){
@@ -2012,7 +2019,6 @@ async function mExperienceStart(avatar, factory, experienceId, avatarExperienceV
     if(id!==experienceId)
         throw new Error('Experience failure, unexpected id mismatch.')
     experience.cast = await mCast(factory, experience.cast) // hydrates cast data
-    console.log('mExperienceStart::experience', experience.cast[0].inspect(true))
     experience.events = []
     experience.location = {
         experienceId: experience.id,
@@ -2147,6 +2153,7 @@ function mPruneItem(item){
         relationships,
         summary,
         title,
+        type,
     } = item
     item = {
         assistantType,
@@ -2159,6 +2166,7 @@ function mPruneItem(item){
         relationships,
         summary,
         title,
+        type,
     }
     return item
 }
@@ -2209,8 +2217,6 @@ function mPruneMessage(activeBotId, message, type='chat', processStartTime=Date.
  * @returns {Object[]} - Concatenated message object
  */
 function mPruneMessages(bot_id, messageArray, type='chat', processStartTime=Date.now()){
-    if(!messageArray.length)
-        throw new Error('No messages to prune')
     messageArray = messageArray
         .map(message=>mPruneMessage(bot_id, message, type, processStartTime))
     return messageArray
@@ -2230,11 +2236,25 @@ function mPruneMessages(bot_id, messageArray, type='chat', processStartTime=Date
  */
 async function mReliveMemoryNarration(item, memberInput, BotAgent, Avatar){
     Avatar.livingMemory = await BotAgent.liveMemory(item, memberInput, Avatar)
-    const { Conversation, } = Avatar.livingMemory
+    const { Conversation, item: livingMemoryItem, } = Avatar.livingMemory
     const { bot_id, type, } = Conversation
+    const endpoint = `/members/memory/end/${ livingMemoryItem.id }`
+    const instruction = {
+        command: 'createInput',
+        inputs: [{
+            endpoint,
+            id: Avatar.newGuid,
+            interfaceLocation: 'chat', // enum: ['avatar', 'team', 'chat', 'bot', 'experience', 'system', 'admin'], defaults to chat
+            method: 'PATCH',
+            prompt: `I'd like to stop reliving this memory.`,
+            required: true,
+            type: 'button',
+        }],
+    }
     const responses = Conversation.getMessages()
         .map(message=>mPruneMessage(bot_id, message, type))
     const memory = {
+        instruction,
         item,
         responses,
         success: true,
@@ -2290,7 +2310,6 @@ function mValidateMode(_requestedMode, _currentMode){
         throw new Error('Invalid interface mode request. Mode not altered.')
     switch(_requestedMode){
         case 'admin':
-            console.log('Admin interface not currently implemented. Mode not altered.')
             return _currentMode
         case 'experience':
         case 'standard':
