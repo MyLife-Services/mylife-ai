@@ -14,7 +14,7 @@ import {
     seedInput,
     setActiveAction,
     setActiveItem,
-    setActiveItemTitle,
+    updateActiveItemTitle,
     show,
     startExperience,
     submit,
@@ -220,23 +220,6 @@ async function setActiveBot(event, dynamic=false){
     decorateActiveBot(mActiveBot)
 }
 /**
- * Sets an item's changed title in all locations.
- * @param {Guid} itemId - The collection item id
- * @param {String} title - The title to set for the item
- */
-async function setItemTitle(itemId, title){
-    const titleSpan = document.getElementById(`collection-item-title_${ itemId }`)
-    const titleInput = document.getElementById(`collection-item-title-input__${ itemId }`)
-    const popupTitle = document.getElementById(`popup-header-title_${ itemId }`)
-    if(titleSpan)
-        titleSpan.textContent = title
-    if(titleInput)
-        titleInput.value = title
-    if(popupTitle)
-        popupTitle.textContent = title
-    setActiveItemTitle(itemId, title)
-}
-/**
  * Exposed method to allow externalities to toggle a specific item popup.
  * @param {string} id - Id for HTML div element to toggle.
  */
@@ -266,8 +249,31 @@ function updateItem(item){
         return
     createItem(item)
 }
-function updateItemTitle(event){
-    return mUpdateCollectionItemTitle(event)
+/**
+ * Sets an item's changed title in all locations.
+ * @param {Guid} itemId - The collection item id
+ * @param {String} title - The title to set for the item
+ */
+async function updateItemTitle(itemId, title){
+    console.log('updateItemTitle', itemId, title)
+    const titleSpan = document.getElementById(`collection-item-title_${ itemId }`)
+    const titleInput = document.getElementById(`collection-item-title-input__${ itemId }`)
+    const popupTitle = document.getElementById(`popup-header-title_${ itemId }`)
+    if(titleSpan)
+        titleSpan.textContent = title
+    if(titleInput)
+        titleInput.value = title
+    if(popupTitle)
+        popupTitle.textContent = title
+    updateActiveItemTitle(itemId, title)
+}
+/**
+ * Allows for member to update title to item or other.
+ * @param {Event} event - The event object
+ * @returns {void}
+ */
+function updateTitle(event){
+    mUpdateCollectionItemTitle(event)
 }
 /**
  * Proxy to update bot-bar, bot-containers, and bot-greeting, if desired. Requirements should come from including module, here `members.mjs`.
@@ -2030,7 +2036,7 @@ function mUpdateCollectionItemTitle(event){
         const title = input.value
         if(title?.length && title!==textContent){
             if(await mGlobals.datamanager.itemUpdateTitle(itemId, title))
-                setItemTitle(itemId, title)
+                updateItemTitle(itemId, title)
         }
         span.addEventListener('dblclick', mUpdateCollectionItemTitle, { once: true })
     }, { once: true })
@@ -2221,9 +2227,9 @@ export {
     getItem,
     refreshCollection,
     setActiveBot,
-    setItemTitle,
     togglePopup,
     updateItem,
     updateItemTitle,
+    updateTitle,
     updatePageBots,
 }

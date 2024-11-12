@@ -627,6 +627,7 @@ class Globals {
             endMemory,
             removeItem,
             updateItem,
+            updateItemTitle,
         } = functions
         switch(command){
             case 'createInput':
@@ -690,6 +691,10 @@ class Globals {
                     return
                 updateItem(item)
                 return
+            case 'updateItemTitle':
+                if(typeof updateItemTitle!=='function')
+                    return
+                updateItemTitle(itemId, title)
             default:
                 return
         }

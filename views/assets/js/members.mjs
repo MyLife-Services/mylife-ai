@@ -19,6 +19,7 @@ import {
     togglePopup,
     updateItem,
     updateItemTitle,
+    updateTitle,
 } from './bots.mjs'
 import Globals from './globals.mjs'
 /* variables */
@@ -405,26 +406,11 @@ function setActiveItem(itemId){
         activeTitle.dataset.itemId = itemId
         activeTitle.dataset.popupId = popup.id
         activeTitle.dataset.title = title
-        activeTitle.addEventListener('dblclick', updateItemTitle, { once: true })
+        activeTitle.addEventListener('dblclick', updateTitle, { once: true })
     }
     chatActiveItem.dataset.id = itemId
     chatActiveItem.dataset.itemId = itemId
     show(chatActiveItem)
-}
-/**
- * Sets the active item title in the chat system, display-only.
- * @public
- * @param {Guid} itemId - The item ID
- * @param {string} title - The title to set
- * @returns {void}
- */
-function setActiveItemTitle(itemId, title){
-    const chatActiveItemText = document.getElementById('chat-active-item-title')
-    const chatActiveItemTitle = document.getElementById(`chat-active-item-title-text_${ itemId }`)
-    const { itemId: id, } = chatActiveItemText.dataset
-    if(id!==itemId)
-        throw new Error('setActiveItemTitle::Error()::`itemId`\'s do not match')
-    chatActiveItemTitle.innerHTML = title
 }
 /**
  * Proxy for Globals.show().
@@ -507,6 +493,21 @@ function unsetActiveItem(){
     hide(chatActiveItem)
 }
 /**
+ * Updates the active item title in the chat system, display-only.
+ * @public
+ * @param {Guid} itemId - The item ID
+ * @param {string} title - The title to set
+ * @returns {void}
+ */
+function updateActiveItemTitle(itemId, title){
+    const chatActiveItemText = document.getElementById('chat-active-item-title')
+    const chatActiveItemTitle = document.getElementById(`chat-active-item-title-text_${ itemId }`)
+    const { itemId: id, } = chatActiveItemText.dataset
+    if(id!==itemId)
+        throw new Error('updateActiveItemTitle::Error()::`itemId`\'s do not match')
+    chatActiveItemTitle.innerHTML = title
+}
+/**
  * Waits for user action.
  * @public
  * @returns {Promise<void>} - The return is its own success.
@@ -550,7 +551,11 @@ async function mAddMemberMessage(event){
     if(!success)
         mAddMessage('I\'m sorry, I didn\'t understand that, something went wrong on the server. Please try again.')
     if(!!instruction)
-        enactInstruction(instruction, 'chat', { createItem, updateItem, })
+        enactInstruction(instruction, 'chat', {
+            createItem,
+            updateItem,
+            updateItemTitle,
+        })
     else {
         if(!Bot.interactionCount)
             Bot.interactionCount = 0
@@ -848,10 +853,9 @@ async function submit(message, hideMemberChat=true){
 		throw new Error('submit(): `message` argument is required')
     if(hideMemberChat)
         toggleMemberInput(false)
-    const { action, itemId, } = chatActiveItem.dataset
+    const { itemId, } = chatActiveItem.dataset
     const { id: botId, } = activeBot()
 	const request = {
-            action,
 			botId,
             itemId,
 			message,
@@ -962,7 +966,7 @@ export {
     setActiveAction,
     setActiveBot,
     setActiveItem,
-    setActiveItemTitle,
+    updateActiveItemTitle,
     show,
     showMemberChat,
     showSidebar,
