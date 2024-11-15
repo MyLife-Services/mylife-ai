@@ -29,6 +29,7 @@ const mainContent = mGlobals.mainContent,
     navigation = mGlobals.navigation,
     sidebar = mGlobals.sidebar
 window.about = about
+window.privacyPolicy = privacyPolicy
 /* variables */
 let mAutoplay=false,
     mChatBubbleCount=0,
@@ -226,6 +227,18 @@ function enactInstruction(instruction, interfaceLocation='chat', additionalFunct
         ...additionalFunctions, // overloads feasible
     }
     mGlobals.enactInstruction(instruction, functions)
+}
+/**
+ * Presents the `privacy-policy` page as a series of sectional responses from your avatar.
+ * @public
+ * @async
+ * @returns {Promise<void>}
+ */
+async function privacyPolicy(){
+    const { error, responses=[], success, } = await mGlobals.datamanager.privacyPolicy()
+    if(!success || !responses?.length)
+        return // or make error version
+    addMessages(responses, { responseDelay: 5, typeDelay: 1, typewrite: true, })
 }
 /**
  * Replaces an element (input/textarea) with a specified type.

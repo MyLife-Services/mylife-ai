@@ -418,6 +418,11 @@ class Datamanager {
         const success = await this.#fetch(url, options)
         return success
     }
+    async privacyPolicy(){
+        const url = `privacy-policy`
+        const response = await this.#fetch(url)
+        return response
+    }
     /**
      * Fetches shadows from the server.
      * @private
