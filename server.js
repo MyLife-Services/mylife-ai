@@ -13,7 +13,7 @@ import chalk from 'chalk'
 /* local service imports */
 import MyLife from './inc/js/mylife-factory.mjs'
 /** variables **/
-const version = '0.0.27'
+const version = '0.0.28'
 const app = new Koa()
 const port = process.env.PORT
 	?? '3000'
