@@ -20,7 +20,7 @@ async function about(ctx){
 		await ctx.render('about')
 	} else {
 		const { avatar: Avatar, } = ctx.state
-		const aboutFilePath = path.resolve(__dirname, '../..', 'views/about.html')
+		const aboutFilePath = path.resolve(__dirname, '../..', 'views/assets/html/_about.html')
 		const html = await fs.readFile(aboutFilePath, 'utf-8')
 		const response = await Avatar.renderContent(html)
 		ctx.body = response
@@ -292,9 +292,16 @@ async function passphraseReset(ctx){
  * @param {Koa} ctx - Koa Context object
  */
 async function privacyPolicy(ctx){
-	ctx.state.title = `MyLife Privacy Policy`
-	ctx.state.subtitle = `Effective Date: 2024-01-01`
-	await ctx.render('privacy-policy')	//	privacy-policy
+	if(ctx.state.locked){
+		ctx.state.title = `MyLife Privacy Policy`
+		await ctx.render('privacy-policy')
+	} else {
+		const { avatar: Avatar, } = ctx.state
+		const aboutFilePath = path.resolve(__dirname, '../..', 'views/assets/html/_privacy-policy.html')
+		const html = await fs.readFile(aboutFilePath, 'utf-8')
+		const response = await Avatar.renderContent(html)
+		ctx.body = response
+	}
 }
 /**
  * Direct request from member to retire a bot.
