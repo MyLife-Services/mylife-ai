@@ -167,7 +167,8 @@ app.use(koaBody({
 		ctx.state.member = ctx.state.MemberSession?.member
 			?? ctx.MyLife
 		ctx.state.avatar = ctx.state.member.avatar
-		ctx.state.interfaceMode = ctx.state.avatar?.mode ?? 'standard'
+		ctx.state.interfaceMode = ctx.state.avatar?.mode
+			?? 'standard'
 		ctx.state.menu = ctx.MyLife.menu
 		ctx.state.version = ctx.MyLife.version
 		if(!await ctx.state.MemberSession.requestConsent(ctx))

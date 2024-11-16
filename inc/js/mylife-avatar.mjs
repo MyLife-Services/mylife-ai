@@ -3,6 +3,7 @@ import EventEmitter from 'events'
 import AssetAgent from './agents/system/asset-agent.mjs'
 import BotAgent from './agents/system/bot-agent.mjs'
 import CollectionsAgent from './agents/system/collections-agent.mjs'
+import { Entry, Memory, } from './mylife-models.mjs'
 import EvolutionAgent from './agents/system/evolution-agent.mjs'
 import ExperienceAgent from './agents/system/experience-agent.mjs'
 import LLMServices from './mylife-llm-services.mjs'
@@ -488,18 +489,16 @@ class Avatar extends EventEmitter {
                     title=`New ${ form }`,
                     type=form,
                 } = item
-                if(!summary?.length){
-                    message.message = `Request had no summary for: "${ title }".`
-                    break
-                }
                 const assistantType = this.#botAgent.getAssistantType(form, type)
                 const being = 'story'
+                const llm_id = this.activeBot.llm_id
                 item = { // add validated fields back into `item`
                     ...item,
                     ...{
                         assistantType,
                         being,
                         id: this.newGuid,
+                        llm_id,
                         mbr_id,
                         name: `${ type }_${ form }_${ title.substring(0,64) }_${ mbr_id }`,
                         summary,
@@ -508,7 +507,20 @@ class Avatar extends EventEmitter {
                     }}
                 /* execute request */
                 try {
-                    response.item = mPruneItem(await this.#factory.createItem(item))
+                    let Item
+                    switch(type){
+                        case 'entry':
+                            Item = new Entry(item, this, this.#llmServices)
+                            Item.save()
+                            break
+                        case 'memory':
+                        default:
+                            Item = new Memory(item, this, this.#llmServices)
+                            Item.save()
+                            break
+                    }
+                    console.log('item()::Item', Item.llm_id, Item.item, Item)
+                    response.item = Item.item
                 } catch(error) {
                     console.log('item()::error', error)
                 }
@@ -548,6 +560,14 @@ class Avatar extends EventEmitter {
         response.responses = [message]
         response.success = success
         return response
+    }
+    /**
+     * Proxy to saves an item to the database.
+     * @param {object} item - The item data object
+     * @returns {Promise<object>} - The saved item object
+     */
+    async itemSave(item){
+        return await this.#factory.createItem(item)
     }
     /**
      * Migrates a bot to a new, presumed combined (with internal or external) bot.
@@ -602,6 +622,15 @@ class Avatar extends EventEmitter {
             }],
             success: true,
         }
+    }
+	/**
+	 * Populate an object with data, alters in place the incoming class instance.
+	 * @param {object} obj - Object to populate
+	 * @param {object} data - Data to populate object with
+	 * @returns {void}
+	 */
+    populateObject(obj, data){
+        return this.globals.populateObject(obj, data)
     }
     /**
      * Register a candidate in database.
@@ -717,6 +746,9 @@ class Avatar extends EventEmitter {
                 success: false,
             }
         return response
+    }
+    sanitize(obj){
+        return this.globals.sanitize(obj)
     }
     /**
      * Activate a specific Bot.

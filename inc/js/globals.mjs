@@ -114,15 +114,29 @@ class Globals extends EventEmitter {
 		return typeof version === 'string' && regex.test(version)
 	}
 	/**
+	 * Populate an object with data, alters in place the incoming class instance.
+	 * @param {object} obj - Object to populate
+	 * @param {object} data - Data to populate object with
+	 * @returns {void}
+	 */
+	populateObject(obj, data){
+		if(!obj || typeof obj!=='object')
+			throw new Error('Parameter requires an object')
+		if(!data || typeof data!=='object')
+			throw new Error('Parameter requires an object')
+		this.sanitize(data)
+		Object.keys(data).forEach(key=>obj[key]=data[key])
+	}
+	/**
 	 * Sanitize an object by removing forbidden Cosmos fields and undefined/null values.
-	 * @param {object} object - Cosmos document to sanitize
+	 * @param {object} obj - Cosmos document to sanitize
 	 * @returns {object} - Sanitized data object
 	 */
-	sanitize(object){
-		if(!object || typeof object !== 'object')
+	sanitize(obj){
+		if(!obj || typeof obj !== 'object')
 			throw new Error('Parameter requires an object')
 		const sanitizedData = Object.fromEntries(
-			Object.entries(object)
+			Object.entries(obj)
 				.filter(([key, value])=>
 					!mForbiddenCosmosFields.some(char => key.startsWith(char)) &&
 					value !== null &&
