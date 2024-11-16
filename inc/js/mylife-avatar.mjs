@@ -519,8 +519,7 @@ class Avatar extends EventEmitter {
                             Item.save()
                             break
                     }
-                    console.log('item()::Item', Item.llm_id, Item.item, Item)
-                    response.item = Item.item
+                    response.item = mPruneItem(Item.item)
                 } catch(error) {
                     console.log('item()::error', error)
                 }
@@ -2177,6 +2176,7 @@ function mPruneItem(item){
     const {
         assistantType,
         being,
+        complete=false,
         form,
         id,
         keywords,
@@ -2186,10 +2186,12 @@ function mPruneItem(item){
         summary,
         title,
         type,
+        version=1.0,
     } = item
     item = {
         assistantType,
         being,
+        complete,
         form,
         id,
         keywords,
@@ -2199,6 +2201,7 @@ function mPruneItem(item){
         summary,
         title,
         type,
+        version,
     }
     return item
 }
