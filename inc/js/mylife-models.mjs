@@ -46,7 +46,7 @@ class Item extends EventEmitter {
             id=this.#avatar.newGuid,
             llm_id,
             mbr_id,
-            summary,
+            summary='',
             type,
             version=mVersion,
             ...additionalProperties
@@ -67,10 +67,14 @@ class Item extends EventEmitter {
      * @returns {Promise<void>}
      */
     async save(){
-        console.log('Item.save()', this.item)
-        await this.#avatar.itemSave(this.item)
         this.updateVersion()
+        await this.#avatar.itemSave(this.item)
     }
+    /**
+     * Update the item version.
+     * @param {boolean} system - Update the system version (default: true)
+     * @returns {void}
+     */
     updateVersion(system=true){
         if(system)
             this.#version += 0.1
@@ -119,9 +123,8 @@ class Item extends EventEmitter {
         return this.#summary
     }
     set summary(value){
-        if(!value?.length || typeof value !== 'string')
-            throw new Error('Summary string required')
-        this.#summary = value
+        if(typeof value==='string' && value?.length)
+            this.#summary = value
     }
     get type(){
         return this.#type
