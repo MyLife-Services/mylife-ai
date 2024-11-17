@@ -449,7 +449,7 @@ class Avatar extends EventEmitter {
     }
     /**
      * Manages a collection item's functionality.
-     * @todo - move `get` to here as well
+     * @todo - assistantType fix, whether to include on frontend or omit as is now form from LLM
      * @param {Object} item - The item data object
      * @param {String} method - The http method used to indicate response
      * @returns {Promise<Object>} - Returns { instruction, item, responses, success, }
@@ -463,8 +463,17 @@ class Avatar extends EventEmitter {
                 message: `I encountered an error while trying to process your request; please try again.`,
                 type: 'system',
             }
-        let { id: itemId, summary, title, } = item
-        let success = false
+        const { assistantType, id: itemId, llm_id=this.activeBot.llm_id, } = item
+        let { form, summary, title, type=this.activeBot.type, } = item
+        let itemDatabase,
+            Item,
+            success = false
+        /* assignments/reassignments */
+        item.assistantType = assistantType
+            ?? this.#botAgent.getAssistantType(form, type)
+        item.llm_id = llm_id
+        if(itemId)
+            itemDatabase = await this.#factory.item(itemId)
         if(itemId && !globals.isValidGuid(itemId))
             throw new Error(`Invalid item id: ${ itemId }`)
         switch(method.toLowerCase()){
@@ -479,79 +488,43 @@ class Avatar extends EventEmitter {
                 instruction.itemId = itemId
                 break
             case 'post': /* create */
-                /* validate request */
-                const {
-                    content,
-                    form,
-                } = item
-                let {
-                    summary=content,
-                    title=`New ${ form }`,
-                    type=form,
-                } = item
-                const assistantType = this.#botAgent.getAssistantType(form, type)
-                const being = 'story'
-                const llm_id = this.activeBot.llm_id
-                item = { // add validated fields back into `item`
-                    ...item,
-                    ...{
-                        assistantType,
-                        being,
-                        id: this.newGuid,
-                        llm_id,
-                        mbr_id,
-                        name: `${ type }_${ form }_${ title.substring(0,64) }_${ mbr_id }`,
-                        summary,
-                        title,
-                        type,
-                    }}
                 /* execute request */
-                try {
-                    let Item
-                    switch(type){
-                        case 'entry':
-                            Item = new Entry(item, this, this.#llmServices)
-                            Item.save()
-                            break
-                        case 'memory':
-                        default:
-                            Item = new Memory(item, this, this.#llmServices)
-                            Item.save()
-                            break
-                    }
-                    response.item = mPruneItem(Item.item)
-                } catch(error) {
-                    console.log('item()::error', error)
-                }
+                Item = mItem(item, this, this.#llmServices)
                 /* return response */
-                success = this.globals.isValidGuid(response.item?.id)
-                if(success){
+                if(!!Item){
+                    await Item.save() // remove `await`
                     instruction.command = 'createItem'
-                    instruction.item = response.item
+                    instruction.item = mPruneItem(Item.item)
                     message.message = `Item successfully created: "${ response.item.title }".`
+                    response.item = instruction.item
+                    success = true
                 } else {
                     instruction.command = 'error'
                     message.message = `I encountered an error while creating: "${ title }".`
                 }
                 break
             case 'put': /* update */
-                const updatedItem = await this.#factory.updateItem(item)
-                const updatedTitle = updatedItem?.title
-                    ?? title
-                success = this.globals.isValidGuid(updatedItem?.id)
-                if(success){
+                if(!itemDatabase)
+                    break
+                Item = await mItem(itemDatabase, this, this.#llmServices)
+                if(!!Item){
+                    await Item.update(item) // includes save
                     instruction.command = 'updateItem'
-                    instruction.item = mPruneItem(updatedItem)
-                    message.message = `I have successfully updated: "${ updatedTitle }".`
-                    response.item = mPruneItem(updatedItem)
+                    instruction.item = mPruneItem(Item.item)
+                    message.message = `I have successfully updated: "${ Item.title }".`
+                    response.item = instruction.item
+                    success = true
                 } else
-                    message.message = `I encountered an error while trying to update: "${ updatedTitle }".`
+                    message.message = `I encountered an error while trying to update: "${ title }".`
                 break
             default:
-                const retrievedItem = await this.#factory.item(itemId)
-                success = !!retrievedItem
-                if(success)
-                    response.item = mPruneItem(retrievedItem)
+                if(!itemDatabase)
+                    break
+                Item = await mItem(itemDatabase, this, this.#llmServices)
+                if(!!Item){
+                    response.item = mPruneItem(Item.item)
+                    success = true
+                }
                 break
         }
         this.frontendInstruction = instruction // LLM-return safe
@@ -626,10 +599,11 @@ class Avatar extends EventEmitter {
 	 * Populate an object with data, alters in place the incoming class instance.
 	 * @param {object} obj - Object to populate
 	 * @param {object} data - Data to populate object with
+	 * @param {Array} immutableFields - Fields that should not be altered, and are removed from update
 	 * @returns {void}
 	 */
-    populateObject(obj, data){
-        return this.globals.populateObject(obj, data)
+    populateObject(obj, data, immutableFields){
+        this.globals.populateObject(obj, data, immutableFields)
     }
     /**
      * Register a candidate in database.
@@ -746,8 +720,14 @@ class Avatar extends EventEmitter {
             }
         return response
     }
-    sanitize(obj){
-        return this.globals.sanitize(obj)
+    /**
+     * Sanitize an object, using Global modular functions.
+     * @param {object} obj - The object to sanitize
+     * @param {Array} immutableFields - Fields that should not be altered
+     * @returns {object} - The sanitized object
+     */
+    sanitize(obj, immutableFields){
+        return this.globals.sanitize(obj, immutableFields)
     }
     /**
      * Activate a specific Bot.
@@ -2124,6 +2104,58 @@ async function mInit(factory, llmServices, avatar, botAgent, assetAgent){
         .init()
     /* lived-experiences */
     avatar.experiencesLived = await factory.experiencesLived(false)
+}
+/**
+ * Instantiates a new item and returns the item object.
+ * @param {object} item - The item data
+ * @param {Avatar} avatar - The avatar instance
+ * @param {LLMServices} llmServices - The llm instance
+ * @returns {Entry|Memory} - The item object
+ */
+function mItem(item, avatar, llmServices){
+    /* validate request */
+    let Item
+    const {
+        assistantType,
+        content,
+        form,
+        id=avatar.newGuid,
+        llm_id=avatar?.activeBot?.llm_id,
+        type='memory',
+    } = item
+    const { // derived defaults
+        summary=content,
+        title=`New ${ form }`,
+    } = item
+    item = {
+        ...item,
+        ...{ // validated fields
+            assistantType,
+            llm_id,
+            summary,
+            title,
+            type,
+        },
+        ...{ // forced fields
+            id,
+            mbr_id: avatar.mbr_id,
+            name: `${ type }_${ form }_${ title.substring(0,64) }_${ avatar.mbr_id }`,
+        }
+    }
+    try {
+        switch(type){
+            case 'entry':
+                Item = new Entry(item, avatar, llmServices)
+                break
+            case 'memory':
+            default:
+                Item = new Memory(item, avatar, llmServices)
+                break
+        }
+    } catch(error){
+        console.log('item()::error', error.message)
+    }
+    return Item
 }
 /**
  * Get experience scene navigation array.

@@ -8,6 +8,7 @@ import { Guid } from 'js-guid'
 const mAiJsFunctions = await mParseFunctions()
 const mEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const mForbiddenCosmosFields = ['$', '_', ' ', '@', '#',]
+const mForbiddenValues = [undefined, null, NaN]
 const mGuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i	//	regex for GUID validation
 const mOpenAIBotModel = process.env.OPENAI_MODEL_CORE_BOT
 	?? 'gpt-4o'
@@ -117,30 +118,38 @@ class Globals extends EventEmitter {
 	 * Populate an object with data, alters in place the incoming class instance.
 	 * @param {object} obj - Object to populate
 	 * @param {object} data - Data to populate object with
+	 * @param {Array} immutableFields - Fields that should not be altered, and are removed from update
 	 * @returns {void}
 	 */
-	populateObject(obj, data){
+	populateObject(obj, data, immutableFields){
 		if(!obj || typeof obj!=='object')
 			throw new Error('Parameter requires an object')
 		if(!data || typeof data!=='object')
 			throw new Error('Parameter requires an object')
-		this.sanitize(data)
-		Object.keys(data).forEach(key=>obj[key]=data[key])
+		data = this.sanitize(data, immutableFields)
+		Object.keys(data)
+			.forEach(key=>{
+				const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(obj), key)
+				if(descriptor && (typeof descriptor.get==='function' || typeof obj[key]==='function'))
+					return // Skip functions and getters
+				obj[key]=data[key]
+			})
 	}
 	/**
 	 * Sanitize an object by removing forbidden Cosmos fields and undefined/null values.
 	 * @param {object} obj - Cosmos document to sanitize
+	 * @param {Array} immutableFields - Fields that should not be altered, and are removed from update
 	 * @returns {object} - Sanitized data object
 	 */
-	sanitize(obj){
-		if(!obj || typeof obj !== 'object')
-			throw new Error('Parameter requires an object')
+	sanitize(obj, immutableFields=[]){
+		if(!obj || typeof obj!=='object')
+			return {}
 		const sanitizedData = Object.fromEntries(
 			Object.entries(obj)
 				.filter(([key, value])=>
 					!mForbiddenCosmosFields.some(char => key.startsWith(char)) &&
-					value !== null &&
-					value !== undefined
+					!immutableFields.includes(key) &&
+					!mForbiddenValues.includes(value)
 				)
 		)
 		return sanitizedData

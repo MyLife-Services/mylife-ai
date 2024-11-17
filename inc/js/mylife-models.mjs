@@ -15,8 +15,10 @@ class Item extends EventEmitter {
     #avatar
     #being=mBeing
     #complete=false
+    #created=Date.now()
     #form
     #id
+    #lastSaved
     #llm_id
     #llmServices
     #mbr_id
@@ -63,12 +65,26 @@ class Item extends EventEmitter {
     }
     /* public functions */
     /**
-     * Save the item to the datacore.
+     * Save the item to the datacore, and updates the next mechanical version.
      * @returns {Promise<void>}
      */
     async save(){
-        this.updateVersion()
         await this.#avatar.itemSave(this.item)
+        this.updateVersion()
+        this.#lastSaved = Date.now()
+    }
+    /**
+     * Update the item with valid new data.
+     * @param {object} data - Data object to update instance
+     * @param {Boolean} save - Save the item after update, default: `true`
+     * @returns {Promise<void>}
+     */
+    async update(data, save=true){
+        const immutableFields = ['being', 'id', 'llm_id', 'mbr_id', 'type']
+        this.#avatar.populateObject(this, data, immutableFields)
+        this.updateVersion()
+        if(save)
+            await this.save()
     }
     /**
      * Update the item version.
@@ -123,8 +139,18 @@ class Item extends EventEmitter {
         return this.#summary
     }
     set summary(value){
-        if(typeof value==='string' && value?.length)
+        if(typeof value==='string' && value?.length){
             this.#summary = value
+            this.updateVersion()
+        }
+    }
+    /**
+     * Gets time since last object save in milliseconds.
+     * @getter
+     * @returns {number} - Time since last save
+     */
+    get unsavedDuration(){
+        return Date.now()-(this.#lastSaved ?? this.#created)
     }
     get type(){
         return this.#type

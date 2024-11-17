@@ -405,6 +405,7 @@ class BotAgent {
 			return itemForm.toLowerCase()==='diary'
 				? 'diary'
 				: 'journaler'
+		return 'avatar'
 	}
     /**
      * Get a static or dynamic greeting from active bot.
