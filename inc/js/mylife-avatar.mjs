@@ -479,10 +479,6 @@ class Avatar extends EventEmitter {
         let itemDatabase,
             Item,
             success = false
-        /* assignments/reassignments */
-        item.assistantType = assistantType
-            ?? this.#botAgent.getAssistantType(form, type)
-        item.llm_id = llm_id
         if(itemId)
             itemDatabase = await this.#factory.item(itemId)
         if(itemId && !globals.isValidGuid(itemId))
@@ -499,11 +495,15 @@ class Avatar extends EventEmitter {
                 instruction.itemId = itemId
                 break
             case 'post': /* create */
+                /* validate request */
+                item.assistantType = assistantType
+                    ?? this.#botAgent.getAssistantType(form, type)
+                item.llm_id = llm_id
                 /* execute request */
                 Item = mItem(item, this, this.#llmServices)
                 /* return response */
                 if(!!Item){
-                    await Item.save() // remove `await`
+                    Item.create() // remove `await`
                     instruction.command = 'createItem'
                     instruction.item = mPruneItem(Item.item)
                     message.message = `Item successfully created: "${ response.item.title }".`
@@ -519,7 +519,7 @@ class Avatar extends EventEmitter {
                     break
                 Item = await mItem(itemDatabase, this, this.#llmServices)
                 if(!!Item){
-                    await Item.update(item) // includes save
+                    Item.update(item, true)
                     instruction.command = 'updateItem'
                     instruction.item = mPruneItem(Item.item)
                     message.message = `I have successfully updated: "${ Item.title }".`
@@ -544,13 +544,16 @@ class Avatar extends EventEmitter {
         response.success = success
         return response
     }
+    async itemCreate(item){
+        return await this.#factory.createItem(item)
+    }
     /**
-     * Proxy to saves an item to the database.
+     * Proxy to save an item to the database.
      * @param {object} item - The item data object
      * @returns {Promise<object>} - The saved item object
      */
-    async itemSave(item){
-        return await this.#factory.createItem(item)
+    async itemUpdate(item){
+        return await this.#factory.updateItem(item)
     }
     /**
      * Migrates a bot to a new, presumed combined (with internal or external) bot.
@@ -2164,7 +2167,7 @@ function mItem(item, avatar, llmServices){
                 break
         }
     } catch(error){
-        console.log('item()::error', error.message)
+        console.log('item()::error', error)
     }
     return Item
 }

@@ -41,6 +41,7 @@ class Item extends EventEmitter {
         super()
         this.#avatar = avatar
         this.#llmServices = llmServices
+        item = this.#avatar.sanitize(item)
         const {
             being,
             complete,
@@ -64,12 +65,17 @@ class Item extends EventEmitter {
         this.#avatar.populateObject(this, this.#additionalProperties)
     }
     /* public functions */
+    async create(){
+        await this.#avatar.itemCreate(this.item)
+        this.#lastSaved = Date.now()
+    }
     /**
      * Save the item to the datacore, and updates the next mechanical version.
+     * @param {object} data - Data object describing fields to be saved (optional), defaults to allowable fields
      * @returns {Promise<void>}
      */
-    async save(){
-        await this.#avatar.itemSave(this.item)
+    async save(data=this.item){
+        await this.#avatar.itemUpdate(data)
         this.updateVersion()
         this.#lastSaved = Date.now()
     }
@@ -80,11 +86,12 @@ class Item extends EventEmitter {
      * @returns {Promise<void>}
      */
     async update(data, save=true){
+        delete data.itemId
         const immutableFields = ['being', 'id', 'llm_id', 'mbr_id', 'type']
         this.#avatar.populateObject(this, data, immutableFields)
         this.updateVersion()
         if(save)
-            await this.save()
+            await this.save(data)
     }
     /**
      * Update the item version.

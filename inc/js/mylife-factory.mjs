@@ -662,12 +662,11 @@ class AgentFactory extends BotFactory {
 	/**
 	 * Updates a collection item.
 	 * @param {object} item - The item to update
-	 * @property {Guid} item.id - The item id
 	 * @returns {Promise<object>} - The updated item
 	 */
 	async updateItem(item){
 		if(!this.globals.isValidGuid(item?.id))
-			throw new Error('item id required for update')
+			return
 		const response = await this.dataservices.patch(item.id, item)
 		return response
 	}
