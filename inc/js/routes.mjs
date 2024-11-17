@@ -9,6 +9,7 @@ import {
     chat,
     collections,
     createBot,
+    evaluate,
     feedback,
     greetings,
     help,
@@ -123,6 +124,7 @@ _memberRouter.post('/', chat)
 _memberRouter.post('/bots', bots)
 _memberRouter.post('/bots/create', createBot)
 _memberRouter.post('/bots/activate/:bid', activateBot)
+_memberRouter.post('/evaluate/:iid', evaluate)
 _memberRouter.post('/feedback', feedback)
 _memberRouter.post('/feedback/:mid', feedback)
 _memberRouter.post('/item', item)

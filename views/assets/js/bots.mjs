@@ -599,13 +599,16 @@ async function mCreateCollections(){
  * @returns {HTMLDivElement} - The collection popup.
  */
 function mCreateCollectionPopup(collectionItem){
-    const { form, id, name, summary, title, type } = collectionItem
+    const { complete=false, form, id, name, summary, title, type, version=1, } = collectionItem
     const collectionPopup = document.createElement('div')
     collectionPopup.classList.add('collection-popup', 'popup-container')
     collectionPopup.dataset.active = 'false'
+    collectionPopup.dataset.complete = complete
     collectionPopup.dataset.id = id
+    collectionPopup.dataset.name = name
     collectionPopup.dataset.title = title
     collectionPopup.dataset.type = type
+    collectionPopup.dataset.version = version
     collectionPopup.id = `popup-container_${ id }`
     collectionPopup.name = `collection-popup_${ type }`
     collectionPopup.addEventListener('click', (e)=>e.stopPropagation()) /* Prevent event bubbling to collection-bar */
@@ -744,7 +747,6 @@ function mCreateCollectionPopup(collectionItem){
     let typePopup
     switch (type) {
         case 'entry':
-            // @stub - could switch on `form`
             const entryType = form
                 ?? type
             /* improve entry container */
@@ -755,6 +757,29 @@ function mCreateCollectionPopup(collectionItem){
             /* improve entry lane */
             const improveEntryLane = document.createElement('div')
             improveEntryLane.classList.add('improve-entry-lane')
+            const improveEntryWidgetLeft = document.createElement('div')
+            improveEntryWidgetLeft.classList.add('improve-panel')
+            const improveEntryWidgetRight = document.createElement('div')
+            improveEntryWidgetRight.classList.add('improve-panel')
+            improveEntryLane.appendChild(improveEntryWidgetLeft)
+            improveEntryLane.appendChild(improveEntryWidgetRight)
+            /* entry complete */
+            const entryComplete = document.createElement('div')
+            entryComplete.classList.add('entry-complete-container')
+            entryComplete.id = `entry-complete_${ id }`
+            const entryCompleteLabel = document.createElement('label')
+            entryCompleteLabel.classList.add('entry-complete-label')
+            entryCompleteLabel.htmlFor = `entry-complete-checkbox_${ id }`
+            entryCompleteLabel.textContent = `${ entryType } Entry Incomplete`
+            const entryCompleteCheckbox = document.createElement('input')
+            entryCompleteCheckbox.type = 'checkbox'
+            entryCompleteCheckbox.id = `entry-complete-checkbox_${ id }`
+            entryCompleteCheckbox.name = 'entry-complete-checkbox'
+            entryCompleteCheckbox.checked = !complete
+            entryComplete.appendChild(entryCompleteLabel)
+            entryComplete.appendChild(entryCompleteCheckbox)
+            improveEntryWidgetLeft.appendChild(entryComplete)
+            // @stub - add event listener to update entry completed status
             /* obscure entry */
             const obscureEntry = document.createElement('button')
             obscureEntry.classList.add('obscure-button', 'button')
@@ -763,17 +788,32 @@ function mCreateCollectionPopup(collectionItem){
             obscureEntry.name = 'obscure-button'
             obscureEntry.textContent = 'Obscure Entry'
             obscureEntry.addEventListener('click', mObscureEntry, { once: true })
+            improveEntryWidgetLeft.appendChild(obscureEntry)
+            /* evaluate entry */
+            const evaluateEntry = document.createElement('button')
+            evaluateEntry.classList.add('evaluate-button', 'button')
+            evaluateEntry.dataset.id = id /* required for mObscureEntry */
+            evaluateEntry.id = `button-evaluate-${ entryType }_${ id }`
+            evaluateEntry.name = 'evaluate-button'
+            evaluateEntry.textContent = 'Evaluate'
+            evaluateEntry.addEventListener('click', mEvaluate, { once: true })
+            improveEntryWidgetLeft.appendChild(evaluateEntry)
             /* experience entry panel */
             const experienceEntry = document.createElement('div')
             experienceEntry.classList.add('experience-entry-container')
             experienceEntry.id = `experience_${ id }`
             experienceEntry.name = 'experience-entry-container'
+            /* entry version */
+            const entryVersion = document.createElement('div')
+            entryVersion.classList.add('entry-version')
+            entryVersion.textContent = `Version: ${ version }`
+            experienceEntry.appendChild(entryVersion)
             /* experience entry explanation */
             const experienceExplanation = document.createElement('div')
             experienceExplanation.classList.add('experience-entry-explanation')
             experienceExplanation.id = `experience-explanation_${ id }`
             experienceExplanation.name = 'experience-entry-explanation'
-            experienceExplanation.textContent = 'Experience an entry by clicking the button below. Eventually, you will be able to experience the entry from multiple perspectives.'
+            experienceExplanation.textContent = 'Experience an entry by clicking the button below.'
             /* experience entry button */
             const experienceButton = document.createElement('button')
             experienceButton.classList.add('experience-entry-button', 'button')
@@ -784,6 +824,9 @@ function mCreateCollectionPopup(collectionItem){
             experienceButton.addEventListener('click', _=>{
                 alert('Experience Entry: Coming soon')
             }, { once: true })
+            experienceEntry.appendChild(experienceExplanation)
+            experienceEntry.appendChild(experienceButton)
+            improveEntryWidgetRight.appendChild(experienceEntry)
             /* memory media-carousel */
             const entryCarousel = document.createElement('div')
             entryCarousel.classList.add('media-carousel')
@@ -791,10 +834,6 @@ function mCreateCollectionPopup(collectionItem){
             entryCarousel.name = 'media-carousel'
             entryCarousel.textContent = 'Coming soon: media file uploads to Enhance and Improve entries'
             /* append elements */
-            experienceEntry.appendChild(experienceExplanation)
-            experienceEntry.appendChild(experienceButton)
-            improveEntryLane.appendChild(obscureEntry)
-            improveEntryLane.appendChild(experienceEntry)
             improveEntry.appendChild(improveEntryLane)
             improveEntry.appendChild(entryCarousel)
             typePopup = improveEntry
@@ -809,23 +848,55 @@ function mCreateCollectionPopup(collectionItem){
             improveMemory.classList.add(`collection-popup-${ type }`)
             improveMemory.id = `popup-${ type }_${ id }`
             improveMemory.name = 'improve-memory-container'
-            /* shadows, relive-memory panel */
             const improveMemoryLane = document.createElement('div')
             improveMemoryLane.classList.add('improve-memory-lane')
-            /* story shadows */
+            const improveMemoryLaneLeft = document.createElement('div')
+            improveMemoryLaneLeft.classList.add('improve-panel')
+            const improveMemoryLaneRight = document.createElement('div')
+            improveMemoryLaneRight.classList.add('improve-panel')
+            improveMemoryLane.appendChild(improveMemoryLaneLeft)
+            improveMemoryLane.appendChild(improveMemoryLaneRight)
+            improveMemory.appendChild(improveMemoryLane)
+            /* memory complete */
+            const memoryComplete = document.createElement('div')
+            memoryComplete.classList.add('memory-complete-container')
+            memoryComplete.id = `memory-complete_${ id }`
+            const memoryCompleteLabel = document.createElement('label')
+            memoryCompleteLabel.classList.add('memory-complete-label')
+            memoryCompleteLabel.htmlFor = `memory-complete-checkbox_${ id }`
+            memoryCompleteLabel.textContent = `Memory Incomplete`
+            const memoryCompleteCheckbox = document.createElement('input')
+            memoryCompleteCheckbox.type = 'checkbox'
+            memoryCompleteCheckbox.id = `memory-complete-checkbox_${ id }`
+            memoryCompleteCheckbox.name = 'memory-complete-checkbox'
+            memoryCompleteCheckbox.checked = !complete
+            memoryComplete.appendChild(memoryCompleteLabel)
+            memoryComplete.appendChild(memoryCompleteCheckbox)
+            improveMemoryLaneLeft.appendChild(memoryComplete)
+            /* memory prompts */
             if(mShadows?.length)
-                improveMemoryLane.appendChild(mCreateMemoryShadows(id))
-            /* relive memory panel */
-            const reliveMemory = document.createElement('div')
-            reliveMemory.classList.add('relive-memory-container')
-            reliveMemory.id = `relive-memory_${ id }`
-            reliveMemory.name = 'relive-memory-container'
+                improveMemoryLaneLeft.appendChild(mCreateMemoryShadows(id))
+            /* evaluate memory */
+            const evaluateMemory = document.createElement('button')
+            evaluateMemory.classList.add('evaluate-button', 'button')
+            evaluateMemory.dataset.id = id
+            evaluateMemory.id = `button-evaluate-memory_${ id }`
+            evaluateMemory.name = 'evaluate-button'
+            evaluateMemory.textContent = 'Evaluate'
+            evaluateMemory.addEventListener('click', mEvaluate, { once: true })
+            improveMemoryLaneLeft.appendChild(evaluateMemory)
+            /* memory version */
+            const memoryVersion = document.createElement('div')
+            memoryVersion.classList.add('memory-version')
+            memoryVersion.textContent = `Version: ${ version }`
+            improveMemoryLaneRight.appendChild(memoryVersion)
             /* relive memory explanation */
             const reliveExplanation = document.createElement('div')
             reliveExplanation.classList.add('relive-memory-explanation')
             reliveExplanation.id = `relive-memory-explanation_${ id }`
             reliveExplanation.name = 'relive-memory-explanation'
             reliveExplanation.textContent = 'Relive a memory by clicking the button below. This will bring up the memory in chat, where you can add to it, or simply enjoy reliving it!'
+            improveMemoryLaneRight.appendChild(reliveExplanation)
             /* relive memory button */
             const reliveButton = document.createElement('button')
             reliveButton.classList.add('relive-memory-button', 'button')
@@ -834,18 +905,13 @@ function mCreateCollectionPopup(collectionItem){
             reliveButton.name = 'relive-memory-button'
             reliveButton.textContent = 'Relive Memory'
             reliveButton.addEventListener('click', mReliveMemory, { once: true })
-            /* append elements */
-            reliveMemory.appendChild(reliveExplanation)
-            reliveMemory.appendChild(reliveButton)
-            improveMemoryLane.appendChild(reliveMemory)
+            improveMemoryLaneRight.appendChild(reliveButton)
             /* memory media-carousel */
             const memoryCarousel = document.createElement('div')
             memoryCarousel.classList.add('media-carousel')
             memoryCarousel.id = `media-carousel_${ id }`
             memoryCarousel.name = 'media-carousel'
             memoryCarousel.textContent = 'Coming soon: media file uploads to Enhance and Improve memories'
-            /* append elements */
-            improveMemory.appendChild(improveMemoryLane)
             improveMemory.appendChild(memoryCarousel)
             typePopup = improveMemory
             break
@@ -1143,6 +1209,22 @@ function mIsInputCheckbox(element){
     const { tagName, type, } = element
     const outcome = tagName.toLowerCase()==='input' && type.toLowerCase()==='checkbox'
     return outcome
+}
+async function mEvaluate(event){
+    event.preventDefault()
+    event.stopPropagation()
+    /* set active item */
+    const { id: itemId, } = this.dataset
+    if(itemId)
+        setActiveItem(itemId)
+    toggleMemberInput(false, false)
+    const popupClose = document.getElementById(`popup-close_${ itemId }`)
+    if(popupClose)
+        popupClose.click()
+    const { responses, success, } = await mGlobals.datamanager.evaluate(itemId)
+    if(responses?.length)
+        addMessages(responses)
+    toggleMemberInput(true)
 }
 async function mObscureEntry(event){
     event.preventDefault()

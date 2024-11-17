@@ -257,6 +257,17 @@ class Avatar extends EventEmitter {
 		return await this.item(entry, 'POST')
 	}
     /**
+     * Given an itemId, evaluates aspects of item summary. Evaluate content is a vanilla function for MyLife, so does not require intervening intelligence and relies on the factory's modular LLM.
+     * @param {Guid} itemId - The item id
+     * @returns {Object} - The Response object { instruction, responses, success, }
+     */
+    async evaluate(itemId){
+        const response = await this.#botAgent.evaluate(itemId)
+        if(response.success && response.responses.length)
+            response.responses = mPruneMessages(this.activeBotId, response.responses, 'evaluation', response.processStartTime)
+        return response
+    }
+    /**
      * Ends an experience.
      * @todo - allow guest experiences
      * @todo - create case for member ending with enough interaction to _consider_ complete

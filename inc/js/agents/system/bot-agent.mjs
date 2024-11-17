@@ -391,6 +391,15 @@ class BotAgent {
 		const Conversation = await mConversationStart(type, form, bot_id, null, llm_id, this.#llm, this.#factory, prompt)
 		return Conversation
 	}
+    /**
+     * Given an itemId, evaluates aspects of item summary. Evaluate content is a vanilla function for MyLife, so does not require intervening intelligence and relies on the factory's modular LLM.
+     * @param {Guid} itemId - The item id
+     * @returns {Object} - The Response object { instruction, responses, success, }
+     */
+	async evaluate(itemId){
+        const response = await this.#factory.evaluate(itemId, this.avatar.llm_id)
+		return response
+	}
 	/**
 	 * Gets the correct bot for the item type and form.
 	 * @todo - deprecate

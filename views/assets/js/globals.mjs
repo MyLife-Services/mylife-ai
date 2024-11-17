@@ -204,6 +204,22 @@ class Datamanager {
         return response
     }
     /**
+     * MyLife function to obscure an item summary
+     * @param {Guid} itemId - The item ID
+     * @returns {Object} - The item object: { id, summary, etc. }
+     */
+    async evaluate(itemId){
+        const url = `/members/evaluate/${ itemId }`
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
      * End experience on server.
      * @public
      * @async

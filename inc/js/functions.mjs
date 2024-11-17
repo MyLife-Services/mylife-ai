@@ -152,6 +152,16 @@ async function createBot(ctx){
 	ctx.body = await avatar.createBot(bot)
 }
 /**
+ * Given an itemId, evaluates aspects of contents of the data record.
+ * @param {Koa} ctx - Koa Context object
+ * @returns {object} - The evaluation ersponse
+ */
+async function evaluate(ctx){
+	const { iid, } = ctx.params
+	const { avatar: Avatar, } = ctx.state
+	ctx.body = await Avatar.evaluate(iid)
+}
+/**
  * Save feedback from the member.
  * @param {Koa} ctx - Koa Context object
  * @returns {Boolean} - Whether or not the feedback was saved
@@ -438,6 +448,7 @@ export {
 	chat,
 	collections,
 	createBot,
+	evaluate,
 	feedback,
 	greetings,
 	help,
