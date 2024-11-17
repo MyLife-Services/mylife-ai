@@ -167,9 +167,9 @@ class Entry extends Item {
     #content
     constructor(item, avatar, llmServices){
         const { content, ..._item } = item
-        this.#content = content
         _item.type = 'entry'
         super(_item, avatar, llmServices)
+        this.#content = content
     }
     /* getters/setters */
     get itemCore(){
