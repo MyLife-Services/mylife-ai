@@ -12,6 +12,7 @@ import {
     createItem,
     endMemory,
     getAction,
+    getBot,
     getBotIcon,
     getItem,
     refreshCollection,
@@ -383,8 +384,8 @@ function setActiveItem(itemId){
         return
     const popup = document.getElementById(`popup-container_${ itemId }`)
     if(!popup)
-        return // throw new Error('setActiveItem::Error()::valid `popup` is required')
-    const { title, type, } = popup.dataset
+        return
+    const { form='journal', title, type, } = popup.dataset
     const activeButton = document.getElementById('chat-active-item-button')
     const activeClose = document.getElementById('chat-active-item-close')
     const activeIcon = document.getElementById('chat-active-item-icon')
@@ -420,9 +421,27 @@ function setActiveItem(itemId){
         activeTitle.dataset.title = title
         activeTitle.addEventListener('dblclick', updateTitle, { once: true })
     }
+    chatActiveItem.dataset.form = form
     chatActiveItem.dataset.id = itemId
     chatActiveItem.dataset.inAction = "false"
     chatActiveItem.dataset.itemId = itemId
+    chatActiveItem.dataset.type = type
+    function getBotType(itemType){
+        switch(itemType){
+            case 'memory':
+                return 'biographer'
+            case 'entry':
+                return form==='journal'
+                    ? 'journaler'
+                    : 'diary'
+            default:
+                return 'avatar'
+        }
+    }
+    const botType = getBotType(type)
+    const { id, } = getBot(botType)
+    if(id)
+        setActiveBot(id, false)
     show(chatActiveItem)
 }
 /**

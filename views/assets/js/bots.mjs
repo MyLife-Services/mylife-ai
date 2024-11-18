@@ -187,7 +187,7 @@ function removeItem(id){
  * @param {boolean} dynamic - Whether or not to add dynamic greeting, only triggered from source code.
  * @returns {void}
  */
-async function setActiveBot(event, dynamic=false){
+async function setActiveBot(event, displayGreeting=true){
     const botId = mGlobals.isGuid(event)
         ? event /* bypassed event, sent id */
         : event.target?.dataset?.bot_id
@@ -222,7 +222,8 @@ async function setActiveBot(event, dynamic=false){
     }
     /* update page */
     mSpotlightBotStatus()
-    addMessage(greeting)
+    if(displayGreeting)
+        addMessage(greeting)
     decorateActiveBot(mActiveBot)
 }
 /**
@@ -306,7 +307,10 @@ async function updatePageBots(bots=mBots, includeGreeting=false, dynamic=false){
  * @returns {object} - The bot object.
  */
 function mBot(type){
+    const heritageType = type.replace('personal-', '')
     return mBots.find(bot=>bot.type===type)
+        ?? mBots.find(bot=>bot.type===heritageType)
+        ?? mBots.find(bot=>bot.type===`personal-${ type }`)
         ?? mBots.find(bot=>bot.id===type)
 }
 /**
