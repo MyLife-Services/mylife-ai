@@ -405,21 +405,22 @@ async function mRunFunctions(openai, run, factory, avatar){
                             case 'changetitle':
                             case 'change_title':
                             case 'change title':
-                                const { title, } = toolArguments
-                                if(!itemId?.length || !title?.length){
+                                const { title: newTitle, } = toolArguments
+                                console.log('mRunFunctions()::changeTitle start', newTitle, itemId)
+                                if(!itemId?.length || !newTitle?.length){
                                     action = 'apologize for lack of clarity - member should click on the collection item (like a memory, story, etc) to identify it as active'
                                     confirmation.output = JSON.stringify({ action, success, })
                                     return confirmation
                                 }
                                 avatar.actionCallback = 'changeTitle'
                                 avatar.backupResponse = {
-                                    message: `I encountered an unexpected error while changing our title to: ${ title }. Please try again.`,
+                                    message: `I encountered an unexpected error while changing our title to: ${ newTitle }. Please try again.`,
                                     type: 'system',
                                 }
                                 avatar.frontendInstruction = {
                                     command: 'updateItemTitle',
                                     itemId,
-                                    title,
+                                    title: newTitle,
                                 }
                                 throw new Error('changeTitle intentionally aborted')
                             case 'confirmregistration':
@@ -490,15 +491,13 @@ async function mRunFunctions(openai, run, factory, avatar){
                             case 'getsummary':
                             case 'get_summary':
                             case 'get summary':
-                                console.log('mRunFunctions()::getSummary::begin', itemId)
-                                const getSummaryResponse = await avatar.item({ id: itemId, })
-                                item = getSummaryResponse?.item
-                                success = !!item?.summary?.length
+                                let { item: getSummaryItem, success: getSummarySuccess, } = await avatar.item({ id: itemId, })
+                                success = getSummarySuccess
                                 action = success
-                                    ? 'Most recent summary content found in payload as `summary`'
-                                    : `no summary found for item ${ itemId }, refer to conversation content`
-                                confirmation.output = JSON.stringify({ action, success, summary: getSummaryResponse.summary, })
-                                console.log('mRunFunctions()::getSummary::end', success, getSummaryResponse?.summary?.substring(0, 32))
+                                    ? 'Summary content found in payload @ `summary`'
+                                    : `No summary for item ${ itemId }, use conversation content`
+                                confirmation.output = JSON.stringify({ action, success, summary: getSummaryItem?.summary, })
+                                console.log('mRunFunctions()::getSummary', success, getSummaryItem?.summary?.substring(0, 32))
                                 return confirmation
                             case 'hijackattempt':
                             case 'hijack_attempt':
@@ -507,7 +506,6 @@ async function mRunFunctions(openai, run, factory, avatar){
                                 action = 'attempt noted in system and user ejected; greet per normal as first time new user'
                                 success = true
                                 confirmation.output = JSON.stringify({ action, success, })
-                                console.log('mRunFunctions()::hijack_attempt', toolArguments)
                                 return confirmation
                             case 'obscure':
                                 console.log('mRunFunctions()::obscure', toolArguments)
@@ -528,41 +526,41 @@ async function mRunFunctions(openai, run, factory, avatar){
                                 else {
                                     action = 'candidate registered in system; let them know they will be contacted by email within the week and if they have any more questions'
                                     success = true
-                                    console.log('mRunFunctions()::avatar', avatar, registration, toolArguments)
                                 }
                                 confirmation.output = JSON.stringify({ action, success, })
                                 return confirmation
                             case 'updatesummary':
                             case 'update_summary':
                             case 'update summary':
-                                console.log('mRunFunctions()::updatesummary::begin', itemId)
-                                const update = {
-                                    id: itemId,
-                                    summary: toolArguments.summary,
-                                }
-                                const updateSummaryResponse = await avatar.item(update, 'PUT')
-                                success = updateSummaryResponse?.success
-                                if(!success || !updateSummaryResponse?.item){
-                                    action = `Error updating ${ itemId }, halt processing to tell member to ensure the correct memory is active and then try again`
-                                    confirmation.output = JSON.stringify({
-                                        action,
-                                        success,
-                                    })
-                                    console.log('mRunFunctions()::updatesummary::fail', success, action.substring(0, 32))
-                                    return confirmation
-                                }
-                                item = updateSummaryResponse.item
-                                avatar.frontendInstruction = {
-                                    command: 'updateItem',
-                                    item,
-                                    itemId,
-                                }
+                                const { summary: newSummary, } = toolArguments
                                 avatar.backupResponse = {
-                                    message: `I made the requested update to: ${ item.title }`,
+                                    message: `I encountered an unexpected error while updating item with id: "${ itemId }". Please try again.`,
                                     type: 'system',
                                 }
-                                await mRunCancel(openai, thread_id, runId)
-                                console.log('mRunFunctions()::updatesummary::end', success, runId, item.title.substring(0, 32))
+                                if(!itemId?.length || !newSummary?.length){
+                                    action = 'if member-driven, they should click on the appropriate collection item (like a memory, story, etc) to identify it as active'
+                                    confirmation.output = JSON.stringify({ action, success, })
+                                    return confirmation
+                                }
+                                console.log('mRunFunctions()::updatesummary::begin', itemId)
+                                const updateData = {
+                                    id: itemId,
+                                    summary: newSummary,
+                                }
+                                let { instruction: updateItemInstruction, responses: updateItemResponses, success: updateItemSuccess, } = await avatar.item(updateData, 'PUT')
+                                success = updateItemSuccess
+                                if(avatar.livingMemory?.item?.id===itemId){
+                                    delete avatar.actionCallback
+                                    delete avatar.backupResponse
+                                    delete avatar.frontendInstruction
+                                    console.log('mRunFunctions()::updatesummary::livingMemory', success)
+                                    console.trace('Call stack trace')
+                                    confirmation.output = JSON.stringify({ success, })
+                                    return confirmation
+                                }
+                                avatar.actionCallback = 'updateItem'
+                                avatar.backupResponse = updateItemResponses?.[0]
+                                avatar.frontendInstruction = updateItemInstruction
                                 throw new Error('updateSummary intentionally aborted')
                             default:
                                 console.log(`ERROR::mRunFunctions()::toolFunction not found: ${ name }`, toolFunction)

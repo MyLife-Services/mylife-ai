@@ -127,7 +127,6 @@ class Avatar extends EventEmitter {
                     }
                     const changeTitleItem = await this.itemUpdate(changeTitleData)
                     if(changeTitleItem.id===itemId){
-                        console.log('', frontendInstruction)
                         this.frontendInstruction.command = 'updateItemTitle'
                         responses = [{
                             message: `I was able to change our title to "${ changeTitleTitle }".`,
@@ -139,6 +138,25 @@ class Avatar extends EventEmitter {
                             message: `I encountered an error while trying to change our title to "${ changeTitleTitle }".`,
                             type: 'system',
                         }]
+                    break
+                case 'updateItem':
+                case 'updateItemSummary':
+                case 'updateSummary':
+                    const { summary: updateSummarySummary, } = frontendInstruction.item
+                    const updateSummaryData = {
+                        id: itemId,
+                        summary: updateSummarySummary,
+                    }
+                    const updateSummaryItem = await this.itemUpdate(updateSummaryData)
+                    if(updateSummaryItem.id===itemId){
+                        this.frontendInstruction.command = 'updateItem'
+                        responses = [this.backupResponse
+                            ?? {
+                                message: `I was able to update our summary with this info.`,
+                                type: 'system',
+                            }]
+                        success = true
+                    }
                     break
                 default:
                     break
@@ -1572,20 +1590,6 @@ function mAvatarDropdown(globals, avatar){
         id,
         name,
     }
-}
-/**
- * Cancels openAI run.
- * @module
- * @param {LLMServices} llm - The LLMServices instance
- * @param {string} thread_id - Thread id
- * @param {string} runId - Run id
- * @returns {object} - [OpenAI run object](https://platform.openai.com/docs/api-reference/runs/object)
- */
-async function mCancelRun(llm, thread_id, runId,){
-    return await llm.beta.threads.runs.cancel(
-        thread_id,
-        runId
-    )
 }
 /**
  * Creates cast and returns associated `cast` object.
