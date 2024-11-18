@@ -94,6 +94,8 @@ class Avatar extends EventEmitter {
         if(!message)
             throw new Error('No message provided in context')
         const originalMessage = message
+        let responses = [],
+            success = false
         this.backupResponse = {
             message: `I got your message, but I'm having trouble processing it. Please try again.`,
             type: 'system',
@@ -109,17 +111,48 @@ class Avatar extends EventEmitter {
                     + summary
         }
         const Conversation = await this.activeBot.chat(message, originalMessage, mAllowSave, this)
-        const responses = mPruneMessages(this.activeBotId, Conversation.getMessages() ?? [], 'chat', Conversation.processStartTime)
+        responses = mPruneMessages(this.activeBotId, Conversation.getMessages() ?? [], 'chat', Conversation.processStartTime)
+        const { actionCallback, frontendInstruction, } = this
         if(!responses.length)
             responses.push(this.backupResponse)
-        /* respond request */
+        if(actionCallback?.length){
+            switch(actionCallback){
+                case 'changeTitle':
+                    const { title: changeTitleTitle, } = frontendInstruction
+                    if(!changeTitleTitle?.length)
+                        throw new Error('No title provided')
+                    const changeTitleData = {
+                        id: itemId,
+                        title: changeTitleTitle
+                    }
+                    const changeTitleItem = await this.itemUpdate(changeTitleData)
+                    if(changeTitleItem.id===itemId){
+                        console.log('', frontendInstruction)
+                        this.frontendInstruction.command = 'updateItemTitle'
+                        responses = [{
+                            message: `I was able to change our title to "${ changeTitleTitle }".`,
+                            type: 'system',
+                        }]
+                        success = true
+                    } else
+                        responses = [{
+                            message: `I encountered an error while trying to change our title to "${ changeTitleTitle }".`,
+                            type: 'system',
+                        }]
+                    break
+                default:
+                    break
+            }
+        }
         const response = {
             instruction: this.frontendInstruction,
             responses,
-            success: true,
+            success,
         }
-        delete this.frontendInstruction
+        /* respond request */
+        delete this.actionCallback
         delete this.backupResponse
+        delete this.frontendInstruction
         return response
     }
     /**

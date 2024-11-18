@@ -242,7 +242,7 @@ async function item(ctx){
 	if(!item?.id && id?.length)
 		item.id = id
 	const response = await avatar.item(item, method)
-	delete avatar.frontendInstruction // already embedded in response
+	delete avatar.frontendInstruction
 	ctx.body = response
 }
 async function logout(ctx){

@@ -1105,6 +1105,10 @@ function mGetAIFunctions(type, globals, vectorstoreId){
 		case 'avatar':
 		case 'personal-assistant':
 		case 'personal-avatar':
+			tools.push(
+				globals.getGPTJavascriptFunction('changeTitle'),
+				globals.getGPTJavascriptFunction('getSummary'),
+			)
 			includeSearch = true
 			break
 		case 'biographer':

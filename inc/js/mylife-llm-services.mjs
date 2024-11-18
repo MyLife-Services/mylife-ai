@@ -406,29 +406,22 @@ async function mRunFunctions(openai, run, factory, avatar){
                             case 'change_title':
                             case 'change title':
                                 const { title, } = toolArguments
-                                console.log('mRunFunctions()::changeTitle::begin', itemId, title)
                                 if(!itemId?.length || !title?.length){
-                                    action = 'apologize for lack of clarity - member should click on the collection item (like a memory, story, etc) to make it active so I can use the `changeTitle` tool'
+                                    action = 'apologize for lack of clarity - member should click on the collection item (like a memory, story, etc) to identify it as active'
                                     confirmation.output = JSON.stringify({ action, success, })
                                     return confirmation
                                 }
-                                item = { id: itemId, title, }
-                                const changeTitleResponse = await avatar.item(item, 'put')
-                                if(changeTitleResponse.success){
-                                    avatar.backupResponse = {
-                                        message: `I was able to change our title to: ${ title }`,
-                                        type: 'system',
-                                    }
-                                    avatar.frontendInstruction = {
-                                        command: 'updateItemTitle',
-                                        itemId,
-                                        title,
-                                    }
-                                    throw new Error('changeTitle intentionally aborted')
+                                avatar.actionCallback = 'changeTitle'
+                                avatar.backupResponse = {
+                                    message: `I encountered an unexpected error while changing our title to: ${ title }. Please try again.`,
+                                    type: 'system',
                                 }
-                                action = `error changing title for item ${ itemId }, request member try again.`
-                                confirmation.output = JSON.stringify({ action, success, })
-                                return confirmation
+                                avatar.frontendInstruction = {
+                                    command: 'updateItemTitle',
+                                    itemId,
+                                    title,
+                                }
+                                throw new Error('changeTitle intentionally aborted')
                             case 'confirmregistration':
                             case 'confirm_registration':
                             case 'confirm registration':
