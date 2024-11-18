@@ -223,7 +223,6 @@ function enactInstruction(instruction, interfaceLocation='chat', additionalFunct
     const functions = {
         addInput,
         addMessages,
-        endMemory,
         ...additionalFunctions, // overloads feasible
     }
     mGlobals.enactInstruction(instruction, functions)

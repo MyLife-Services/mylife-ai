@@ -692,7 +692,9 @@ class Globals {
                     return
                 createItem(item)
                 return
-            case 'endMemory': // server has already ended, call frontend cleanup
+            case 'endLiving': // server has already ended, call frontend cleanup
+            case 'endMemory':
+            case 'endReliving':
                 if(!itemId?.length || typeof endMemory!=='function')
                     return
                 endMemory(itemId)

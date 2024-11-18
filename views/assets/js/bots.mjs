@@ -85,8 +85,14 @@ function createItem(item){
         setActiveItem(id)
     }
 }
-async function endMemory(id){
-    await mStopRelivingMemory(id, false)
+/**
+ * Ends the memory reliving process.
+ * @param {Guid} id - The collection item id
+ * @param {boolean} server - Whether or not to update the server, default: `false`
+ * @returns {void}
+ */
+async function endMemory(id, server=false){
+    await mStopRelivingMemory(id, server)
 }
 /**
  * Get default Action population from active bot.
@@ -1302,18 +1308,21 @@ async function mReliveMemory(event){
     unsetActiveItem()
     const { instruction, item, responses, success, } = await mGlobals.datamanager.memoryRelive(id, inputContent)
     if(success){
-        toggleMemberInput(false, true)
-        addMessages(responses, { bubbleClass: 'relive-bubble' })
-        /* add input options */
-        const functions = {
-            'add': mAddMemory,
+        const interrupts = ['endMemory', 'endReliving']
+        const haltMemory = interrupts.includes(instruction?.command)
+        const options = {
+            bubbleClass: haltMemory ? 'system-bubble' : 'relive-bubble',
         }
+        toggleMemberInput(false, true)
+        addMessages(responses, options)
         if(!!instruction){
             const functions = {
                 addMessages,
                 endMemory,
             }
             enactInstruction(instruction, 'chat', functions)
+            if(haltMemory)
+                return
         }
         /* direct relive structure */
         const input = document.createElement('div')
@@ -1333,10 +1342,10 @@ async function mReliveMemory(event){
         input.appendChild(inputClose)
         input.appendChild(inputContent)
         input.appendChild(inputSubmit)
-        inputClose.addEventListener('click', event=>{
+        inputClose.addEventListener('click', async event=>{
             event.preventDefault()
             event.stopPropagation()
-            mStopRelivingMemory(id)
+            await mStopRelivingMemory(id, true)
         }, { once: true })
         inputContent.addEventListener('input', event=>{
             const { value, } = event.target
@@ -1576,13 +1585,17 @@ async function mStopRelivingMemory(id, server=true){
         const { instruction, responses, success} = await mGlobals.datamanager.memoryReliveEnd(id)
         if(success){
             addMessages(responses, { responseDelay: 3, })
-            if(!!instruction)
+            if(!!instruction){
                 enactInstruction(instruction)
+            }
         }
     }
     mRelivingMemory = null
     unsetActiveItem()
     toggleMemberInput(true)
+    const reliveButton = document.getElementById(`relive-memory-button_${ id }`)
+    if(reliveButton)
+        reliveButton.addEventListener('click', mReliveMemory, { once: true })
 }
 /**
  * Manages `change` event selection of team member from `team-select` dropdown.

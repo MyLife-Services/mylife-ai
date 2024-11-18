@@ -442,9 +442,9 @@ class BotAgent {
 			const messages = []
 			messages.push({
 				content: `## MEMORY SUMMARY Reference for id: ${ item.id }\n### FOR REFERENCE ONLY\n${ item.summary }\n`,
-				role: 'assistant',
+				role: 'user',
 			})
-			memberInput = `${ message }Let's begin to LIVE MEMORY, id: ${ item.id }, MEMORY SUMMARY in previous message`
+			memberInput = `${ message }Let's begin to LIVE MEMORY, id: ${ item.id }, MEMORY SUMMARY starts this conversation`
 			const Conversation = await mConversationStart('memory', type, bot_id, null, llm_id, this.#llm, this.#factory, memberInput, messages)
 			Conversation.action = 'living'
 			livingMemory.Conversation = Conversation
@@ -1015,9 +1015,9 @@ async function mCallLLM(Conversation, allowSave=true, llm, factory, avatar){
 	if(!prompt?.length)
 		throw new Error('No `prompt` found in Conversation for `mCallLLM`.')
     const botResponses = await llm.getLLMResponse(thread_id, llm_id, prompt, factory, avatar)
-	const run_id = botResponses?.[0]?.run_id
-	if(!run_id?.length)
+	if(!botResponses?.length)
 		return
+	const { run_id, } = botResponses[0]
 	Conversation.addRun(run_id)
     botResponses
 		.filter(botResponse=>botResponse?.run_id===Conversation.run_id)
@@ -1111,6 +1111,7 @@ function mGetAIFunctions(type, globals, vectorstoreId){
 		case 'personal-biographer':
 			tools.push(
 				globals.getGPTJavascriptFunction('changeTitle'),
+				globals.getGPTJavascriptFunction('endReliving'),
 				globals.getGPTJavascriptFunction('getSummary'),
 				globals.getGPTJavascriptFunction('itemSummary'),
 				globals.getGPTJavascriptFunction('updateSummary'),

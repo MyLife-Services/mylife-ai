@@ -215,9 +215,11 @@ class Avatar extends EventEmitter {
      * @async
      * @public
      * @todo - save conversation fragments
-     * @returns {void}
+     * @returns {object} - The response object { instruction, responses, success, }
      */
     async endMemory(){
+        if(!this.#livingMemory)
+            return
         const { Conversation, id, item, } = this.#livingMemory
         const { bot_id, } = Conversation
         if(mAllowSave)
@@ -225,7 +227,6 @@ class Avatar extends EventEmitter {
         const instruction = {
             command: `endMemory`,
             itemId: item.id,
-            livingMemoryId: id,
         }
         const responses = [mCreateSystemMessage(bot_id, `I've ended the memory, thank you for letting me share my interpretation. I hope you liked it.`, this.#factory.message)]
         const response = {
@@ -2317,30 +2318,40 @@ function mPruneMessages(bot_id, messageArray, type='chat', processStartTime=Date
  */
 async function mReliveMemoryNarration(item, memberInput, BotAgent, Avatar){
     Avatar.livingMemory = await BotAgent.liveMemory(item, memberInput, Avatar)
-    const { Conversation, item: livingMemoryItem, } = Avatar.livingMemory
-    const { bot_id, type, } = Conversation
-    const endpoint = `/members/memory/end/${ livingMemoryItem.id }`
-    const instruction = {
-        command: 'createInput',
-        inputs: [{
-            endpoint,
-            id: Avatar.newGuid,
-            interfaceLocation: 'chat', // enum: ['avatar', 'team', 'chat', 'bot', 'experience', 'system', 'admin'], defaults to chat
-            method: 'PATCH',
-            prompt: `I'd like to stop reliving this memory.`,
-            required: true,
-            type: 'button',
-        }],
-    }
-    const responses = Conversation.getMessages()
-        .map(message=>mPruneMessage(bot_id, message, type))
-    const memory = {
-        instruction,
-        item,
-        responses,
-        success: true,
-    }
-    return memory
+    let response
+    if(!Avatar.actionCallback?.length){
+        const { Conversation, item: livingMemoryItem, } = Avatar.livingMemory
+        const { bot_id, type, } = Conversation
+        const endpoint = `/members/memory/end/${ livingMemoryItem.id }`
+        const defaultInstruction = {
+            command: 'createInput',
+            inputs: [{
+                endpoint,
+                id: Avatar.newGuid,
+                interfaceLocation: 'chat', // enum: ['avatar', 'team', 'chat', 'bot', 'experience', 'system', 'admin'], defaults to chat
+                method: 'PATCH',
+                prompt: `I'd like to stop reliving this memory.`,
+                required: true,
+                type: 'button',
+            }],
+        }
+        const instruction = Avatar.frontendInstruction?.command?.length
+            ? Avatar.frontendInstruction
+            : defaultInstruction
+        const responses = Conversation.getMessages()
+            .map(message=>mPruneMessage(bot_id, message, type))
+        response = {
+            instruction,
+            item,
+            responses,
+            success: true,
+        }
+    } else
+        response = await Avatar.endMemory()
+    delete Avatar.actionCallback
+    delete Avatar.backupResponse
+    delete Avatar.frontendInstruction
+    return response
 }
 /**
  * Replaces variables in prompt with Experience values.
