@@ -590,8 +590,7 @@ class BotAgent {
             }
             await Bot.update(_bot, botOptions)
             if(migrateThread)
-                if(!await Bot.migrateChat())
-					console.log(`thread migration failed for bot: ${ bot_id }`)
+                await Bot.migrateChat()
         }
         return Bot
 	}
@@ -1312,6 +1311,7 @@ async function mMigrateChat(Bot, llm, saveConversation=false){
 			conversation.save() // no `await`
 	}
     await Bot.setThread(newThread.id) // autosaves `thread_id`, no `await`
+	console.log(`chat migrated::from ${ thread_id } to ${ newThread.id }`, botType )
 }
 /**
  * Gets or creates a new thread in LLM provider.
