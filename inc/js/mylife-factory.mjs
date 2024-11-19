@@ -253,6 +253,22 @@ class BotFactory extends EventEmitter{
 		const bot = await this.#dataservices.createBot(botData)
 		return bot
 	}
+    /**
+     * Given an itemId, evaluates aspects of item summary. Evaluate content is a vanilla function for MyLife, so does not require intervening intelligence and relies on the factory's modular LLM.
+     * @param {Guid} itemId - The item id
+	 * @param {Guid} llm_id - The LLM intelligence id
+     * @returns {Object} - The Response object { instruction, responses, success, }
+     */
+	async evaluate(itemId, llm_id){
+		const { id, summary, } = await this.item(itemId)
+			?? {}
+		if(!id)
+			throw new Error('Item not found')
+		if(!summary?.length)
+			throw new Error('No summary found to evaluate')
+		const evaluation = await mEvaluateItem(summary, llm_id)
+		return evaluation
+	}
 	/**
 	 * Gets array of member `experiences` from database. When placed here, it allows for a bot to be spawned who has access to this information, which would make sense for a mini-avatar whose aim is to report what experiences a member has endured.
 	 * @public
@@ -341,7 +357,7 @@ class BotFactory extends EventEmitter{
 			throw new Error('Item not found')
 		if(!summary?.length)
 			throw new Error('No summary found to obscure')
-		const obscuredSummary = await mObscure(this, summary)
+		const obscuredSummary = await mObscure(summary)
 		if(obscuredSummary?.length) /* save response */
 			this.dataservices.patch(id, { summary: obscuredSummary }) // no need await
 		return obscuredSummary
@@ -646,12 +662,11 @@ class AgentFactory extends BotFactory {
 	/**
 	 * Updates a collection item.
 	 * @param {object} item - The item to update
-	 * @property {Guid} item.id - The item id
 	 * @returns {Promise<object>} - The updated item
 	 */
 	async updateItem(item){
 		if(!this.globals.isValidGuid(item?.id))
-			throw new Error('item id required for update')
+			return
 		const response = await this.dataservices.patch(item.id, item)
 		return response
 	}
@@ -961,6 +976,25 @@ async function mConfigureSchemaPrototypes(){ //	add required functionality as de
 		mSchemas[_className] = mExtendClass(mSchemas[_className])
 	}
 }
+async function mEvaluateItem(summary, llm_id=mGeneralBotId){
+	let evaluation = {
+		responses: [],
+		success: false,
+	}
+    const prompt = `Evaluate the included summary for clarity, dramatics, aesthetics, and completeness. Give top 2 recommendations to improve the summary. Do not repeat summary in response.\nSUMMARY:\n${summary}`
+    let responses = await mLLMServices.getLLMResponse(null, llm_id, prompt)
+	responses = mLLMServices.extractResponses(responses)
+	evaluation.success = responses.length
+	if(evaluation.success)
+		evaluation.responses = responses
+	else
+		evaluation.responses.push({
+			message: 'I apologize, something went wrong while trying to evaluate your summary. Please try again.',
+			role: 'system',
+			success: false,
+		})
+	return evaluation
+}
 function mExposedSchemas(factoryBlockedSchemas){
 	const _systemBlockedSchemas = ['dataservices','session']
 	return Object.keys(mSchemas)
@@ -1135,12 +1169,10 @@ async function mLoadSchemas(){
 }
 /**
  * Given an itemId, obscures aspects of contents of the data record.
- * @param {AgentFactory} factory - The factory object
- * @param {Guid} iid - The item id
- * @returns {Object} - The obscured item object
+ * @param {string} summary - The summary to obscure
+ * @returns {string} - The obscured summary
  */
-async function mObscure(factory, summary) {
-    const { mbr_id } = factory
+async function mObscure(summary) {
 	let obscuredSummary
     // @stub - if greater than limit, turn into text file and add
     const prompt = `OBSCURE:\n${summary}`

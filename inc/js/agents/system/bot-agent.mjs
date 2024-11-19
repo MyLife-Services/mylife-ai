@@ -391,6 +391,15 @@ class BotAgent {
 		const Conversation = await mConversationStart(type, form, bot_id, null, llm_id, this.#llm, this.#factory, prompt)
 		return Conversation
 	}
+    /**
+     * Given an itemId, evaluates aspects of item summary. Evaluate content is a vanilla function for MyLife, so does not require intervening intelligence and relies on the factory's modular LLM.
+     * @param {Guid} itemId - The item id
+     * @returns {Object} - The Response object { instruction, responses, success, }
+     */
+	async evaluate(itemId){
+        const response = await this.#factory.evaluate(itemId, this.avatar.llm_id)
+		return response
+	}
 	/**
 	 * Gets the correct bot for the item type and form.
 	 * @todo - deprecate
@@ -405,6 +414,7 @@ class BotAgent {
 			return itemForm.toLowerCase()==='diary'
 				? 'diary'
 				: 'journaler'
+		return 'avatar'
 	}
     /**
      * Get a static or dynamic greeting from active bot.
@@ -432,9 +442,9 @@ class BotAgent {
 			const messages = []
 			messages.push({
 				content: `## MEMORY SUMMARY Reference for id: ${ item.id }\n### FOR REFERENCE ONLY\n${ item.summary }\n`,
-				role: 'assistant',
+				role: 'user',
 			})
-			memberInput = `${ message }Let's begin to LIVE MEMORY, id: ${ item.id }, MEMORY SUMMARY in previous message`
+			memberInput = `${ message }Let's begin to LIVE MEMORY, id: ${ item.id }, MEMORY SUMMARY starts this conversation`
 			const Conversation = await mConversationStart('memory', type, bot_id, null, llm_id, this.#llm, this.#factory, memberInput, messages)
 			Conversation.action = 'living'
 			livingMemory.Conversation = Conversation
@@ -580,8 +590,7 @@ class BotAgent {
             }
             await Bot.update(_bot, botOptions)
             if(migrateThread)
-                if(!await Bot.migrateChat())
-					console.log(`thread migration failed for bot: ${ bot_id }`)
+                await Bot.migrateChat()
         }
         return Bot
 	}
@@ -1005,9 +1014,9 @@ async function mCallLLM(Conversation, allowSave=true, llm, factory, avatar){
 	if(!prompt?.length)
 		throw new Error('No `prompt` found in Conversation for `mCallLLM`.')
     const botResponses = await llm.getLLMResponse(thread_id, llm_id, prompt, factory, avatar)
-	const run_id = botResponses?.[0]?.run_id
-	if(!run_id?.length)
+	if(!botResponses?.length)
 		return
+	const { run_id, } = botResponses[0]
 	Conversation.addRun(run_id)
     botResponses
 		.filter(botResponse=>botResponse?.run_id===Conversation.run_id)
@@ -1095,12 +1104,17 @@ function mGetAIFunctions(type, globals, vectorstoreId){
 		case 'avatar':
 		case 'personal-assistant':
 		case 'personal-avatar':
+			tools.push(
+				globals.getGPTJavascriptFunction('changeTitle'),
+				globals.getGPTJavascriptFunction('getSummary'),
+			)
 			includeSearch = true
 			break
 		case 'biographer':
 		case 'personal-biographer':
 			tools.push(
 				globals.getGPTJavascriptFunction('changeTitle'),
+				globals.getGPTJavascriptFunction('endReliving'),
 				globals.getGPTJavascriptFunction('getSummary'),
 				globals.getGPTJavascriptFunction('itemSummary'),
 				globals.getGPTJavascriptFunction('updateSummary'),
@@ -1297,6 +1311,7 @@ async function mMigrateChat(Bot, llm, saveConversation=false){
 			conversation.save() // no `await`
 	}
     await Bot.setThread(newThread.id) // autosaves `thread_id`, no `await`
+	console.log(`chat migrated::from ${ thread_id } to ${ newThread.id }`, botType )
 }
 /**
  * Gets or creates a new thread in LLM provider.

@@ -20,7 +20,7 @@ async function about(ctx){
 		await ctx.render('about')
 	} else {
 		const { avatar: Avatar, } = ctx.state
-		const aboutFilePath = path.resolve(__dirname, '../..', 'views/about.html')
+		const aboutFilePath = path.resolve(__dirname, '../..', 'views/assets/html/_about.html')
 		const html = await fs.readFile(aboutFilePath, 'utf-8')
 		const response = await Avatar.renderContent(html)
 		ctx.body = response
@@ -152,6 +152,16 @@ async function createBot(ctx){
 	ctx.body = await avatar.createBot(bot)
 }
 /**
+ * Given an itemId, evaluates aspects of contents of the data record.
+ * @param {Koa} ctx - Koa Context object
+ * @returns {object} - The evaluation ersponse
+ */
+async function evaluate(ctx){
+	const { iid, } = ctx.params
+	const { avatar: Avatar, } = ctx.state
+	ctx.body = await Avatar.evaluate(iid)
+}
+/**
  * Save feedback from the member.
  * @param {Koa} ctx - Koa Context object
  * @returns {Boolean} - Whether or not the feedback was saved
@@ -232,7 +242,7 @@ async function item(ctx){
 	if(!item?.id && id?.length)
 		item.id = id
 	const response = await avatar.item(item, method)
-	delete avatar.frontendInstruction // already embedded in response
+	delete avatar.frontendInstruction
 	ctx.body = response
 }
 async function logout(ctx){
@@ -292,9 +302,16 @@ async function passphraseReset(ctx){
  * @param {Koa} ctx - Koa Context object
  */
 async function privacyPolicy(ctx){
-	ctx.state.title = `MyLife Privacy Policy`
-	ctx.state.subtitle = `Effective Date: 2024-01-01`
-	await ctx.render('privacy-policy')	//	privacy-policy
+	if(ctx.state.locked){
+		ctx.state.title = `MyLife Privacy Policy`
+		await ctx.render('privacy-policy')
+	} else {
+		const { avatar: Avatar, } = ctx.state
+		const aboutFilePath = path.resolve(__dirname, '../..', 'views/assets/html/_privacy-policy.html')
+		const html = await fs.readFile(aboutFilePath, 'utf-8')
+		const response = await Avatar.renderContent(html)
+		ctx.body = response
+	}
 }
 /**
  * Direct request from member to retire a bot.
@@ -431,6 +448,7 @@ export {
 	chat,
 	collections,
 	createBot,
+	evaluate,
 	feedback,
 	greetings,
 	help,

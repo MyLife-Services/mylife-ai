@@ -13,7 +13,7 @@ import chalk from 'chalk'
 /* local service imports */
 import MyLife from './inc/js/mylife-factory.mjs'
 /** variables **/
-const version = '0.0.27'
+const version = '0.0.28'
 const app = new Koa()
 const port = process.env.PORT
 	?? '3000'
@@ -167,7 +167,8 @@ app.use(koaBody({
 		ctx.state.member = ctx.state.MemberSession?.member
 			?? ctx.MyLife
 		ctx.state.avatar = ctx.state.member.avatar
-		ctx.state.interfaceMode = ctx.state.avatar?.mode ?? 'standard'
+		ctx.state.interfaceMode = ctx.state.avatar?.mode
+			?? 'standard'
 		ctx.state.menu = ctx.MyLife.menu
 		ctx.state.version = ctx.MyLife.version
 		if(!await ctx.state.MemberSession.requestConsent(ctx))

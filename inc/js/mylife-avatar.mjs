@@ -3,6 +3,7 @@ import EventEmitter from 'events'
 import AssetAgent from './agents/system/asset-agent.mjs'
 import BotAgent from './agents/system/bot-agent.mjs'
 import CollectionsAgent from './agents/system/collections-agent.mjs'
+import { Entry, Memory, } from './mylife-models.mjs'
 import EvolutionAgent from './agents/system/evolution-agent.mjs'
 import ExperienceAgent from './agents/system/experience-agent.mjs'
 import LLMServices from './mylife-llm-services.mjs'
@@ -93,6 +94,8 @@ class Avatar extends EventEmitter {
         if(!message)
             throw new Error('No message provided in context')
         const originalMessage = message
+        let responses = [],
+            success = false
         this.backupResponse = {
             message: `I got your message, but I'm having trouble processing it. Please try again.`,
             type: 'system',
@@ -108,17 +111,66 @@ class Avatar extends EventEmitter {
                     + summary
         }
         const Conversation = await this.activeBot.chat(message, originalMessage, mAllowSave, this)
-        const responses = mPruneMessages(this.activeBotId, Conversation.getMessages() ?? [], 'chat', Conversation.processStartTime)
+        responses = mPruneMessages(this.activeBotId, Conversation.getMessages() ?? [], 'chat', Conversation.processStartTime)
+        const { actionCallback, frontendInstruction, } = this
         if(!responses.length)
             responses.push(this.backupResponse)
-        /* respond request */
+        if(actionCallback?.length){
+            switch(actionCallback){
+                case 'changeTitle':
+                    const { title: changeTitleTitle, } = frontendInstruction
+                    if(!changeTitleTitle?.length)
+                        throw new Error('No title provided')
+                    const changeTitleData = {
+                        id: itemId,
+                        title: changeTitleTitle
+                    }
+                    const changeTitleItem = await this.itemUpdate(changeTitleData)
+                    if(changeTitleItem.id===itemId){
+                        this.frontendInstruction.command = 'updateItemTitle'
+                        responses = [{
+                            message: `I was able to change our title to "${ changeTitleTitle }".`,
+                            type: 'system',
+                        }]
+                        success = true
+                    } else
+                        responses = [{
+                            message: `I encountered an error while trying to change our title to "${ changeTitleTitle }".`,
+                            type: 'system',
+                        }]
+                    break
+                case 'updateItem':
+                case 'updateItemSummary':
+                case 'updateSummary':
+                    const { summary: updateSummarySummary, } = frontendInstruction.item
+                    const updateSummaryData = {
+                        id: itemId,
+                        summary: updateSummarySummary,
+                    }
+                    const updateSummaryItem = await this.itemUpdate(updateSummaryData)
+                    if(updateSummaryItem.id===itemId){
+                        this.frontendInstruction.command = 'updateItem'
+                        responses = [this.backupResponse
+                            ?? {
+                                message: `I was able to update our summary with this info.`,
+                                type: 'system',
+                            }]
+                        success = true
+                    }
+                    break
+                default:
+                    break
+            }
+        }
         const response = {
             instruction: this.frontendInstruction,
             responses,
-            success: true,
+            success,
         }
-        delete this.frontendInstruction
+        /* respond request */
+        delete this.actionCallback
         delete this.backupResponse
+        delete this.frontendInstruction
         return response
     }
     /**
@@ -214,9 +266,11 @@ class Avatar extends EventEmitter {
      * @async
      * @public
      * @todo - save conversation fragments
-     * @returns {void}
+     * @returns {object} - The response object { instruction, responses, success, }
      */
     async endMemory(){
+        if(!this.#livingMemory)
+            return
         const { Conversation, id, item, } = this.#livingMemory
         const { bot_id, } = Conversation
         if(mAllowSave)
@@ -224,7 +278,6 @@ class Avatar extends EventEmitter {
         const instruction = {
             command: `endMemory`,
             itemId: item.id,
-            livingMemoryId: id,
         }
         const responses = [mCreateSystemMessage(bot_id, `I've ended the memory, thank you for letting me share my interpretation. I hope you liked it.`, this.#factory.message)]
         const response = {
@@ -255,6 +308,17 @@ class Avatar extends EventEmitter {
 		}}
 		return await this.item(entry, 'POST')
 	}
+    /**
+     * Given an itemId, evaluates aspects of item summary. Evaluate content is a vanilla function for MyLife, so does not require intervening intelligence and relies on the factory's modular LLM.
+     * @param {Guid} itemId - The item id
+     * @returns {Object} - The Response object { instruction, responses, success, }
+     */
+    async evaluate(itemId){
+        const response = await this.#botAgent.evaluate(itemId)
+        if(response.success && response.responses.length)
+            response.responses = mPruneMessages(this.activeBotId, response.responses, 'evaluation', response.processStartTime)
+        return response
+    }
     /**
      * Ends an experience.
      * @todo - allow guest experiences
@@ -448,7 +512,7 @@ class Avatar extends EventEmitter {
     }
     /**
      * Manages a collection item's functionality.
-     * @todo - move `get` to here as well
+     * @todo - assistantType fix, whether to include on frontend or omit as is now form from LLM
      * @param {Object} item - The item data object
      * @param {String} method - The http method used to indicate response
      * @returns {Promise<Object>} - Returns { instruction, item, responses, success, }
@@ -462,8 +526,13 @@ class Avatar extends EventEmitter {
                 message: `I encountered an error while trying to process your request; please try again.`,
                 type: 'system',
             }
-        let { id: itemId, summary, title, } = item
-        let success = false
+        const { assistantType, id: itemId, llm_id=this.activeBot.llm_id, } = item
+        let { form, summary, title, type=this.activeBot.type, } = item
+        let itemDatabase,
+            Item,
+            success = false
+        if(itemId)
+            itemDatabase = await this.#factory.item(itemId)
         if(itemId && !globals.isValidGuid(itemId))
             throw new Error(`Invalid item id: ${ itemId }`)
         switch(method.toLowerCase()){
@@ -479,68 +548,46 @@ class Avatar extends EventEmitter {
                 break
             case 'post': /* create */
                 /* validate request */
-                const {
-                    content,
-                    form,
-                } = item
-                let {
-                    summary=content,
-                    title=`New ${ form }`,
-                    type=form,
-                } = item
-                if(!summary?.length){
-                    message.message = `Request had no summary for: "${ title }".`
-                    break
-                }
-                const assistantType = this.#botAgent.getAssistantType(form, type)
-                const being = 'story'
-                item = { // add validated fields back into `item`
-                    ...item,
-                    ...{
-                        assistantType,
-                        being,
-                        id: this.newGuid,
-                        mbr_id,
-                        name: `${ type }_${ form }_${ title.substring(0,64) }_${ mbr_id }`,
-                        summary,
-                        title,
-                        type,
-                    }}
+                item.assistantType = assistantType
+                    ?? this.#botAgent.getAssistantType(form, type)
+                item.llm_id = llm_id
                 /* execute request */
-                try {
-                    response.item = mPruneItem(await this.#factory.createItem(item))
-                } catch(error) {
-                    console.log('item()::error', error)
-                }
+                Item = mItem(item, this, this.#llmServices)
                 /* return response */
-                success = this.globals.isValidGuid(response.item?.id)
-                if(success){
+                if(!!Item){
+                    Item.create() // remove `await`
                     instruction.command = 'createItem'
-                    instruction.item = response.item
+                    instruction.item = mPruneItem(Item.item)
                     message.message = `Item successfully created: "${ response.item.title }".`
+                    response.item = instruction.item
+                    success = true
                 } else {
                     instruction.command = 'error'
                     message.message = `I encountered an error while creating: "${ title }".`
                 }
                 break
             case 'put': /* update */
-                const updatedItem = await this.#factory.updateItem(item)
-                const updatedTitle = updatedItem?.title
-                    ?? title
-                success = this.globals.isValidGuid(updatedItem?.id)
-                if(success){
+                if(!itemDatabase)
+                    break
+                Item = await mItem(itemDatabase, this, this.#llmServices)
+                if(!!Item){
+                    Item.update(item, true)
                     instruction.command = 'updateItem'
-                    instruction.item = mPruneItem(updatedItem)
-                    message.message = `I have successfully updated: "${ updatedTitle }".`
-                    response.item = mPruneItem(updatedItem)
+                    instruction.item = mPruneItem(Item.item)
+                    message.message = `I have successfully updated: "${ Item.title }".`
+                    response.item = instruction.item
+                    success = true
                 } else
-                    message.message = `I encountered an error while trying to update: "${ updatedTitle }".`
+                    message.message = `I encountered an error while trying to update: "${ title }".`
                 break
             default:
-                const retrievedItem = await this.#factory.item(itemId)
-                success = !!retrievedItem
-                if(success)
-                    response.item = mPruneItem(retrievedItem)
+                if(!itemDatabase)
+                    break
+                Item = await mItem(itemDatabase, this, this.#llmServices)
+                if(!!Item){
+                    response.item = mPruneItem(Item.item)
+                    success = true
+                }
                 break
         }
         this.frontendInstruction = instruction // LLM-return safe
@@ -548,6 +595,17 @@ class Avatar extends EventEmitter {
         response.responses = [message]
         response.success = success
         return response
+    }
+    async itemCreate(item){
+        return await this.#factory.createItem(item)
+    }
+    /**
+     * Proxy to save an item to the database.
+     * @param {object} item - The item data object
+     * @returns {Promise<object>} - The saved item object
+     */
+    async itemUpdate(item){
+        return await this.#factory.updateItem(item)
     }
     /**
      * Migrates a bot to a new, presumed combined (with internal or external) bot.
@@ -603,6 +661,16 @@ class Avatar extends EventEmitter {
             success: true,
         }
     }
+	/**
+	 * Populate an object with data, alters in place the incoming class instance.
+	 * @param {object} obj - Object to populate
+	 * @param {object} data - Data to populate object with
+	 * @param {Array} immutableFields - Fields that should not be altered, and are removed from update
+	 * @returns {void}
+	 */
+    populateObject(obj, data, immutableFields){
+        this.globals.populateObject(obj, data, immutableFields)
+    }
     /**
      * Register a candidate in database.
      * @param {object} candidate - The candidate data object.
@@ -616,15 +684,14 @@ class Avatar extends EventEmitter {
     }
     /**
      * Reliving a memory is a unique MyLife `experience` that allows a user to relive a memory from any vantage they choose.
-     * @param {Guid} iid - The item id.
-     * @param {string} memberInput - Any member input.
+     * @param {Guid} id - The item id
+     * @param {string} memberInput - Any member input
      * @returns {Object} - livingMemory engagement object (i.e., includes frontend parameters for engagement as per instructions for included `portrayMemory` function in LLM-speak): { error, inputs, itemId, messages, processingBotId, success, }
      */
-    async reliveMemory(iid, memberInput){
-        const item = await this.#factory.item(iid)
-        const { id, } = item
+    async reliveMemory(id, memberInput){
+        const { item, } = await this.item({ id, })
         if(!id)
-            throw new Error(`item does not exist in member container: ${ iid }`)
+            throw new Error(`No Item found with id: ${ id }`)
         const response = await mReliveMemoryNarration(item, memberInput, this.#botAgent, this)
         return response
     }
@@ -717,6 +784,15 @@ class Avatar extends EventEmitter {
                 success: false,
             }
         return response
+    }
+    /**
+     * Sanitize an object, using Global modular functions.
+     * @param {object} obj - The object to sanitize
+     * @param {Array} immutableFields - Fields that should not be altered
+     * @returns {object} - The sanitized object
+     */
+    sanitize(obj, immutableFields){
+        return this.globals.sanitize(obj, immutableFields)
     }
     /**
      * Activate a specific Bot.
@@ -1515,20 +1591,6 @@ function mAvatarDropdown(globals, avatar){
     }
 }
 /**
- * Cancels openAI run.
- * @module
- * @param {LLMServices} llm - The LLMServices instance
- * @param {string} thread_id - Thread id
- * @param {string} runId - Run id
- * @returns {object} - [OpenAI run object](https://platform.openai.com/docs/api-reference/runs/object)
- */
-async function mCancelRun(llm, thread_id, runId,){
-    return await llm.beta.threads.runs.cancel(
-        thread_id,
-        runId
-    )
-}
-/**
  * Creates cast and returns associated `cast` object.
  * @todo - move as much functionality for actor into `init()` as makes sense
  * @todo - any trouble retrieving a known actor should be understudied by... Q? or personal-avatar? yes, personal avatar for now
@@ -2095,6 +2157,58 @@ async function mInit(factory, llmServices, avatar, botAgent, assetAgent){
     avatar.experiencesLived = await factory.experiencesLived(false)
 }
 /**
+ * Instantiates a new item and returns the item object.
+ * @param {object} item - The item data
+ * @param {Avatar} avatar - The avatar instance
+ * @param {LLMServices} llmServices - The llm instance
+ * @returns {Entry|Memory} - The item object
+ */
+function mItem(item, avatar, llmServices){
+    /* validate request */
+    let Item
+    const {
+        assistantType,
+        content,
+        form,
+        id=avatar.newGuid,
+        llm_id=avatar?.activeBot?.llm_id,
+        type='memory',
+    } = item
+    const { // derived defaults
+        summary=content,
+        title=`New ${ form }`,
+    } = item
+    item = {
+        ...item,
+        ...{ // validated fields
+            assistantType,
+            llm_id,
+            summary,
+            title,
+            type,
+        },
+        ...{ // forced fields
+            id,
+            mbr_id: avatar.mbr_id,
+            name: `${ type }_${ form }_${ title.substring(0,64) }_${ avatar.mbr_id }`,
+        }
+    }
+    try {
+        switch(type){
+            case 'entry':
+                Item = new Entry(item, avatar, llmServices)
+                break
+            case 'memory':
+            default:
+                Item = new Memory(item, avatar, llmServices)
+                break
+        }
+    } catch(error){
+        console.log('item()::error', error)
+    }
+    return Item
+}
+/**
  * Get experience scene navigation array.
  * @getter
  * @returns {Object[]} - The scene navigation array for the experience.
@@ -2145,6 +2259,7 @@ function mPruneItem(item){
     const {
         assistantType,
         being,
+        complete=false,
         form,
         id,
         keywords,
@@ -2154,10 +2269,12 @@ function mPruneItem(item){
         summary,
         title,
         type,
+        version=1.0,
     } = item
     item = {
         assistantType,
         being,
+        complete,
         form,
         id,
         keywords,
@@ -2167,6 +2284,7 @@ function mPruneItem(item){
         summary,
         title,
         type,
+        version,
     }
     return item
 }
@@ -2223,7 +2341,7 @@ function mPruneMessages(bot_id, messageArray, type='chat', processStartTime=Date
 }
 /**
  * Returns a narration packet for a memory reliving. Will allow for and accommodate the incorporation of helpful data _from_ the avatar member into the memory item `summary` and other metadata. The bot by default will:
- * - break memory into `scenes` (minimum of 3: 1) set scene, ask for input [determine default what] 2) develop action, dramatize, describe input mechanic 3) conclude scene, moralize - what did you learn? then share what you feel author learned
+ * - break memory into `scenes` (2 to 5) set scene, ask for input [determine default what] 2) develop action, dramatize, describe input mechanic 3) conclude scene, moralize - what did you learn? then share what you feel author learned
  * - perform/narrate the memory as scenes describe
  * - others are common to living, but with `reliving`, the biographer bot (only narrator allowed in .10) incorporate any user-contributed contexts or imrpovements to the memory summary that drives the living and sharing. All by itemId.
  * - if user "interrupts" then interruption content should be added to memory updateSummary; doubt I will keep work interrupt, but this too is hopefully able to merely be embedded in the biographer bot instructions.
@@ -2236,30 +2354,40 @@ function mPruneMessages(bot_id, messageArray, type='chat', processStartTime=Date
  */
 async function mReliveMemoryNarration(item, memberInput, BotAgent, Avatar){
     Avatar.livingMemory = await BotAgent.liveMemory(item, memberInput, Avatar)
-    const { Conversation, item: livingMemoryItem, } = Avatar.livingMemory
-    const { bot_id, type, } = Conversation
-    const endpoint = `/members/memory/end/${ livingMemoryItem.id }`
-    const instruction = {
-        command: 'createInput',
-        inputs: [{
-            endpoint,
-            id: Avatar.newGuid,
-            interfaceLocation: 'chat', // enum: ['avatar', 'team', 'chat', 'bot', 'experience', 'system', 'admin'], defaults to chat
-            method: 'PATCH',
-            prompt: `I'd like to stop reliving this memory.`,
-            required: true,
-            type: 'button',
-        }],
-    }
-    const responses = Conversation.getMessages()
-        .map(message=>mPruneMessage(bot_id, message, type))
-    const memory = {
-        instruction,
-        item,
-        responses,
-        success: true,
-    }
-    return memory
+    let response
+    if(!Avatar.actionCallback?.length){
+        const { Conversation, item: livingMemoryItem, } = Avatar.livingMemory
+        const { bot_id, type, } = Conversation
+        const endpoint = `/members/memory/end/${ livingMemoryItem.id }`
+        const defaultInstruction = {
+            command: 'createInput',
+            inputs: [{
+                endpoint,
+                id: Avatar.newGuid,
+                interfaceLocation: 'chat', // enum: ['avatar', 'team', 'chat', 'bot', 'experience', 'system', 'admin'], defaults to chat
+                method: 'PATCH',
+                prompt: `I'd like to stop reliving this memory.`,
+                required: true,
+                type: 'button',
+            }],
+        }
+        const instruction = Avatar.frontendInstruction?.command?.length
+            ? Avatar.frontendInstruction
+            : defaultInstruction
+        const responses = Conversation.getMessages()
+            .map(message=>mPruneMessage(bot_id, message, type))
+        response = {
+            instruction,
+            item: mPruneItem(item),
+            responses,
+            success: true,
+        }
+    } else
+        response = await Avatar.endMemory()
+    delete Avatar.actionCallback
+    delete Avatar.backupResponse
+    delete Avatar.frontendInstruction
+    return response
 }
 /**
  * Replaces variables in prompt with Experience values.
@@ -2267,10 +2395,10 @@ async function mReliveMemoryNarration(item, memberInput, BotAgent, Avatar){
  * @todo - events could be identified where these were input if empty
  * @module
  * @private
- * @param {string} prompt - Dialog prompt, replace variables.
- * @param {string[]} variableList - List of variables to replace.
- * @param {object} variableValues - Object with variable values.
- * @returns {string} - Dialog prompt with variables replaced.
+ * @param {string} prompt - Dialog prompt, replace variables
+ * @param {string[]} variableList - List of variables to replace
+ * @param {object} variableValues - Object with variable values
+ * @returns {string} - Dialog prompt with variables replaced
  */
 function mReplaceVariables(prompt, variableList, variableValues){
     variableList.forEach(keyName=>{

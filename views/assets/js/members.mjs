@@ -12,6 +12,7 @@ import {
     createItem,
     endMemory,
     getAction,
+    getBot,
     getBotIcon,
     getItem,
     refreshCollection,
@@ -29,6 +30,7 @@ const mainContent = mGlobals.mainContent,
     navigation = mGlobals.navigation,
     sidebar = mGlobals.sidebar
 window.about = about
+window.privacyPolicy = privacyPolicy
 /* variables */
 let mAutoplay=false,
     mChatBubbleCount=0,
@@ -222,10 +224,21 @@ function enactInstruction(instruction, interfaceLocation='chat', additionalFunct
     const functions = {
         addInput,
         addMessages,
-        endMemory,
         ...additionalFunctions, // overloads feasible
     }
     mGlobals.enactInstruction(instruction, functions)
+}
+/**
+ * Presents the `privacy-policy` page as a series of sectional responses from your avatar.
+ * @public
+ * @async
+ * @returns {Promise<void>}
+ */
+async function privacyPolicy(){
+    const { error, responses=[], success, } = await mGlobals.datamanager.privacyPolicy()
+    if(!success || !responses?.length)
+        return // or make error version
+    addMessages(responses, { responseDelay: 5, typeDelay: 1, typewrite: true, })
 }
 /**
  * Replaces an element (input/textarea) with a specified type.
@@ -371,8 +384,8 @@ function setActiveItem(itemId){
         return
     const popup = document.getElementById(`popup-container_${ itemId }`)
     if(!popup)
-        return // throw new Error('setActiveItem::Error()::valid `popup` is required')
-    const { title, type, } = popup.dataset
+        return
+    const { form='journal', title, type, } = popup.dataset
     const activeButton = document.getElementById('chat-active-item-button')
     const activeClose = document.getElementById('chat-active-item-close')
     const activeIcon = document.getElementById('chat-active-item-icon')
@@ -408,9 +421,27 @@ function setActiveItem(itemId){
         activeTitle.dataset.title = title
         activeTitle.addEventListener('dblclick', updateTitle, { once: true })
     }
+    chatActiveItem.dataset.form = form
     chatActiveItem.dataset.id = itemId
     chatActiveItem.dataset.inAction = "false"
     chatActiveItem.dataset.itemId = itemId
+    chatActiveItem.dataset.type = type
+    function getBotType(itemType){
+        switch(itemType){
+            case 'memory':
+                return 'biographer'
+            case 'entry':
+                return form==='journal'
+                    ? 'journaler'
+                    : 'diary'
+            default:
+                return 'avatar'
+        }
+    }
+    const botType = getBotType(type)
+    const { id, } = getBot(botType)
+    if(id)
+        setActiveBot(id, false)
     show(chatActiveItem)
 }
 /**
