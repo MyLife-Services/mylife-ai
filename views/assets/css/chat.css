@@ -3,14 +3,21 @@
     --chat-base-z-index: calc(var(--mylife-base-z-index) + 10);
 }
 /* MyLife chat container */
-.agent-bubble {
+.agent-bubble,
+.system-bubble {
     background-color: rgba(0, 86, 179, .85); /* A darker shade of blue for the agent */
     color: #ffffff; /* White text for better readability */
     margin-left: 0;
 }
-.agent-bubble a {
+.agent-bubble a,
+.system-bubble a {
 	font-size: 1em;
     color: #dcb6ff; /* White text for better readability */
+}
+.system-bubble {
+	background-color: rgba(24, 34, 100, 0.85); /* A darker shade of blue for the agent */
+	color: #ffffff; /* White text for better readability */
+	margin-left: 0;
 }
 .await-button {
 	align-self: center;
@@ -107,7 +114,6 @@
 	white-space: nowrap;
 }
 .chat-bubble {
-    background-color: #3427ec; /* Assuming a dark bubble color */
     border-radius: 0.8rem;
     box-shadow: 0.2rem 0.2rem 0.4rem rgba(0, 0, 0, 0.3);
 	display: flex;

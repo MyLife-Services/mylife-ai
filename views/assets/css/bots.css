@@ -657,8 +657,8 @@ input:checked + .publicity-slider:before {
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    margin: 0.2rem;
-    padding: 0.2rem;
+    margin: 0;
+    padding: 0;
 }
 .relive-memory-explanation {
     display: flex;
@@ -673,6 +673,33 @@ input:checked + .publicity-slider:before {
     padding: 0;
 }
 /* entries */
+.entry-complete-container,
+.memory-complete-container {
+    align-items: center;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    padding: 0 0.25rem;
+}
+.entry-complete-label,
+.memory-complete-label {
+    color: darkgreen;
+    display: flex;
+    font-weight: bold;
+    padding: 0 1.0rem;
+}
+.entry-version,
+.memory-version {
+    color: darkblue;
+    display: flex;
+    font-size: 0.8rem;
+    font-weight: bolder;
+    padding: 0 1.0rem;
+}
+.evaluate-button.button,
+.obscure-button.button {
+    margin: 0.25rem 0;
+}
 .experience-entry-container { /* panel for `experience` of entry */
     align-items: center;
     color: black;
@@ -686,14 +713,16 @@ input:checked + .publicity-slider:before {
     display: flex;
     padding: 0.2rem;
 }
-.improve-entry-container {
+.improve-entry-container,
+.improve-memory-container {
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
     margin: 0.25rem;
     padding: 0.25rem;
 }
-.improve-entry-lane {
+.improve-entry-lane,
+.improve-memory-lane {
     align-items: center;
     display: flex;
     flex-direction: row;
@@ -703,11 +732,15 @@ input:checked + .publicity-slider:before {
     padding: 0;
     width: 100%;
 }
-.obscure-button.button,
-.experience-button.button {
+.improve-panel {
+    align-items: center;
     display: flex;
-    padding: 0 0.2rem;
-    min-width: 35%;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    width: 50%;
 }
 /* summaries */
 .summary-error {

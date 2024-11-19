@@ -117,8 +117,12 @@ function mAddUserMessage(event){
     if(!userMessage.length)
         return
     const message = mGlobals.escapeHtml(userMessage) // Escape the user message
+    const options = {
+        bubbleClass: 'user-bubble',
+        typeDelay: 2,
+    }
     mSubmitInput(event, message)
-    mAddMessage(message, { bubbleClass: 'user-bubble', typeDelay: 2, })
+    mAddMessage(message, options)
 }
 async function mChallengeMember(event){
     const { options, selectedIndex, value, } = this

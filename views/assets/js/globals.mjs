@@ -204,6 +204,22 @@ class Datamanager {
         return response
     }
     /**
+     * MyLife function to obscure an item summary
+     * @param {Guid} itemId - The item ID
+     * @returns {Object} - The item object: { id, summary, etc. }
+     */
+    async evaluate(itemId){
+        const url = `/members/evaluate/${ itemId }`
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
      * End experience on server.
      * @public
      * @async
@@ -417,6 +433,11 @@ class Datamanager {
         }
         const success = await this.#fetch(url, options)
         return success
+    }
+    async privacyPolicy(){
+        const url = `privacy-policy`
+        const response = await this.#fetch(url)
+        return response
     }
     /**
      * Fetches shadows from the server.
@@ -671,7 +692,9 @@ class Globals {
                     return
                 createItem(item)
                 return
-            case 'endMemory': // server has already ended, call frontend cleanup
+            case 'endLiving': // server has already ended, call frontend cleanup
+            case 'endMemory':
+            case 'endReliving':
                 if(!itemId?.length || typeof endMemory!=='function')
                     return
                 endMemory(itemId)

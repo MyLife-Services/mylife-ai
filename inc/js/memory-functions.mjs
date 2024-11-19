@@ -1,7 +1,6 @@
 /* imports */
 import { 
 	activateBot,
-	interfaceMode, // @stub - deprecate?
 	upload,
 } from './functions.mjs'
 /* module export functions */
