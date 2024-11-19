@@ -684,15 +684,14 @@ class Avatar extends EventEmitter {
     }
     /**
      * Reliving a memory is a unique MyLife `experience` that allows a user to relive a memory from any vantage they choose.
-     * @param {Guid} iid - The item id.
-     * @param {string} memberInput - Any member input.
+     * @param {Guid} id - The item id
+     * @param {string} memberInput - Any member input
      * @returns {Object} - livingMemory engagement object (i.e., includes frontend parameters for engagement as per instructions for included `portrayMemory` function in LLM-speak): { error, inputs, itemId, messages, processingBotId, success, }
      */
-    async reliveMemory(iid, memberInput){
-        const item = await this.#factory.item(iid)
-        const { id, } = item
+    async reliveMemory(id, memberInput){
+        const { item, } = await this.item({ id, })
         if(!id)
-            throw new Error(`item does not exist in member container: ${ iid }`)
+            throw new Error(`No Item found with id: ${ id }`)
         const response = await mReliveMemoryNarration(item, memberInput, this.#botAgent, this)
         return response
     }
@@ -2342,7 +2341,7 @@ function mPruneMessages(bot_id, messageArray, type='chat', processStartTime=Date
 }
 /**
  * Returns a narration packet for a memory reliving. Will allow for and accommodate the incorporation of helpful data _from_ the avatar member into the memory item `summary` and other metadata. The bot by default will:
- * - break memory into `scenes` (minimum of 3: 1) set scene, ask for input [determine default what] 2) develop action, dramatize, describe input mechanic 3) conclude scene, moralize - what did you learn? then share what you feel author learned
+ * - break memory into `scenes` (2 to 5) set scene, ask for input [determine default what] 2) develop action, dramatize, describe input mechanic 3) conclude scene, moralize - what did you learn? then share what you feel author learned
  * - perform/narrate the memory as scenes describe
  * - others are common to living, but with `reliving`, the biographer bot (only narrator allowed in .10) incorporate any user-contributed contexts or imrpovements to the memory summary that drives the living and sharing. All by itemId.
  * - if user "interrupts" then interruption content should be added to memory updateSummary; doubt I will keep work interrupt, but this too is hopefully able to merely be embedded in the biographer bot instructions.
@@ -2379,7 +2378,7 @@ async function mReliveMemoryNarration(item, memberInput, BotAgent, Avatar){
             .map(message=>mPruneMessage(bot_id, message, type))
         response = {
             instruction,
-            item,
+            item: mPruneItem(item),
             responses,
             success: true,
         }
@@ -2396,10 +2395,10 @@ async function mReliveMemoryNarration(item, memberInput, BotAgent, Avatar){
  * @todo - events could be identified where these were input if empty
  * @module
  * @private
- * @param {string} prompt - Dialog prompt, replace variables.
- * @param {string[]} variableList - List of variables to replace.
- * @param {object} variableValues - Object with variable values.
- * @returns {string} - Dialog prompt with variables replaced.
+ * @param {string} prompt - Dialog prompt, replace variables
+ * @param {string[]} variableList - List of variables to replace
+ * @param {object} variableValues - Object with variable values
+ * @returns {string} - Dialog prompt with variables replaced
  */
 function mReplaceVariables(prompt, variableList, variableValues){
     variableList.forEach(keyName=>{

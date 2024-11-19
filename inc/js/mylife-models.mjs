@@ -3,7 +3,7 @@ import { EventEmitter } from 'events'
 /* module constants */
 const mAvailableForms = ['entry', 'memory'],
     mBeing = `story`,
-    mVersion = 1.0
+    mVersion = 1.00
 /**
  * @class - Item
  * @extends EventEmitter
@@ -100,9 +100,9 @@ class Item extends EventEmitter {
      */
     updateVersion(system=true){
         if(system)
-            this.#version += 0.1
+            this.#version += 0.10
         else
-            this.#version = Math.floor(this.#version) + 1
+            this.#version = Math.floor(this.#version) + 1.0
     }
     /* getters/setters */
     get being(){
