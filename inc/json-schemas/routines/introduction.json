@@ -30,7 +30,7 @@
             "character": "avatar",
             "command": "",
             "dialog": {
-                "message": "Welcome to the MyLife Alpha Program! I am your personal MyLife Member Avatar artificial intelligence, here to guide you through the MyLife Member Platform. I will help you navigate the interface and introduce you to the MyLife experience. <b>Let's get started!</b>"
+                "message": "Welcome to the MyLife Alpha Program! I am your personal MyLife Member Avatar artificial intelligence, <-mFN->, and I'm here to guide you through the MyLife Member Platform. I will help you navigate the interface and introduce you to the MyLife experience. <b>Let's get started!</b>"
             }
         },
         {
@@ -42,7 +42,7 @@
         {
             "character": "Q",
             "dialog": {
-                "message": "Hello again! I'm excited to tell you what's behind the curtain of what you are about to experience."
+                "message": "Nice to see you again, <-mN->! I'm excited to tell you what's behind the curtain of what you are about to experience."
             }
         },
         {
@@ -88,5 +88,17 @@
     "purpose": "Routines are short (one-scene) predominantly hard-coded reduced `experience`s. This introductory routine is designed to welcome new members to the MyLife Alpha Program and introduce them to the basic navigation and  MyLife Member Platform.",
     "status": "active",
     "title": "Introduction to MyLife",
+    "variables": [
+        {
+            "default": "MyLife Member",
+            "variable": "<-mFN->",
+            "replacement": "memberName"
+        },
+        {
+          "default": "MyLife Member",
+          "variable": "<-mN->",
+          "replacement": "memberFirstName"
+        }
+    ],
     "version": 1
   }

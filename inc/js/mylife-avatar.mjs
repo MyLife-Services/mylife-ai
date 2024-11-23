@@ -809,9 +809,7 @@ class Avatar extends EventEmitter {
                 throw new Error('Routine empty')
             response.routine = mRoutine(script, this)
             response.success = true
-            console.log('Avatar::routine()::', response)
         } catch(error){
-            console.log('Avatar::routine()::ERROR', error.message)
             response.error = error
             response.responses = [{
                 message: `I'm having trouble sharing this routine; please contact support, as this is unlikely to fix itself.`,
@@ -2452,19 +2450,30 @@ function mReplaceVariables(prompt, variableList, variableValues){
 function mRoutine(script, Avatar){
     if(typeof script === 'string')
         script = JSON.parse(script)
-    console.log('mRoutine::script', script)
     const defaultCastMember = {
         icon: 'avatar-thumb',
         id: 'avatar',
         role: Avatar.nickname,
         type: 'avatar',
     }
-    const { cast=[defaultCastMember], description, developers, events, files, name, public: isPublic, purpose, status, title, version=1.0, } = script
+    const { cast=[defaultCastMember], description, developers, events, files, name, public: isPublic, purpose, status, title, variables, version=1.0, } = script
     if(!isPublic)
         throw new Error('Routine is not currently for public release.')
     if(status!=='active' || version < 1)
         throw new Error('Routine is not currently active.')
-    // @stub - text replacements and data references interpreted
+    if(variables?.length){
+        variables.forEach(_variable=>{
+            const { default: variableDefault, replacement: variableReplacement, variable, } = _variable
+            const replacement = Avatar[variableReplacement]
+                ?? variableDefault
+            events.forEach(event=>{
+                const { message, } = event?.dialog
+                    ?? {}
+                if(message)
+                    event.dialog.message = message.replace(new RegExp(`${ variable }`, 'g'), replacement)
+            })
+        })
+    }
     return {
         cast,
         description,
