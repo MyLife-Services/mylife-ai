@@ -10,11 +10,18 @@ import {
     hide,
     replaceElement,
     sceneTransition as memberSceneTransition,
+    setActiveAction,
+    setActiveBot,
+    setActiveItem,
     show,
     stageTransition,
     toggleMemberInput,
     waitForUserAction,
 } from './members.mjs'
+import {
+    getBot,
+    getBotIcon,
+} from './bots.mjs'
 /* constants */
 const backstage = document.getElementById('experience-backstage'),
     botbar = document.getElementById('bot-bar'),
@@ -51,6 +58,12 @@ const mDefaultAnimationClasses = {
     full: 'slide-in',
 }
 const mExperiences = [] /* initial container for all experience requests, personal to system scope */
+const mQ = {
+    icon: 'Q',
+    id: 'Q',
+    role: 'Q',
+    type: 'system',
+}
 /* variables */
 let mBackdropDefault = 'full',
     mEvent,
@@ -212,6 +225,90 @@ async function experienceStart(experienceId){
     mExperience = { ...mExperience, ...manifest }
     /* welcome complete, display experience-start-button */
     mUpdateStartButton()
+}
+/**
+ * Runs the routine based on the incoming script. A routine is similar currently to an `experience`, but is not as full-featured and is likely to meld in the near future.
+ * @param {object} routine - The routine script object { cast, description, developers, events, purpose, title, }
+ * @property {object[]} cast - The cast of characters { icon, id, role, type, }
+ * @property {object[]} events - The events of the routine { character, dialog, }; dialog: { message, options, }
+ * @returns {void}
+ */
+function routine(routine) {
+    /* validate request */
+    const { cast, description, developers, events, purpose, title } = routine
+    if(!events?.length)
+        throw new Error("No events found")
+    if(!cast?.length)
+        throw new Error("No cast found")
+    const activeTimers = []
+    const routineAbortMessage = "I apologize for overinundating you."
+    let activeCharacter,
+        interrupted=false
+    /* execute request */
+    toggleMemberInput(false, true)
+    document.addEventListener("keydown",e=>{
+        if(e.key==='Escape')
+            routineEnd()
+    }, { once: true })
+    document.addEventListener("click", routineAdvance, { once: true })
+    events.forEach((event, index)=>{
+        if(interrupted)
+            return
+        const timer = setTimeout(()=>{
+            routineExecute(event)
+            if(index===(events.length-1))
+                setTimeout(()=>{
+                    toggleMemberInput(true)
+                }, 1000)
+            activeTimers.shift()
+        }, index * 3000 + (index * 750))
+        activeTimers.push(timer)
+    })
+    /* inline functions */
+    function getCharacter(id='avatar'){
+        const character = cast.find(_character=>_character.id===id)
+            ?? {
+                id,
+                icon: getBotIcon(id),
+                role: id,
+                id,
+            }
+        const Bot = getBot(id)
+        character.bot_id = Bot.id
+        return character
+    }
+    function routineAdvance(){
+        const nextTimer = activeTimers.shift()
+        if(!interrupted && nextTimer){
+            const rushIndex = events.length - activeTimers.length - 1
+            clearTimeout(nextTimer)
+            console.log('Routine advance', activeTimers, nextTimer, events, rushIndex)
+            routineExecute(events[rushIndex])
+            document.addEventListener("click", routineAdvance, { once: true })
+        } else if (!nextTimer)
+            routineEnd(false)
+    }
+    function routineExecute(event){
+        const { character=activeCharacter?.id, dialog } = event
+        const { message } = dialog
+        if(!character || character!==activeCharacter?.id){
+            activeCharacter = getCharacter(character)
+            if(activeCharacter.type!=='system')
+                setActiveBot(activeCharacter?.bot_id)
+        }
+        const options = {
+            role: activeCharacter.type,
+        }
+        addMessage(message, options)
+    }
+    function routineEnd(aborted=true){
+        interrupted = true
+        activeTimers.forEach(clearTimeout)
+        toggleMemberInput(true)
+        if(aborted)
+            addMessage(routineAbortMessage)
+        console.log("Routine ended")
+    }
 }
 /**
  * On-click assignment that primes next experiencePlay() to pull from server.
@@ -984,5 +1081,6 @@ export {
     experiences,
     experienceSkip,
     experienceStart,
+    routine,
     submitInput,
 }

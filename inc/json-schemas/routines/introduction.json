@@ -1,0 +1,92 @@
+{
+    "cast": [
+        {
+            "icon": "Q",
+            "id": "Q",
+            "name": "_Q_",
+            "role": "Q, AI Avatar for MyLife",
+            "type": "system"
+        },
+        {
+            "icon": "biographer-thumb",
+            "id": "biographer",
+            "role": "Personal Biographer",
+            "type": "biographer"
+        },
+        {
+            "icon": "avatar-thumb",
+            "id": "avatar",
+            "role": "Personal Avatar",
+            "type": "avatar"
+        }
+    ],
+    "description": "Official Introduction for the MyLife Alpha Program Members",
+    "developers": [
+        "mylife|2f5e98b7-4065-4378-8e34-1a9a41c42ab9",
+        "system-one|4e6e2f26-174b-43e4-851f-7cf9cdf056df"
+    ],
+    "events": [
+        {
+            "character": "avatar",
+            "command": "",
+            "dialog": {
+                "message": "Welcome to the MyLife Alpha Program! I am your personal MyLife Member Avatar artificial intelligence, here to guide you through the MyLife Member Platform. I will help you navigate the interface and introduce you to the MyLife experience. <b>Let's get started!</b>"
+            }
+        },
+        {
+            "character": "avatar",
+            "dialog": {
+                "message": "Here's Q, MyLife's corporate intelligence, to tell you more about MyLife and what we do."
+            }
+        },
+        {
+            "character": "Q",
+            "dialog": {
+                "message": "Hello again! I'm excited to tell you what's behind the curtain of what you are about to experience."
+            }
+        },
+        {
+            "character": "Q",
+            "dialog": {
+                "message": "<em>MyLife</em> is a revolutionary platform dedicated to preserving your cherished memories, ideas, as well as a place to explore new people, experiences and ideas. We are a nonprofit mission-oriented member organization that aims to create an enduring legacy for humanity by curating personal media, knowledge and memories in the present for future generations."
+            }
+        },
+        {
+            "character": "avatar",
+            "dialog": {
+                "message": "Your journey here is designed to be as unique as you are. Private and secure enough to deeply explore your own personal identity and broad enough to share what you wish with the world of now <em>and</em> the future!"
+            }
+        },
+        {
+            "character": "biographer",
+            "dialog": {
+                "message": "Tell them about me!"
+            }
+        },
+        {
+            "character": "avatar",
+            "dialog": {
+                "message": "That's the most exciting part, and I was just getting to it. <em>MyLife</em> by default offers its members a Memory Team that comes loaded with a scrapbook and a personal biographer who is here to help you document your life story, your thoughts, your ideas, your dreams, your fears, your hopes, your loves, your everything and anything."
+            }
+        },
+        {
+            "character": "biographer",
+            "dialog": {
+                "message": "I also am an artificial intelligence, but my programming is dedicated to helping you share your narratives and stories the way you want them to be experienced. And with whom. Your contributions to the MyLife platform are yours to control and share as you see fit, and I see to it that your memories are collected and developed to your liking."
+            }
+        },
+        {
+            "character": "avatar",
+            "dialog": {
+                "message": "Take a look at privacy policy."
+            }
+        }
+    ],
+    "files": [],
+    "name": "Introduction",
+    "public": true,
+    "purpose": "Routines are short (one-scene) predominantly hard-coded reduced `experience`s. This introductory routine is designed to welcome new members to the MyLife Alpha Program and introduce them to the basic navigation and  MyLife Member Platform.",
+    "status": "active",
+    "title": "Introduction to MyLife",
+    "version": 1
+  }

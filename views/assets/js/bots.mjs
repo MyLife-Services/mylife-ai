@@ -150,6 +150,7 @@ function getAction(type='avatar'){
  */
 function getBot(type='personal-avatar', id){
     return mBot(id ?? type)
+        ?? mActiveBot
 }
 function getBotIcon(type){
     return mBotIcon(type)
@@ -360,6 +361,9 @@ function mBotIcon(type){
             break
         case 'resume':
             image+='resume-thumb.png'
+            break
+        case 'system':
+            image+='Q.png'
             break
         case 'ubi':
             image+='ubi-thumb.png'

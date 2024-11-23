@@ -5,6 +5,7 @@ import {
     experiences as _experiences,
     experienceSkip,
     experienceStart,
+    routine,
     submitInput,
 } from './experience.mjs'
 import {
@@ -84,10 +85,14 @@ document.addEventListener('DOMContentLoaded', async event=>{
  * @returns {Promise<void>}
  */
 async function about(){
-    const { error, responses=[], success, } = await mGlobals.datamanager.about()
-    if(!success || !responses?.length)
-        return // or make error version
-    addMessages(responses, { responseDelay: 4, typeDelay: 1, typewrite: true, })
+    const { error, responses=[], routine: routineScript, success, } = await mGlobals.datamanager.about()
+    if(success && routineScript)
+        routine(routineScript)
+    else if(responses?.length)
+        addMessages(responses, { responseDelay: 4, typeDelay: 1, typewrite: true, })
+    else if(error.message)
+        addMessage(error.message, { bubbleClass: 'system-bubble', typeDelay: 1, typewrite: true, })
+    return
 }
 /**
  * Adds an input element (button, input, textarea,) to the system chat column.
@@ -683,7 +688,12 @@ async function mAddMessage(message, options={}){
     }
     if(typeof message!=='string' || !message.length)
         throw new Error('mAddMessage::Error()::`message` string is required')
-    const { bubbleClass, role='agent', typeDelay=2, typewrite=true, } = options
+    const {
+        bubbleClass,
+        role='agent',
+        typeDelay=2,
+        typewrite=true,
+    } = options
     /* message container */
     const chatMessage = document.createElement('div')
     chatMessage.classList.add('chat-message-container', `chat-message-container-${ role }`)
@@ -691,13 +701,24 @@ async function mAddMessage(message, options={}){
     const messageThumb = document.createElement('img')
     messageThumb.classList.add('chat-thumb')
     messageThumb.id = `message-thumb-${ mChatBubbleCount }`
-    if(role==='agent' || role==='system'){
-        const bot = activeBot()
-        const type = bot.type.split('-').pop()
-        messageThumb.src = getBotIcon(type)
-        messageThumb.alt = bot.name
-        messageThumb.title = bot.purpose
-            ?? `I'm ${ bot.name }, an artificial intelligence ${ type.replace('-', ' ') } designed to assist you!`
+    switch(role){
+        case 'agent':
+        case 'assistant':
+        case 'bot':
+            const bot = activeBot()
+            const type = bot.type.split('-').pop()
+            messageThumb.src = getBotIcon(type)
+            messageThumb.alt = bot.name
+            messageThumb.title = bot.purpose
+                ?? `I'm ${ bot.name }, an artificial intelligence ${ type.replace('-', ' ') } designed to assist you!`    
+            break
+        case 'system':
+            messageThumb.src = getBotIcon('system')
+            messageThumb.alt = `Q, MyLife's Corporate Intelligence`
+            messageThumb.title = `Hi, I'm Q, MyLife's Corporate Synthetic Intelligence. I am designed to help you better understand MyLife's organization, membership, services and vision.`
+            break
+        default:
+            break
     }
     /* message bubble */
 	const chatBubble = document.createElement('div')

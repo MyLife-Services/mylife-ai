@@ -1,3 +1,7 @@
+/* imports */
+import fs from 'fs/promises'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { Marked } from 'marked'
 import EventEmitter from 'events'
 import AssetAgent from './agents/system/asset-agent.mjs'
@@ -7,12 +11,17 @@ import { Entry, Memory, } from './mylife-models.mjs'
 import EvolutionAgent from './agents/system/evolution-agent.mjs'
 import ExperienceAgent from './agents/system/experience-agent.mjs'
 import LLMServices from './mylife-llm-services.mjs'
+import { stat } from 'fs'
 /* module constants */
+// file services
+const __dirpath = fileURLToPath(import.meta.url)
+// MyLife
 const mAllowSave = JSON.parse(
     process.env.MYLIFE_DB_ALLOW_SAVE
         ?? 'false'
 )
 const mAvailableModes = ['standard', 'admin', 'evolution', 'experience', 'restoration']
+const mDefaultRoutinePath = path.resolve(path.dirname(__dirpath), '..', 'json-schemas/routines/') + '/'
 /**
  * @class - Avatar
  * @extends EventEmitter
@@ -695,23 +704,6 @@ class Avatar extends EventEmitter {
         const response = await mReliveMemoryNarration(item, memberInput, this.#botAgent, this)
         return response
     }
-    async renderContent(html){
-        const processStartTime = Date.now()
-        const sectionRegex = /<section[^>]*>([\s\S]*?)<\/section>/gi
-        const responses = []
-        let match
-        while((match = sectionRegex.exec(html))!==null){
-            const sectionContent = match[1].trim()
-            if(!sectionContent?.length)
-                break
-            const Message = mPruneMessage(this.avatar.id, sectionContent, 'chat', processStartTime)
-            responses.push(Message)
-        }
-        return {
-            responses,
-            success: true,
-        }
-    }
     /**
      * Allows member to reset passphrase.
      * @param {string} passphrase 
@@ -783,6 +775,49 @@ class Avatar extends EventEmitter {
                 }],
                 success: false,
             }
+        return response
+    }
+    /**
+     * Execute a specific routine, defaults to `introduction`. **Note** could include [](https://www.npmjs.com/package/html-to-json-parser)
+     * @todo - continuous improvement on routines
+     * @param {string} routine - The routine to execute
+     * @returns {object} - Routine response object: { error, instruction, routine, success, }
+     */
+    async routine(routine='introduction'){
+        let filePath=mDefaultRoutinePath,
+            response={ success: false, }
+        try{
+            routine = routine.toLowerCase().replace(/[\s_]/g, '-')
+            switch(routine){
+                case '':
+                case 'intro':
+                case 'introduction':
+                    routine = 'introduction'
+                    break
+                case 'privacy-policy':
+                    routine = 'privacy'
+                    break
+                case 'about':
+                case 'help':
+                case 'privacy':
+                default:
+                    break
+            }
+            filePath += `${ routine }.json`
+            const script = await fs.readFile(filePath, 'utf-8')
+            if(!script?.length)
+                throw new Error('Routine empty')
+            response.routine = mRoutine(script, this)
+            response.success = true
+            console.log('Avatar::routine()::', response)
+        } catch(error){
+            console.log('Avatar::routine()::ERROR', error.message)
+            response.error = error
+            response.responses = [{
+                message: `I'm having trouble sharing this routine; please contact support, as this is unlikely to fix itself.`,
+                role: 'system',
+            }]
+        }
         return response
     }
     /**
@@ -2407,6 +2442,37 @@ function mReplaceVariables(prompt, variableList, variableValues){
             prompt = prompt.replace(new RegExp(`@@${keyName}`, 'g'), value)
     })
     return prompt
+}
+/**
+ * Returns a processed routine.
+ * @param {string|object} script - The routine script, converts JSON to object { cast, description, developers, events, files, name, public, purpose, status, title, version, }
+ * @param {Avatar} Avatar - The avatar instance
+ * @returns {object} - Synthetic Routine object (if maintained, develop into class; presumed it will be deleted altogether and folded into simple experiences) { cast, description, developers, events, purpose, title, }
+ */
+function mRoutine(script, Avatar){
+    if(typeof script === 'string')
+        script = JSON.parse(script)
+    console.log('mRoutine::script', script)
+    const defaultCastMember = {
+        icon: 'avatar-thumb',
+        id: 'avatar',
+        role: Avatar.nickname,
+        type: 'avatar',
+    }
+    const { cast=[defaultCastMember], description, developers, events, files, name, public: isPublic, purpose, status, title, version=1.0, } = script
+    if(!isPublic)
+        throw new Error('Routine is not currently for public release.')
+    if(status!=='active' || version < 1)
+        throw new Error('Routine is not currently active.')
+    // @stub - text replacements and data references interpreted
+    return {
+        cast,
+        description,
+        developers,
+        events,
+        purpose,
+        title,
+    }
 }
 /**
  * Returns a sanitized event.

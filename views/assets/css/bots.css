@@ -389,14 +389,14 @@
     font-size: 0.9rem;
     font-style: italic;
     overflow: hidden;
-    text-wrap: nowrap;
+    white-space: nowrap;
 }
 .collection-item-title-input {
     display: flex;
     flex: 0 0 auto;
     font-size: 0.9rem;
     overflow: hidden;
-    text-wrap: nowrap;
+    white-space: nowrap;
 }
 .collection-item-summary {
     color: darkblue;
@@ -615,7 +615,7 @@ input:checked + .publicity-slider:before {
     margin: 0;
     max-height: 10rem;
     padding: 0;
-    text-wrap: wrap;
+    white-space: nowrap;
     transition: transform 0.5s ease;
 }
 .memory-shadow-fade {
