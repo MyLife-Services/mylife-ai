@@ -75,11 +75,6 @@ class Datamanager {
         return response
     }
     /* public functions */
-    async about(){
-        const url = `about`
-        const response = await this.#fetch(url)
-        return response
-    }
     async alerts(){
         const url = `alerts`
         const responses = await this.#fetch(url)
@@ -434,8 +429,8 @@ class Datamanager {
         const success = await this.#fetch(url, options)
         return success
     }
-    async privacyPolicy(){
-        const url = `privacy-policy`
+    async routine(type){
+        const url = `/routine/${ type }`
         const response = await this.#fetch(url)
         return response
     }

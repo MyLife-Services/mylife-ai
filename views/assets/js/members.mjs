@@ -82,17 +82,10 @@ document.addEventListener('DOMContentLoaded', async event=>{
  * Presents the `about` page as a series of sectional responses from your avatar.
  * @public
  * @async
- * @returns {Promise<void>}
+ * @returns {void}
  */
-async function about(){
-    const { error, responses=[], routine: routineScript, success, } = await mGlobals.datamanager.about()
-    if(success && routineScript)
-        routine(routineScript)
-    else if(responses?.length)
-        addMessages(responses, { responseDelay: 4, typeDelay: 1, typewrite: true, })
-    else if(error.message)
-        addMessage(error.message, { bubbleClass: 'system-bubble', typeDelay: 1, typewrite: true, })
-    return
+function about(){
+    mRoutine('about')
 }
 /**
  * Adds an input element (button, input, textarea,) to the system chat column.
@@ -215,6 +208,15 @@ function inExperience(){
     return mExperience?.id?.length ?? false
 }
 /**
+ * Presents the `introduction` routine.
+ * @public
+ * @returns {void}
+ */
+function introduction(){
+    clearSystemChat()
+    mRoutine('introduction')
+}
+/**
  * Consumes instruction object and performs the requested actions.
  * @todo - all interfaceLocations supported
  * @todo - currently just force-feeding _all_ the functions I need; make more contextual
@@ -234,16 +236,12 @@ function enactInstruction(instruction, interfaceLocation='chat', additionalFunct
     mGlobals.enactInstruction(instruction, functions)
 }
 /**
- * Presents the `privacy-policy` page as a series of sectional responses from your avatar.
+ * Presents the `privacy-policy` page as a routine.
  * @public
- * @async
- * @returns {Promise<void>}
+ * @returns {void}
  */
-async function privacyPolicy(){
-    const { error, responses=[], success, } = await mGlobals.datamanager.privacyPolicy()
-    if(!success || !responses?.length)
-        return // or make error version
-    addMessages(responses, { responseDelay: 5, typeDelay: 1, typewrite: true, })
+function privacyPolicy(){
+    mRoutine('privacy')
 }
 /**
  * Replaces an element (input/textarea) with a specified type.
@@ -702,22 +700,18 @@ async function mAddMessage(message, options={}){
     messageThumb.classList.add('chat-thumb')
     messageThumb.id = `message-thumb-${ mChatBubbleCount }`
     switch(role){
-        case 'agent':
-        case 'assistant':
-        case 'bot':
-            const bot = activeBot()
-            const type = bot.type.split('-').pop()
-            messageThumb.src = getBotIcon(type)
-            messageThumb.alt = bot.name
-            messageThumb.title = bot.purpose
-                ?? `I'm ${ bot.name }, an artificial intelligence ${ type.replace('-', ' ') } designed to assist you!`    
-            break
         case 'system':
             messageThumb.src = getBotIcon('system')
             messageThumb.alt = `Q, MyLife's Corporate Intelligence`
             messageThumb.title = `Hi, I'm Q, MyLife's Corporate Synthetic Intelligence. I am designed to help you better understand MyLife's organization, membership, services and vision.`
             break
         default:
+            const bot = activeBot()
+            const type = bot.type.split('-').pop()
+            messageThumb.src = getBotIcon(type)
+            messageThumb.alt = bot.name
+            messageThumb.title = bot.purpose
+                ?? `I'm ${ bot.name }, an artificial intelligence ${ type.replace('-', ' ') } designed to assist you!`
             break
     }
     /* message bubble */
@@ -873,6 +867,20 @@ function mInitializePageListeners(){
     })
 }
 /**
+ * Retrieves and runs the requested routine.
+ * @param {string} routineName - The routine name to execute
+ * @returns {Promise<void>}
+ */
+async function mRoutine(routineName){
+    const { error, responses=[], routine: routineScript, success, } = await mGlobals.datamanager.routine(routineName)
+    if(success && routineScript)
+        routine(routineScript)
+    else if(responses?.length)
+        addMessages(responses, { responseDelay: 4, typeDelay: 1, typewrite: true, })
+    else if(error.message)
+        addMessage(error.message, { bubbleClass: 'system-bubble', typeDelay: 1, typewrite: true, })
+}
+/**
  * Primitive step to set a "modality" or intercession for the member chat. Currently will key off dataset in `chatInputField`.
  * @public
  * @requires chatActiveItem
@@ -1025,7 +1033,9 @@ export {
     hide,
     hideMemberChat,
     inExperience,
+    introduction,
     enactInstruction,
+    privacyPolicy,
     replaceElement,
     sceneTransition,
     seedInput,

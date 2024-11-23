@@ -257,9 +257,7 @@ function routine(routine) {
         const timer = setTimeout(()=>{
             routineExecute(event)
             if(index===(events.length-1))
-                setTimeout(()=>{
-                    toggleMemberInput(true)
-                }, 1000)
+                toggleMemberInput(true)
             activeTimers.shift()
         }, index * 3000 + (index * 750))
         activeTimers.push(timer)
@@ -282,7 +280,6 @@ function routine(routine) {
         if(!interrupted && nextTimer){
             const rushIndex = events.length - activeTimers.length - 1
             clearTimeout(nextTimer)
-            console.log('Routine advance', activeTimers, nextTimer, events, rushIndex)
             routineExecute(events[rushIndex])
             document.addEventListener("click", routineAdvance, { once: true })
         } else if (!nextTimer)
@@ -291,15 +288,18 @@ function routine(routine) {
     function routineExecute(event){
         const { character=activeCharacter?.id, dialog } = event
         const { message } = dialog
-        if(!character || character!==activeCharacter?.id){
+        if(!character || character!==activeCharacter?.id)
             activeCharacter = getCharacter(character)
-            if(activeCharacter.type!=='system')
-                setActiveBot(activeCharacter?.bot_id)
-        }
+        const isQ = activeCharacter.type==='system'
+        if(!isQ && activeCharacter?.bot_id)
+            setActiveBot(activeCharacter.bot_id, false)
         const options = {
+            bubbleClass: isQ ? 'system-bubble' : 'routine-bubble',
             role: activeCharacter.type,
         }
         addMessage(message, options)
+        if(!activeTimers.length)
+            routineEnd(false)
     }
     function routineEnd(aborted=true){
         interrupted = true

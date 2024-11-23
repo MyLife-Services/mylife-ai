@@ -14,6 +14,10 @@
 	font-size: 1em;
     color: #dcb6ff; /* White text for better readability */
 }
+.routine-bubble {
+	background-color: rgb(46 15 91 / 75%); /* A darker shade of blue for the agent */
+	color: #ffffff; /* White text for better readability */
+}
 .system-bubble {
 	background-color: rgba(24, 34, 100, 0.85); /* A darker shade of blue for the agent */
 	color: #ffffff; /* White text for better readability */

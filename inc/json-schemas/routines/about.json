@@ -36,12 +36,7 @@
 		},
 		{
 			"dialog": {
-				"message": "<a href=\"javascript:privacyPolicy()\">Our Privacy Policy</a> is always evolving and unique among their kind. At MyLife, the revolutionary aim of the intelligent platform is to put you in control - over your data, over your experience, and over the skills and knowledge your intelligent avatar acquires."
-			}
-		},
-		{
-			"dialog": {
-				"message": "To learn more about MyLife, let's you and I chat directly about our services, currently in alpha. To reach our staff of volunteers by email, contact us at: <a href=\"mailto:info@humanremembranceproject.org\">info@humanremembranceproject.org</a>"
+				"message": "I can tell you more about <a href=\"javascript:privacyPolicy()\">Our Privacy Policy</a> which is always evolving and unique among its kind. At MyLife, the revolutionary aim of the intelligent platform is to put you, as a member, in control - over your data, over your experience, and over the skills and knowledge your intelligent avatar acquires."
 			}
 		}
 	],

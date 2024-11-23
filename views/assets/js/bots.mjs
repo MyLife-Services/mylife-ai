@@ -10,7 +10,9 @@ import {
     expunge,
     getActiveItemId,
     hide,
+    introduction,
     enactInstruction,
+    privacyPolicy,
     seedInput,
     setActiveAction,
     setActiveItem,
@@ -2005,6 +2007,14 @@ function mUpdateBotContainerAddenda(botContainer){
                         }, { once: true })
                     } else
                         hide(tutorialButton)
+                }
+                const introductionButton = document.getElementById('personal-avatar-introduction')
+                if(introductionButton){
+                    introductionButton.addEventListener('click', introduction)
+                }
+                const privacyPolicyButton = document.getElementById('personal-avatar-privacy')
+                if(privacyPolicyButton){
+                    privacyPolicyButton.addEventListener('click', privacyPolicy)
                 }
                 break
             case 'biographer':
