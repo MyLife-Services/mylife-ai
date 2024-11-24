@@ -819,7 +819,8 @@ class MyLifeFactory extends AgentFactory {
 		/* create avatar */
 		if(Object.keys(memberAccount)?.length){
 			try{
-				return await this.dataservices.addAvatar(memberAccount?.core) ?? {}
+				const avatarData = await this.dataservices.addAvatar(memberAccount?.core)
+				return avatarData
 			} catch(error) { 
 				console.log(chalk.blueBright('createAccount()::createAvatar()::error'), chalk.bgRed(error))
 			}

@@ -1520,10 +1520,10 @@ class Q extends Avatar {
 	}
 	/**
 	 * Set MyLife core account basics. { birthdate, passphrase, }
-	 * @todo - move to mylife agent factory
+	 * @todo - deprecate addMember()
 	 * @param {string} birthdate - The birthdate of the member.
 	 * @param {string} passphrase - The passphrase of the member.
-	 * @returns {boolean} - `true` if successful
+	 * @returns {object} - The account creation object: { avatar, success, }
 	 */
 	async createAccount(birthdate, passphrase){
         if(!birthdate?.length || !passphrase?.length)
@@ -1531,7 +1531,7 @@ class Q extends Avatar {
         let avatar,
             success = false
         avatar = await this.#factory.createAccount(birthdate, passphrase)
-        if(Object.keys(avatar).length){
+        if(typeof avatar==='object' && Object.keys(avatar).length){
             const { mbr_id, } = avatar
             success = true
             this.addMember(mbr_id)
