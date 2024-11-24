@@ -289,7 +289,11 @@ class Datamanager {
         return response
     }
     async greetings(dynamic=false){
-        const url = `greetings?dyn=${ dynamic }`
+        dynamic = '?dyn=' + dynamic
+        let validation = new URLSearchParams(window.location.search).get('vld')
+        if(validation)
+            validation = `&vld=${ validation }`
+        const url = `greetings${ dynamic + validation }`
         const response = await this.#fetch(url)
         const responses = ( response?.responses ?? [] )
             .map(response=>response.message)

@@ -9,6 +9,8 @@ const hide = mGlobals.hide
 const mPlaceholder = `Type your message to ${ mAvatarName }...`
 const retract = mGlobals.retract
 const show = mGlobals.show
+window.about = about
+window.privacyPolicy = privacyPolicy
 /* variables */
 let mChallengeMemberId,
     mChatBubbleCount = 0,
@@ -57,6 +59,13 @@ document.addEventListener('DOMContentLoaded', async event=>{
     if(input)
         chatSystem.appendChild(input)
 })
+/* public functions */
+function about(){
+    mRoutine('about')
+}
+function privacyPolicy(){
+    mRoutine('privacy')
+}
 /* private functions */
 /**
  * Adds a message to the chat column.
@@ -84,6 +93,8 @@ function mAddMessage(message, options={}){
     /* append children */
     chatMessage.appendChild(chatBubble)
 	chatSystem.appendChild(chatMessage)
+    if(!message.startsWith('<section>'))
+        message = `<section>${message}</section>`
 	if(typewrite)
         mTypeMessage(chatBubble, message, typeDelay, callback)
 	else {
@@ -123,17 +134,6 @@ function mAddUserMessage(event){
     }
     mSubmitInput(event, message)
     mAddMessage(message, options)
-}
-async function mChallengeMember(event){
-    const { options, selectedIndex, value, } = this
-    mChallengeMemberId = value
-    const memberName = options[selectedIndex].text
-    // set member on server
-    this.disabled = true
-    const messages = [`If you want to get to ${ memberName }, I challenge you to a game of passphrase!`, `Please enter the passphrase for your account to continue...`]
-    await mAddMessages(messages, { typeDelay: 6, })
-    chatSystem.appendChild(mCreateChallengeElement())
-    mScrollBottom()
 }
 /**
  * Creates a challenge element for the user to enter their passphrase. Simultaneously sets modular variables to the instantion of the challenge element. Unclear what happens if multiples are attempted to spawn, but code shouldn't allow for that, only hijax. See the `@required` for elements that this function generates and associates.
@@ -200,34 +200,14 @@ async function mFetchStart(){
         case 'privacy-policy':
             break
         case 'challenge':
+        case 'login':
         case 'select':
-            const hostedMembers = await mGlobals.datamanager.hostedMembers()
-            if(!hostedMembers.length)
-                messages.push(`My sincere apologies, I'm unable to get the list of hosted members, the MyLife system must be down -- @Mookse`)
-            else {
-                messages.push(...[`Welcome to MyLife!`, `Please select your avatar-id from the list below...`])
-                // create the select element and append
-                const selectContainer = document.createElement('div')
-                selectContainer.id = 'member-selection'
-                selectContainer.className = 'member-selection'
-                const select = document.createElement('select')
-                select.id = 'member-select'
-                select.className = 'member-select'
-                select.addEventListener('change', mChallengeMember)
-                hostedMembers.unshift({ id: null, name: 'Select your avatar-id...', })
-                hostedMembers
-                    .forEach(member=>{
-                        const option = document.createElement('option')
-                        option.disabled = false
-                        option.hidden = false
-                        option.selected = false
-                        option.text = member.name
-                        option.value = member.id
-                        select.appendChild(option)
-                    })
-                selectContainer.appendChild(select)
-                input = selectContainer
-            }
+            if(mChallengeMemberId){
+                await mAddMessage(`Please enter the passphrase for your account to continue...`, { typeDelay: 6, })
+                chatSystem.appendChild(mCreateChallengeElement())
+                mScrollBottom()
+            } else
+                messages.push(`I'm sorry, I can't find the member you're looking for...`)
             break
         default:
             messages.push(...await mGlobals.datamanager.greetings())
@@ -280,11 +260,33 @@ async function mLoadStart(){
     signupHumanNameInput = document.getElementById('human-name-input-text')
     signupSuccess = document.getElementById('signup-success')
     signupTeaser = document.getElementById('signup-teaser')
-    /* fetch the greeting messages */
+    /* load page */
+    mChallengeMemberId = new URLSearchParams(window.location.search).get('mbr')
     mPageType = new URLSearchParams(window.location.search).get('type')
         ?? window.location.pathname.split('/').pop()
     const startObject = await mFetchStart()
     return startObject
+}
+/**
+ * Retrieves and runs the requested routine.
+ * @param {string} routineName - The routine name to execute
+ * @returns {Promise<void>}
+ */
+async function mRoutine(routineName){
+    const { error, responses=[], routine: routineScript, success, } = await mGlobals.datamanager.routine(routineName)
+    if(success && routineScript){
+        const { events: _events, title, } = routineScript
+        const events = _events
+            .filter(event=>event?.dialog?.message?.length)
+            .map(event=>{
+                let message = event.dialog.message
+                return message
+            })
+        mAddMessages(events, { bubbleClass: 'system-bubble', responseDelay: 6, typeDelay: 4, typewrite: true, })
+    } else if(responses?.length)
+        mAddMessages(responses, { responseDelay: 4, typeDelay: 1, typewrite: true, })
+    else if(error.message)
+        mAddMessage(error.message, { bubbleClass: 'system-bubble', typeDelay: 1, typewrite: true, })
 }
 /**
  * Scrolls overflow of system chat to bottom.

@@ -287,7 +287,7 @@ function routine(routine) {
     }
     function routineExecute(event){
         const { character=activeCharacter?.id, dialog } = event
-        const { message } = dialog
+        let { message } = dialog
         if(!character || character!==activeCharacter?.id)
             activeCharacter = getCharacter(character)
         const isQ = activeCharacter.type==='system'

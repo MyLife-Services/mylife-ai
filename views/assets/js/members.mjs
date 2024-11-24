@@ -825,7 +825,9 @@ async function mAddMessage(message, options={}){
     chatMessage.addEventListener('mouseleave', event => {
         chatMessageTab.classList.remove('chat-message-tab-hover', `chat-message-tab-hover-${ role }`)
     })
-    /* print chat message */
+    /* chat message */
+    if(!message.startsWith('<section>'))
+        message = `<section>${message}</section>`
 	if(typewrite)
         mTypeMessage(chatBubble, message, typeDelay)
     else {

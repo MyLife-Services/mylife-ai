@@ -2337,8 +2337,8 @@ function mPruneMessage(activeBotId, message, type='chat', processStartTime=Date.
         content='',
         response_time=Date.now()-processStartTime
     const { content: messageContent=message, } = message
-    const rSource = /【.*?\】/gs
     const rLines = /\n{2,}/g
+    const rSource = /【.*?\】/gs
     content = Array.isArray(messageContent)
         ? messageContent.reduce((acc, item) => {
             if (item?.type==='text' && item?.text?.value){
@@ -2347,8 +2347,8 @@ function mPruneMessage(activeBotId, message, type='chat', processStartTime=Date.
             return acc
         }, '')
         : messageContent
-    content = content.replace(rLines, '\n')
-        .replace(rSource, '') // This line removes OpenAI LLM "source" references
+    content = content // .replace(rLines, '\n')
+        .replace(rSource, '') // remove OpenAI LLM "source" references
     message = new Marked().parse(content)
     const messageResponse = {
         activeBotId,
@@ -2549,7 +2549,7 @@ async function mValidateRegistration(bot_id, factory, validationId){
         const eligible = being==='registration'
             && factory.globals.isValidEmail(registrationEmail)
         if(eligible){
-            const successMessage = `Hello and _thank you_ for your registration, ${ humanName }!\nI'm Q, the ai-representative for MyLife, and I'm excited to help you get started, so let's do the following:\n1. Verify your email address\n2. set up your account\n3. get you started with your first MyLife experience!\n<br />\n<br />Let me walk you through the process.<br />In the chat below, please enter the email you registered with and hit the <b>submit</b> button!`
+            const successMessage = `Hello and _thank you_ for your registration, ${ humanName }!\nI'm Q, the ai-representative for MyLife, and I'm excited to help you get started, so let's do the following:\n\n1. Verify your email address\n2. set up your account\n3. get you started with your first MyLife experience!\n\nLet me walk you through the process.\n\nIn the chat below, please enter the email you registered with and hit the **submit** button!`
             message = mCreateSystemMessage(bot_id, successMessage, factory.message)
             registrationData.avatarName = avatarName
                 ?? humanName

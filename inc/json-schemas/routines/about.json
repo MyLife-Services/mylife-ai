@@ -16,7 +16,7 @@
         {
             "character": "Q",
             "dialog": {
-                "message": "<h4>Our History</h4><p>MyLife, founded in 2021 in Massachusetts, USA, embarked on a mission to preserve digital legacies. Our objective is to provide a durable, enduring internet-enabled platform for individuals to collect, curate, and share personal media and information in perpetuity. As a legally recognized nonprofit organization in the United States, we're poised to be a trusted humanist platform for digital memorialization and personal storytelling.</p>"
+                "message": "<em>MyLife</em>, founded in 2021 in Massachusetts, USA, embarked on a mission to preserve digital legacies. Our objective is to provide a durable, enduring internet-enabled platform for individuals to collect, curate, and share personal media and information in perpetuity. As a legally recognized nonprofit organization in the United States, we're poised to be a trusted humanist platform for digital memorialization and personal storytelling."
             }
         },
 		{
