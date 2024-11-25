@@ -291,8 +291,9 @@ class Datamanager {
     async greetings(dynamic=false){
         dynamic = '?dyn=' + dynamic
         let validation = new URLSearchParams(window.location.search).get('vld')
-        if(validation)
-            validation = `&vld=${ validation }`
+        validation = validation?.length
+            ? `&vld=${ validation }`
+            : ''
         const url = `greetings${ dynamic + validation }`
         const response = await this.#fetch(url)
         const responses = ( response?.responses ?? [] )
