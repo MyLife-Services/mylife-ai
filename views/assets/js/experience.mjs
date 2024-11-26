@@ -228,14 +228,19 @@ async function experienceStart(experienceId){
 }
 /**
  * Runs the routine based on the incoming script. A routine is similar currently to an `experience`, but is not as full-featured and is likely to meld in the near future.
- * @param {object} routine - The routine script object { cast, description, developers, events, purpose, title, }
+ * @param {string|object} routineScript - The routine script object { cast, description, developers, events, purpose, title, }
  * @property {object[]} cast - The cast of characters { icon, id, role, type, }
  * @property {object[]} events - The events of the routine { character, dialog, }; dialog: { message, options, }
  * @returns {void}
  */
-function routine(routine) {
+async function routine(script) {
     /* validate request */
-    const { cast, description, developers, events, purpose, title } = routine
+    if(typeof script==='string'){
+        const response = await globals.datamanager.routine(script)
+        if(response.success)
+            script = response?.routine
+    }
+    const { cast, description, developers, events, purpose, title } = script
     if(!events?.length)
         throw new Error("No events found")
     if(!cast?.length)

@@ -1,0 +1,46 @@
+{
+	"cast": [
+        {
+            "icon": "avatar-thumb",
+            "id": "avatar",
+            "role": "Personal Avatar",
+            "type": "avatar"
+        }
+	],
+    "description": "Introductory greeting routine for MyLife Avatar bot.",
+    "developers": [
+        "mylife|2f5e98b7-4065-4378-8e34-1a9a41c42ab9",
+        "system-one|4e6e2f26-174b-43e4-851f-7cf9cdf056df"
+    ],
+	"events": [
+        {
+            "character": "avatar",
+            "dialog": {
+                "message": "Hello, <-mN->! I'm <b><-bN-></b>, an artificial intelligence designed to help be your guide, guardian, advocate and ambassador here at <em>MyLife</em>. I'm here to help you navigate the platform, answer your questions, and assist you in working with our teams of bots all tuned, by MyLife <em>and you</em> over time to help you achieve your best self."
+            }
+        },
+		{
+			"dialog": {
+				"message": "<em>MyLife</em>'s primary mission and objective is to provide a durable, enduring internet-enabled platform for individuals to collect, curate, and share personal media and information in perpetuity. As a legally recognized nonprofit organization, we're poised to be a trusted humanist platform for digital memorialization, personal storytelling, and first-hand accounting to offer our insights as direct data contributions to help shape, support and improve the prospects of future humanity."
+			}
+		}
+	],
+    "name": "avatar",
+    "public": true,
+    "status": "active",
+    "title": "Avatar Introduction",
+    "variables": [
+        {
+          "default": "MyLife Member",
+          "variable": "<-mN->",
+          "replacement": "memberFirstName"
+        },
+		{
+		  "default": "personal avatar",
+		  "variable": "<-bN->",
+		  "replacement": "bot_name",
+		  "$comment": "Rely on active bot for not (for data field)"
+		}
+    ],
+    "version": 1
+}

@@ -51,6 +51,7 @@ class Avatar extends EventEmitter {
     #llmServices
     #mode = 'standard' // interface-mode from module `mAvailableModes`
     #nickname // avatar nickname, need proxy here as g/setter is "complex"
+    #setupComplete
     #vectorstoreId // vectorstore id for avatar
     /**
      * @constructor
@@ -124,6 +125,8 @@ class Avatar extends EventEmitter {
         const { actionCallback, frontendInstruction, } = this
         if(!responses.length)
             responses.push(this.backupResponse)
+        else
+            success = true
         if(actionCallback?.length){
             switch(actionCallback){
                 case 'changeTitle':
@@ -482,15 +485,18 @@ class Avatar extends EventEmitter {
     /**
      * Get a static or dynamic greeting from active bot.
      * @param {boolean} dynamic - Whether to use LLM for greeting
-     * @returns {Object} - The greeting Response object: { responses, success, }
+     * @returns {Object} - The greeting Response object: { instruction, responses, routine, success, }
      */
     async greeting(dynamic=false){
-        const responses = []
-        const greeting = await this.#botAgent.greeting(dynamic)
-        responses.push(mPruneMessage(this.activeBotId, greeting, 'greeting'))
+        const botGreeting = await this.#botAgent.greeting(dynamic)
+        const { routine, success, } = botGreeting
+        let { responses, } = botGreeting
+        responses = responses
+            .map(greeting=>mPruneMessage(this.activeBotId, greeting, 'greeting'))
         return {
             responses,
-            success: true,
+            routine,
+            success,
         }
     }
     /**
@@ -1185,6 +1191,24 @@ class Avatar extends EventEmitter {
         return this.experience
     }
     /**
+     * Get the `active` reliving memory.
+     * @getter
+     * @returns {object[]} - The active reliving memories
+     */
+    get livingMemory(){
+        return this.#livingMemory
+            ?? {}
+    }
+    /**
+     * Set the `active` reliving memory.
+     * @setter
+     * @param {Object} livingMemory - The new active reliving memory (or `null`)
+     * @returns {void}
+     */
+    set livingMemory(livingMemory){
+        this.#livingMemory = livingMemory
+    }
+    /**
      * Returns manifest for navigation of scenes/events and cast for the current experience.
      * @returns {ExperienceManifest} - The experience manifest.
      * @property {ExperienceCastMember[]} cast - The cast array for the experience.
@@ -1336,26 +1360,17 @@ class Avatar extends EventEmitter {
         if(nickname!==this.name)
             this.#nickname = nickname
     }
-    /**
-     * Get the `active` reliving memory.
-     * @getter
-     * @returns {object[]} - The active reliving memories
-     */
-    get livingMemory(){
-        return this.#livingMemory
-            ?? {}
-    }
-    /**
-     * Set the `active` reliving memory.
-     * @setter
-     * @param {Object} livingMemory - The new active reliving memory (or `null`)
-     * @returns {void}
-     */
-    set livingMemory(livingMemory){
-        this.#livingMemory = livingMemory
-    }
     get registrationId(){
         return this.#factory.registrationId
+    }
+    get setupComplete(){
+        return this.#setupComplete
+    }
+    set setupComplete(complete){
+        if(complete && !this.setupComplete){
+            this.#factory.avatarSetupComplete(this.id) // save to cosmos
+            this.#setupComplete = true
+        }
     }
     /**
      * Get vectorstore id.
@@ -1448,13 +1463,18 @@ class Q extends Avatar {
      * @returns {Object} - The greeting Response object: { responses, success, }
      */
     async greeting(){
-        let responses = []
         const greeting = await this.avatar.greeting(false)
-        responses.push(mPruneMessage(null, greeting, 'greeting'))
-        responses.forEach(response=>delete response.activeBotId)
+        const { routine, success, } = greeting
+        let { responses, } = greeting
+        responses = responses.map(response=>{
+            response = mPruneMessage(null, response, 'greeting')
+            delete response.activeBotId
+            return response
+        })
         return {
             responses,
-            success: true,
+            routine,
+            success,
         }
     }
     /**
@@ -2157,37 +2177,38 @@ function mHelpIncludePreamble(type, isMyLife){
  * Initializes the Avatar instance with stored data
  * @param {MyLifeFactory|AgentFactory} factory - Member Avatar or Q
  * @param {LLMServices} llmServices - OpenAI object
- * @param {Q|Avatar} avatar - The avatar Instance (`this`)
+ * @param {Q|Avatar} Avatar - The avatar Instance (`this`)
  * @param {BotAgent} botAgent - BotAgent instance
  * @param {AssetAgent} assetAgent - AssetAgent instance
  * @returns {Promise<void>} - Return indicates successfully mutated avatar
  */
-async function mInit(factory, llmServices, avatar, botAgent, assetAgent){
+async function mInit(factory, llmServices, Avatar, botAgent, assetAgent){
     /* initial assignments */
-    const { being, mbr_id, ...avatarProperties } = factory.globals.sanitize(await factory.avatarProperties())
-    Object.assign(avatar, avatarProperties)
+    const { being, mbr_id, setupComplete=true, ...avatarProperties } = factory.globals.sanitize(await factory.avatarProperties())
+    Object.assign(Avatar, avatarProperties)
     if(!factory.isMyLife){
-        const { mbr_id, vectorstore_id, } = avatar
-        avatar.nickname = avatar.nickname
-            ?? avatar.names?.[0]
-            ?? `${ avatar.memberFirstName ?? 'member' }'s avatar`
+        Avatar.setupComplete = setupComplete
+        const { mbr_id, vectorstore_id, } = Avatar
+        Avatar.nickname = Avatar.nickname
+            ?? Avatar.names?.[0]
+            ?? `${ Avatar.memberFirstName ?? 'member' }'s Avatar`
         if(!vectorstore_id){
             const vectorstore = await llmServices.createVectorstore(mbr_id)
             if(vectorstore?.id){
-                avatar.vectorstore_id = vectorstore.id
-                await assetAgent.init(avatar.vectorstore_id)
+                Avatar.vectorstore_id = vectorstore.id
+                await assetAgent.init(Avatar.vectorstore_id)
             }
         }
     }
     /* initialize default bots */
-    await botAgent.init(avatar.id, avatar.vectorstore_id)
+    await botAgent.init(Avatar)
     if(factory.isMyLife)
         return
     /* evolver */
-    avatar.evolver = await (new EvolutionAgent(avatar))
+    Avatar.evolver = await (new EvolutionAgent(Avatar))
         .init()
     /* lived-experiences */
-    avatar.experiencesLived = await factory.experiencesLived(false)
+    Avatar.experiencesLived = await factory.experiencesLived(false)
 }
 /**
  * Instantiates a new item and returns the item object.

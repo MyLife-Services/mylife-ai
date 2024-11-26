@@ -28,7 +28,6 @@
     "events": [
         {
             "character": "avatar",
-            "command": "",
             "dialog": {
                 "message": "Welcome to the MyLife Alpha Program! I am your personal MyLife Member Avatar artificial intelligence, <-mFN->, and I'm here to guide you through the MyLife Member Platform. I will help you navigate the interface and introduce you to the MyLife experience. <b>Let's get started!</b>"
             }
