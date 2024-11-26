@@ -82,7 +82,7 @@ function mAddMessage(message, options={}){
 		typewrite=true,
 	} = options
     const role = bubbleClass.split('-')[0]
-    const isSynthetic = ['agent', 'ai', 'assistant', 'bot', 'q', 'system'].includes(role)
+    const isSynthetic = !['chat', 'guest', 'member', 'user', 'visitor'].includes(role)
     /* message container */
     const chatMessage = document.createElement('div')
     chatMessage.classList.add('chat-message-container', `chat-message-container-${ role }`)

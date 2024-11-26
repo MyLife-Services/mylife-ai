@@ -692,7 +692,7 @@ async function mAddMessage(message, options={}){
         typeDelay=2,
         typewrite=true,
     } = options
-    const isSynthetic = ['agent', 'ai', 'assistant', 'bot', 'q', 'system'].includes(role)
+    const isSynthetic = !['chat', 'guest', 'member', 'user', 'visitor'].includes(role)
     /* message container */
     const chatMessage = document.createElement('div')
     chatMessage.classList.add('chat-message-container', `chat-message-container-${ role }`)
