@@ -233,7 +233,7 @@ async function experienceStart(experienceId){
  * @property {object[]} events - The events of the routine { character, dialog, }; dialog: { message, options, }
  * @returns {void}
  */
-async function routine(script) {
+async function routine(script){
     /* validate request */
     if(typeof script==='string'){
         const response = await globals.datamanager.routine(script)

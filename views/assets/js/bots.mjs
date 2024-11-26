@@ -2025,6 +2025,10 @@ function mUpdateBotContainerAddenda(botContainer){
                 if(privacyPolicyButton){
                     privacyPolicyButton.addEventListener('click', privacyPolicy)
                 }
+                const greetingRoutineButton = document.getElementById('personal-avatar-routine')
+                if(greetingRoutineButton){
+                    greetingRoutineButton.addEventListener('click', routine('avatar'))
+                }
                 break
             case 'biographer':
             case 'journaler':

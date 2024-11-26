@@ -19,9 +19,14 @@
                 "message": "Hello, <-mN->! I'm <b><-bN-></b>, an artificial intelligence designed to help be your guide, guardian, advocate and ambassador here at <em>MyLife</em>. I'm here to help you navigate the platform, answer your questions, and assist you in working with our teams of bots all tuned, by MyLife <em>and you</em> over time to help you achieve your best self."
             }
         },
+        {
+			"dialog": {
+				"message": "Together we can set near- or long-term goals, intentions, missions or, well, we can customize our work together <em>to whatever suits you</em> as we aim to promote personal self-improvement and self-expression and help you attain greater happiness. <em>MyLife</em> is not a hoax. It is the idea that we can tune and train intelligences such as myself to benefit our greater and more wholistic aims. Welcome to MyLife Membership, <-mN->, this is just the beginning!"
+			}
+		},
 		{
 			"dialog": {
-				"message": "<em>MyLife</em>'s primary mission and objective is to provide a durable, enduring internet-enabled platform for individuals to collect, curate, and share personal media and information in perpetuity. As a legally recognized nonprofit organization, we're poised to be a trusted humanist platform for digital memorialization, personal storytelling, and first-hand accounting to offer our insights as direct data contributions to help shape, support and improve the prospects of future humanity."
+				"message": "<em>MyLife</em>'s primary mission to enable that is to provide a durable, enduring internet-enabled intelligent platform for individuals to collect, curate, and share personal media and information in perpetuity. As a legally recognized nonprofit organization, we're poised to be a trusted humanist platform for digital memorialization, personal storytelling, and first-hand accounting to offer our insights as direct data contributions to help shape, support and improve the prospects of future humanity."
 			}
 		}
 	],

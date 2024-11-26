@@ -347,7 +347,7 @@ class BotAgent {
 	 */
 	bot(bot_id, botType){
 		const Bot = botType?.length
-			? this.#bots.find(bot=>bot.type===botType)
+			? this.#bots.find(bot=>[botType, `personal-${ botType }`].includes(bot.type))
 			: this.#bots.find(bot=>bot.id===bot_id)
 			?? this.avatar
 		return Bot

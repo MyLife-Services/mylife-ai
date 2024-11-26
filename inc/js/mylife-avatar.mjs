@@ -813,7 +813,7 @@ class Avatar extends EventEmitter {
             const script = await fs.readFile(filePath, 'utf-8')
             if(!script?.length)
                 throw new Error('Routine empty')
-            response.routine = mRoutine(script, this)
+            response.routine = mRoutine(script, this, this.#botAgent)
             response.success = true
         } catch(error){
             response.error = error
@@ -2466,9 +2466,10 @@ function mReplaceVariables(prompt, variableList, variableValues){
  * Returns a processed routine.
  * @param {string|object} script - The routine script, converts JSON to object { cast, description, developers, events, files, name, public, purpose, status, title, version, }
  * @param {Avatar} Avatar - The avatar instance
+ * @param {BotAgent} BotAgent - The BotAgent instance
  * @returns {object} - Synthetic Routine object (if maintained, develop into class; presumed it will be deleted altogether and folded into simple experiences) { cast, description, developers, events, purpose, title, }
  */
-function mRoutine(script, Avatar){
+function mRoutine(script, Avatar, BotAgent){
     if(typeof script === 'string')
         script = JSON.parse(script)
     const defaultCastMember = {
@@ -2478,20 +2479,31 @@ function mRoutine(script, Avatar){
         type: 'avatar',
     }
     const { cast=[defaultCastMember], description, developers, events, files, name, public: isPublic, purpose, status, title, variables, version=1.0, } = script
+    if(!cast?.length || !events?.length)
+        throw new Error('Routine must have a well-structured `cast` and `events` array.')
     if(!isPublic)
         throw new Error('Routine is not currently for public release.')
     if(status!=='active' || version < 1)
         throw new Error('Routine is not currently active.')
+    let activeCastMember = cast.find(castMember=>castMember.id===(events[0]?.character?.id))
+        ?? cast[0]
     if(variables?.length){
         variables.forEach(_variable=>{
             const { default: variableDefault, replacement: variableReplacement, variable, } = _variable
-            const replacement = Avatar[variableReplacement]
-                ?? variableDefault
             events.forEach(event=>{
-                const { message, } = event?.dialog
-                    ?? {}
-                if(message)
-                    event.dialog.message = message.replace(new RegExp(`${ variable }`, 'g'), replacement)
+                if(event.character)
+                    activeCastMember = cast.find(castMember=>castMember.id===event.character)
+                        ?? activeCastMember
+                const Bot = BotAgent.bot(null, activeCastMember.type)
+                if(!!Bot){
+                    const replacement = Bot[variableReplacement]?.toString()
+                        ?? Avatar[variableReplacement]?.toString()
+                        ?? variableDefault
+                    const { message, } = event?.dialog
+                        ?? {}
+                    if(message)
+                        event.dialog.message = message.replace(new RegExp(`${ variable }`, 'g'), replacement)
+                }
             })
         })
     }

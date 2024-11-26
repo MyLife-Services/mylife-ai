@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', async event=>{
  * @returns {void}
  */
 function about(){
-    mRoutine('about')
+    routine('about')
 }
 /**
  * Adds an input element (button, input, textarea,) to the system chat column.
@@ -214,7 +214,7 @@ function inExperience(){
  */
 function introduction(){
     clearSystemChat()
-    mRoutine('introduction')
+    routine('introduction')
 }
 /**
  * Consumes instruction object and performs the requested actions.
@@ -241,7 +241,7 @@ function enactInstruction(instruction, interfaceLocation='chat', additionalFunct
  * @returns {void}
  */
 function privacyPolicy(){
-    mRoutine('privacy')
+    routine('privacy')
 }
 /**
  * Replaces an element (input/textarea) with a specified type.
@@ -870,20 +870,6 @@ function mInitializePageListeners(){
             })
         }
     })
-}
-/**
- * Retrieves and runs the requested routine.
- * @param {string} routineName - The routine name to execute
- * @returns {Promise<void>}
- */
-async function mRoutine(routineName){
-    const { error, responses=[], routine: routineScript, success, } = await mGlobals.datamanager.routine(routineName)
-    if(success && routineScript)
-        routine(routineScript)
-    else if(responses?.length)
-        addMessages(responses, { responseDelay: 4, typeDelay: 1, typewrite: true, })
-    else if(error.message)
-        addMessage(error.message, { bubbleClass: 'system-bubble', typeDelay: 1, typewrite: true, })
 }
 /**
  * Primitive step to set a "modality" or intercession for the member chat. Currently will key off dataset in `chatInputField`.
