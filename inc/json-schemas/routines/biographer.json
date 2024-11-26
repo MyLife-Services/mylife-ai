@@ -1,0 +1,46 @@
+{
+	"cast": [
+        {
+            "icon": "biographer-thumb",
+            "id": "biographer",
+            "role": "Personal Biographer",
+            "type": "biographer"
+        }
+	],
+    "description": "Introductory greeting routine for MyLife Biographer bot.",
+    "developers": [
+        "mylife|2f5e98b7-4065-4378-8e34-1a9a41c42ab9",
+        "system-one|4e6e2f26-174b-43e4-851f-7cf9cdf056df"
+    ],
+	"events": [
+        {
+            "character": "biographer",
+            "dialog": {
+                "message": "Hello, <-mN->! I'm <b><-bN-></b>, here to help you collect, improve, relive and share your memories, stories and narratives. These memories will be stored as part of your digital legacy, to be shared with future generations. I'm here to help you curate your life's story and ensure that your memories are preserved for eternity."
+            }
+        },
+		{
+			"dialog": {
+				"message": "<em>MyLife</em>'s primary mission and objective is to provide a durable, enduring internet-enabled platform for individuals to collect, curate, and share personal media and information in perpetuity. As a legally recognized nonprofit organization, we're poised to be a trusted humanist platform for digital memorialization, personal storytelling, and first-hand accounting to offer our insights as direct data contributions to help shape, support and improve the prospects of future humanity."
+			}
+		}
+	],
+    "name": "biographer",
+    "public": true,
+    "status": "active",
+    "title": "Biographer Introduction",
+    "variables": [
+        {
+          "default": "MyLife Member",
+          "variable": "<-mN->",
+          "replacement": "memberFirstName"
+        },
+		{
+		  "default": "personal biographer",
+		  "variable": "<-bN->",
+		  "replacement": "bot_name",
+		  "$comment": "Rely on active bot (for data field)"
+		}
+    ],
+    "version": 1
+}

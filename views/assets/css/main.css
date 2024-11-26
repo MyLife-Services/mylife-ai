@@ -688,7 +688,7 @@ body {
     border: none;
 }
 .help-input-submit {
-	text-wrap: nowrap;
+	white-space: nowrap;
 	width: auto;
 }
 .help-input-text {

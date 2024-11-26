@@ -526,6 +526,9 @@ class AgentFactory extends BotFactory {
 	async avatarProperties(){
 		return ( await this.dataservices.getAvatar() )
 	}
+	async avatarSetupComplete(avatarId){
+		await this.dataservices.patch(avatarId, { setupComplete: true })
+	}
 	/**
 	 * Creates a new collection item in the member's container.
 	 * @param {object} item - The item to create.
@@ -786,6 +789,7 @@ class MyLifeFactory extends AgentFactory {
 				throw new Error('member personal name required to create account')
 			const avatarId = this.newGuid
 			avatarName = _avatarName ?? `${ humanName }-AI`
+			const badges = []
 			birthdate = new Date(birthdate).toISOString()
 			if(!birthdate?.length)
 				throw new Error('birthdate format could not be parsed')
@@ -801,6 +805,7 @@ class MyLifeFactory extends AgentFactory {
 			const validations = ['registration',] // list of passed validation routines
 			const core = {
 				avatarId,
+				badges,
 				birth,
 				email,
 				id,
@@ -819,7 +824,8 @@ class MyLifeFactory extends AgentFactory {
 		/* create avatar */
 		if(Object.keys(memberAccount)?.length){
 			try{
-				return await this.dataservices.addAvatar(memberAccount?.core) ?? {}
+				const avatarData = await this.dataservices.addAvatar(memberAccount?.core)
+				return avatarData
 			} catch(error) { 
 				console.log(chalk.blueBright('createAccount()::createAvatar()::error'), chalk.bgRed(error))
 			}

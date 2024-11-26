@@ -709,7 +709,8 @@ function mAvatarProperties(core, globals){
 		...avatarProperties
 	} = core
 	const being = 'avatar'
-	const nickname = avatarName ?? globals.sysName(mbr_id) // keep first, has dependencies
+	const nickname = avatarName
+		?? globals.sysName(mbr_id)
 	const name = `avatar_${ nickname }_${ id }`
 	const object_id = id
 	const parent_id = object_id
@@ -719,13 +720,20 @@ function mAvatarProperties(core, globals){
 		'assistant_id',
 		'avatarId',
 		'avatarName',
+		'birth',
+		'bot_id',
 		'bots',
 		'command_word',
 		'conversations',
+		"email",
 		'form',
 		'format',
+		'llm_id',
 		'messages',
 		'metadata',
+		'names',
+		'passphrase',
+		'thread',
 		'thread_id',
 		'validation',
 		'validations',
@@ -745,7 +753,8 @@ function mAvatarProperties(core, globals){
 		object_id,
 		parent_id,
 		proxyBeing,
-		type, // @stub - aggregator hook
+		setupComplete: false,
+		type,
 	}
 }
 /* exports */

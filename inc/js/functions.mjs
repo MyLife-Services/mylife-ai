@@ -1,13 +1,7 @@
 /* imports */
-import fs from 'fs/promises'
-import path from 'path'
-import { fileURLToPath } from 'url'
 import {
 	upload as apiUpload,
 } from './api-functions.mjs'
-/* variables */
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
 /* module export functions */
 /**
  * Renders the about page for the application. Visitors see the rendered page, members see the page as responses from their Avatar.
@@ -20,9 +14,7 @@ async function about(ctx){
 		await ctx.render('about')
 	} else {
 		const { avatar: Avatar, } = ctx.state
-		const aboutFilePath = path.resolve(__dirname, '../..', 'views/assets/html/_about.html')
-		const html = await fs.readFile(aboutFilePath, 'utf-8')
-		const response = await Avatar.renderContent(html)
+		const response = await Avatar.routine('about')
 		ctx.body = response
 	}
 }
@@ -307,9 +299,7 @@ async function privacyPolicy(ctx){
 		await ctx.render('privacy-policy')
 	} else {
 		const { avatar: Avatar, } = ctx.state
-		const aboutFilePath = path.resolve(__dirname, '../..', 'views/assets/html/_privacy-policy.html')
-		const html = await fs.readFile(aboutFilePath, 'utf-8')
-		const response = await Avatar.renderContent(html)
+		const response = await Avatar.routine('privacy')
 		ctx.body = response
 	}
 }
@@ -326,11 +316,21 @@ async function retireBot(ctx){
  * @param {Koa} ctx - Koa Context object
  */
 async function retireChat(ctx){
-	const { avatar, } = ctx.state
+	const { avatar: Avatar, } = ctx.state
 	const { bid, } = ctx.params
 	if(!bid?.length)
 		ctx.throw(400, `missing bot id`)
-	const response = await avatar.retireChat(bid)
+	const response = await Avatar.retireChat(bid)
+	ctx.body = response
+}
+/**
+ * Routines are pre-composed scripts that can be run on-demand. They animate HTML content formatted by <section>.
+ * @param {Koa} ctx - Koa Context object
+ */
+async function routine(ctx){
+	const { rid, } = ctx.params
+	const { avatar: Avatar, } = ctx.state
+	const response = await Avatar.routine(rid)
 	ctx.body = response
 }
 /**
@@ -465,6 +465,7 @@ export {
 	privacyPolicy,
 	retireBot,
 	retireChat,
+	routine,
 	shadows,
 	signup,
 	summarize,

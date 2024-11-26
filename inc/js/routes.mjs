@@ -26,6 +26,7 @@ import {
     privacyPolicy,
     retireBot,
     retireChat,
+    routine,
     shadows,
     signup,
     summarize,
@@ -72,6 +73,8 @@ _Router.get('/greetings', greetings)
 _Router.get('/select', loginSelect)
 _Router.get('/status', status)
 _Router.get('/privacy-policy', privacyPolicy)
+_Router.get('/routine', routine)
+_Router.get('/routine/:rid', routine)
 _Router.get('/shadows', shadows)
 _Router.get('/signup', status_signup)
 _Router.post('/', chat)
