@@ -82,16 +82,27 @@ function mAddMessage(message, options={}){
 		typewrite=true,
 	} = options
     const role = bubbleClass.split('-')[0]
+    const isSynthetic = ['agent', 'ai', 'assistant', 'bot', 'q', 'system'].includes(role)
     /* message container */
     const chatMessage = document.createElement('div')
     chatMessage.classList.add('chat-message-container', `chat-message-container-${ role }`)
+    /* message thumbnail */
+    if(isSynthetic){
+        const messageThumb = document.createElement('img')
+        messageThumb.classList.add('chat-thumb')
+        messageThumb.id = `message-thumb-${ mChatBubbleCount }`
+        messageThumb.src = 'png/Q.png'
+        messageThumb.alt = `Q, MyLife's Corporate Intelligence`
+        messageThumb.title = `Hi, I'm Q, MyLife's Corporate Synthetic Intelligence. I am designed to help you better understand MyLife's organization, membership, services and vision.`
+        chatMessage.appendChild(messageThumb)
+    }
     /* message bubble */
 	const chatBubble = document.createElement('div')
 	chatBubble.classList.add('chat-bubble', (bubbleClass ?? role+'-bubble'))
     chatBubble.id = `chat-bubble-${ mChatBubbleCount }`
     mChatBubbleCount++
-    /* append children */
     chatMessage.appendChild(chatBubble)
+    /* append chat message */
 	chatSystem.appendChild(chatMessage)
     if(!message.startsWith('<section>'))
         message = `<section>${message}</section>`

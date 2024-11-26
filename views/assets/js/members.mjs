@@ -692,27 +692,31 @@ async function mAddMessage(message, options={}){
         typeDelay=2,
         typewrite=true,
     } = options
+    const isSynthetic = ['agent', 'ai', 'assistant', 'bot', 'q', 'system'].includes(role)
     /* message container */
     const chatMessage = document.createElement('div')
     chatMessage.classList.add('chat-message-container', `chat-message-container-${ role }`)
     /* message thumbnail */
-    const messageThumb = document.createElement('img')
-    messageThumb.classList.add('chat-thumb')
-    messageThumb.id = `message-thumb-${ mChatBubbleCount }`
-    switch(role){
-        case 'system':
-            messageThumb.src = getBotIcon('system')
-            messageThumb.alt = `Q, MyLife's Corporate Intelligence`
-            messageThumb.title = `Hi, I'm Q, MyLife's Corporate Synthetic Intelligence. I am designed to help you better understand MyLife's organization, membership, services and vision.`
-            break
-        default:
-            const bot = activeBot()
-            const type = bot.type.split('-').pop()
-            messageThumb.src = getBotIcon(type)
-            messageThumb.alt = bot.name
-            messageThumb.title = bot.purpose
-                ?? `I'm ${ bot.name }, an artificial intelligence ${ type.replace('-', ' ') } designed to assist you!`
-            break
+    if(isSynthetic){
+        const messageThumb = document.createElement('img')
+        messageThumb.classList.add('chat-thumb')
+        messageThumb.id = `message-thumb-${ mChatBubbleCount }`
+        switch(role){
+            case 'system':
+                messageThumb.src = getBotIcon('system')
+                messageThumb.alt = `Q, MyLife's Corporate Intelligence`
+                messageThumb.title = `Hi, I'm Q, MyLife's Corporate Synthetic Intelligence. I am designed to help you better understand MyLife's organization, membership, services and vision.`
+                break
+            default:
+                const bot = activeBot()
+                const type = bot.type.split('-').pop()
+                messageThumb.src = getBotIcon(type)
+                messageThumb.alt = bot.name
+                messageThumb.title = bot.purpose
+                    ?? `I'm ${ bot.name }, an artificial intelligence ${ type.replace('-', ' ') } designed to assist you!`
+                break
+        }
+        chatMessage.appendChild(messageThumb)
     }
     /* message bubble */
 	const chatBubble = document.createElement('div')
@@ -743,7 +747,6 @@ async function mAddMessage(message, options={}){
         chatMessageTab.appendChild(chatFeedbackPositive)
         chatMessageTab.appendChild(chatFeedbackNegative)
     }
-    chatMessage.appendChild(messageThumb)
     chatMessage.appendChild(chatBubble)
     chatMessage.appendChild(chatMessageTab)
 	systemChat.appendChild(chatMessage)
