@@ -10,11 +10,14 @@ import {
     expunge,
     getActiveItemId,
     hide,
+    introduction,
     enactInstruction,
+    privacyPolicy,
     seedInput,
     setActiveAction,
     setActiveItem,
     updateActiveItemTitle,
+    routine,
     show,
     startExperience,
     submit,
@@ -150,6 +153,7 @@ function getAction(type='avatar'){
  */
 function getBot(type='personal-avatar', id){
     return mBot(id ?? type)
+        ?? mActiveBot
 }
 function getBotIcon(type){
     return mBotIcon(type)
@@ -201,7 +205,7 @@ async function setActiveBot(event, displayGreeting=true){
     if(initialActiveBot===mActiveBot)
         return // no change, no problem
     const { id, type, } = mActiveBot
-    const { bot_id, greeting='Danger Will Robinson! No greeting was received from the server', success=false, version, versionUpdate, } = await mGlobals.datamanager.botActivate(id)
+    const { bot_id, responses=[], routine: botRoutine, success=false, version, versionUpdate, } = await mGlobals.datamanager.botActivate(id)
     if(!success)
         throw new Error(`Server unsuccessful at setting active bot.`)
     /* update page bot data */
@@ -209,6 +213,8 @@ async function setActiveBot(event, displayGreeting=true){
     mActiveBot.activatedFirst = activatedFirst
     activated.push(Date.now()) // newest date is last to .pop()
     mActiveBot.activated = activated
+    mActiveBot.routines = mActiveBot.routines
+        ?? []
     if(versionUpdate!==version){
         const botVersion = document.getElementById(`${ type }-title-version`)
         if(botVersion){
@@ -222,8 +228,14 @@ async function setActiveBot(event, displayGreeting=true){
     }
     /* update page */
     mSpotlightBotStatus()
-    if(displayGreeting)
-        addMessage(greeting)
+    if(botRoutine?.length && !mActiveBot.routines.includes(botRoutine)){
+        routine(botRoutine)
+        mActiveBot.routines.push(botRoutine)
+    }
+    else if(displayGreeting && responses.length)
+        addMessages(responses)
+    else if(displayGreeting)
+        addMessage(mActiveBot.purpose)
     decorateActiveBot(mActiveBot)
 }
 /**
@@ -360,6 +372,9 @@ function mBotIcon(type){
             break
         case 'resume':
             image+='resume-thumb.png'
+            break
+        case 'system':
+            image+='Q.png'
             break
         case 'ubi':
             image+='ubi-thumb.png'
@@ -2001,6 +2016,14 @@ function mUpdateBotContainerAddenda(botContainer){
                         }, { once: true })
                     } else
                         hide(tutorialButton)
+                }
+                const introductionButton = document.getElementById('personal-avatar-introduction')
+                if(introductionButton){
+                    introductionButton.addEventListener('click', introduction)
+                }
+                const privacyPolicyButton = document.getElementById('personal-avatar-privacy')
+                if(privacyPolicyButton){
+                    privacyPolicyButton.addEventListener('click', privacyPolicy)
                 }
                 break
             case 'biographer':

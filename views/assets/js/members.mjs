@@ -5,6 +5,7 @@ import {
     experiences as _experiences,
     experienceSkip,
     experienceStart,
+    routine,
     submitInput,
 } from './experience.mjs'
 import {
@@ -81,13 +82,10 @@ document.addEventListener('DOMContentLoaded', async event=>{
  * Presents the `about` page as a series of sectional responses from your avatar.
  * @public
  * @async
- * @returns {Promise<void>}
+ * @returns {void}
  */
-async function about(){
-    const { error, responses=[], success, } = await mGlobals.datamanager.about()
-    if(!success || !responses?.length)
-        return // or make error version
-    addMessages(responses, { responseDelay: 4, typeDelay: 1, typewrite: true, })
+function about(){
+    mRoutine('about')
 }
 /**
  * Adds an input element (button, input, textarea,) to the system chat column.
@@ -210,6 +208,15 @@ function inExperience(){
     return mExperience?.id?.length ?? false
 }
 /**
+ * Presents the `introduction` routine.
+ * @public
+ * @returns {void}
+ */
+function introduction(){
+    clearSystemChat()
+    mRoutine('introduction')
+}
+/**
  * Consumes instruction object and performs the requested actions.
  * @todo - all interfaceLocations supported
  * @todo - currently just force-feeding _all_ the functions I need; make more contextual
@@ -229,16 +236,12 @@ function enactInstruction(instruction, interfaceLocation='chat', additionalFunct
     mGlobals.enactInstruction(instruction, functions)
 }
 /**
- * Presents the `privacy-policy` page as a series of sectional responses from your avatar.
+ * Presents the `privacy-policy` page as a routine.
  * @public
- * @async
- * @returns {Promise<void>}
+ * @returns {void}
  */
-async function privacyPolicy(){
-    const { error, responses=[], success, } = await mGlobals.datamanager.privacyPolicy()
-    if(!success || !responses?.length)
-        return // or make error version
-    addMessages(responses, { responseDelay: 5, typeDelay: 1, typewrite: true, })
+function privacyPolicy(){
+    mRoutine('privacy')
 }
 /**
  * Replaces an element (input/textarea) with a specified type.
@@ -683,21 +686,37 @@ async function mAddMessage(message, options={}){
     }
     if(typeof message!=='string' || !message.length)
         throw new Error('mAddMessage::Error()::`message` string is required')
-    const { bubbleClass, role='agent', typeDelay=2, typewrite=true, } = options
+    const {
+        bubbleClass,
+        role='agent',
+        typeDelay=2,
+        typewrite=true,
+    } = options
+    const isSynthetic = !['chat', 'guest', 'member', 'user', 'visitor'].includes(role)
     /* message container */
     const chatMessage = document.createElement('div')
     chatMessage.classList.add('chat-message-container', `chat-message-container-${ role }`)
     /* message thumbnail */
-    const messageThumb = document.createElement('img')
-    messageThumb.classList.add('chat-thumb')
-    messageThumb.id = `message-thumb-${ mChatBubbleCount }`
-    if(role==='agent' || role==='system'){
-        const bot = activeBot()
-        const type = bot.type.split('-').pop()
-        messageThumb.src = getBotIcon(type)
-        messageThumb.alt = bot.name
-        messageThumb.title = bot.purpose
-            ?? `I'm ${ bot.name }, an artificial intelligence ${ type.replace('-', ' ') } designed to assist you!`
+    if(isSynthetic){
+        const messageThumb = document.createElement('img')
+        messageThumb.classList.add('chat-thumb')
+        messageThumb.id = `message-thumb-${ mChatBubbleCount }`
+        switch(role){
+            case 'system':
+                messageThumb.src = getBotIcon('system')
+                messageThumb.alt = `Q, MyLife's Corporate Intelligence`
+                messageThumb.title = `Hi, I'm Q, MyLife's Corporate Synthetic Intelligence. I am designed to help you better understand MyLife's organization, membership, services and vision.`
+                break
+            default:
+                const bot = activeBot()
+                const type = bot.type.split('-').pop()
+                messageThumb.src = getBotIcon(type)
+                messageThumb.alt = bot.name
+                messageThumb.title = bot.purpose
+                    ?? `I'm ${ bot.name }, an artificial intelligence ${ type.replace('-', ' ') } designed to assist you!`
+                break
+        }
+        chatMessage.appendChild(messageThumb)
     }
     /* message bubble */
 	const chatBubble = document.createElement('div')
@@ -728,7 +747,6 @@ async function mAddMessage(message, options={}){
         chatMessageTab.appendChild(chatFeedbackPositive)
         chatMessageTab.appendChild(chatFeedbackNegative)
     }
-    chatMessage.appendChild(messageThumb)
     chatMessage.appendChild(chatBubble)
     chatMessage.appendChild(chatMessageTab)
 	systemChat.appendChild(chatMessage)
@@ -810,7 +828,9 @@ async function mAddMessage(message, options={}){
     chatMessage.addEventListener('mouseleave', event => {
         chatMessageTab.classList.remove('chat-message-tab-hover', `chat-message-tab-hover-${ role }`)
     })
-    /* print chat message */
+    /* chat message */
+    if(!message.startsWith('<section>'))
+        message = `<section>${message}</section>`
 	if(typewrite)
         mTypeMessage(chatBubble, message, typeDelay)
     else {
@@ -850,6 +870,20 @@ function mInitializePageListeners(){
             })
         }
     })
+}
+/**
+ * Retrieves and runs the requested routine.
+ * @param {string} routineName - The routine name to execute
+ * @returns {Promise<void>}
+ */
+async function mRoutine(routineName){
+    const { error, responses=[], routine: routineScript, success, } = await mGlobals.datamanager.routine(routineName)
+    if(success && routineScript)
+        routine(routineScript)
+    else if(responses?.length)
+        addMessages(responses, { responseDelay: 4, typeDelay: 1, typewrite: true, })
+    else if(error.message)
+        addMessage(error.message, { bubbleClass: 'system-bubble', typeDelay: 1, typewrite: true, })
 }
 /**
  * Primitive step to set a "modality" or intercession for the member chat. Currently will key off dataset in `chatInputField`.
@@ -1004,14 +1038,16 @@ export {
     hide,
     hideMemberChat,
     inExperience,
+    introduction,
     enactInstruction,
+    privacyPolicy,
     replaceElement,
+    routine,
     sceneTransition,
     seedInput,
     setActiveAction,
     setActiveBot,
     setActiveItem,
-    updateActiveItemTitle,
     show,
     showMemberChat,
     showSidebar,
@@ -1022,5 +1058,6 @@ export {
     toggleVisibility,
     unsetActiveAction,
     unsetActiveItem,
+    updateActiveItemTitle,
     waitForUserAction,
 }

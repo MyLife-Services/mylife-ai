@@ -1,3 +1,7 @@
+/* imports */
+import fs from 'fs/promises'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { Marked } from 'marked'
 import EventEmitter from 'events'
 import AssetAgent from './agents/system/asset-agent.mjs'
@@ -7,12 +11,17 @@ import { Entry, Memory, } from './mylife-models.mjs'
 import EvolutionAgent from './agents/system/evolution-agent.mjs'
 import ExperienceAgent from './agents/system/experience-agent.mjs'
 import LLMServices from './mylife-llm-services.mjs'
+import { stat } from 'fs'
 /* module constants */
+// file services
+const __dirpath = fileURLToPath(import.meta.url)
+// MyLife
 const mAllowSave = JSON.parse(
     process.env.MYLIFE_DB_ALLOW_SAVE
         ?? 'false'
 )
 const mAvailableModes = ['standard', 'admin', 'evolution', 'experience', 'restoration']
+const mDefaultRoutinePath = path.resolve(path.dirname(__dirpath), '..', 'json-schemas/routines/') + '/'
 /**
  * @class - Avatar
  * @extends EventEmitter
@@ -42,6 +51,7 @@ class Avatar extends EventEmitter {
     #llmServices
     #mode = 'standard' // interface-mode from module `mAvailableModes`
     #nickname // avatar nickname, need proxy here as g/setter is "complex"
+    #setupComplete
     #vectorstoreId // vectorstore id for avatar
     /**
      * @constructor
@@ -115,6 +125,8 @@ class Avatar extends EventEmitter {
         const { actionCallback, frontendInstruction, } = this
         if(!responses.length)
             responses.push(this.backupResponse)
+        else
+            success = true
         if(actionCallback?.length){
             switch(actionCallback){
                 case 'changeTitle':
@@ -473,15 +485,18 @@ class Avatar extends EventEmitter {
     /**
      * Get a static or dynamic greeting from active bot.
      * @param {boolean} dynamic - Whether to use LLM for greeting
-     * @returns {Object} - The greeting Response object: { responses, success, }
+     * @returns {Object} - The greeting Response object: { instruction, responses, routine, success, }
      */
     async greeting(dynamic=false){
-        const responses = []
-        const greeting = await this.#botAgent.greeting(dynamic)
-        responses.push(mPruneMessage(this.activeBotId, greeting, 'greeting'))
+        const botGreeting = await this.#botAgent.greeting(dynamic)
+        const { routine, success, } = botGreeting
+        let { responses, } = botGreeting
+        responses = responses
+            .map(greeting=>mPruneMessage(this.activeBotId, greeting, 'greeting'))
         return {
             responses,
-            success: true,
+            routine,
+            success,
         }
     }
     /**
@@ -695,23 +710,6 @@ class Avatar extends EventEmitter {
         const response = await mReliveMemoryNarration(item, memberInput, this.#botAgent, this)
         return response
     }
-    async renderContent(html){
-        const processStartTime = Date.now()
-        const sectionRegex = /<section[^>]*>([\s\S]*?)<\/section>/gi
-        const responses = []
-        let match
-        while((match = sectionRegex.exec(html))!==null){
-            const sectionContent = match[1].trim()
-            if(!sectionContent?.length)
-                break
-            const Message = mPruneMessage(this.avatar.id, sectionContent, 'chat', processStartTime)
-            responses.push(Message)
-        }
-        return {
-            responses,
-            success: true,
-        }
-    }
     /**
      * Allows member to reset passphrase.
      * @param {string} passphrase 
@@ -783,6 +781,47 @@ class Avatar extends EventEmitter {
                 }],
                 success: false,
             }
+        return response
+    }
+    /**
+     * Execute a specific routine, defaults to `introduction`. **Note** could include [](https://www.npmjs.com/package/html-to-json-parser)
+     * @todo - continuous improvement on routines
+     * @param {string} routine - The routine to execute
+     * @returns {object} - Routine response object: { error, instruction, routine, success, }
+     */
+    async routine(routine='introduction'){
+        let filePath=mDefaultRoutinePath,
+            response={ success: false, }
+        try{
+            routine = routine.toLowerCase().replace(/[\s_]/g, '-')
+            switch(routine){
+                case '':
+                case 'intro':
+                case 'introduction':
+                    routine = 'introduction'
+                    break
+                case 'privacy-policy':
+                    routine = 'privacy'
+                    break
+                case 'about':
+                case 'help':
+                case 'privacy':
+                default:
+                    break
+            }
+            filePath += `${ routine }.json`
+            const script = await fs.readFile(filePath, 'utf-8')
+            if(!script?.length)
+                throw new Error('Routine empty')
+            response.routine = mRoutine(script, this)
+            response.success = true
+        } catch(error){
+            response.error = error
+            response.responses = [{
+                message: `I'm having trouble sharing this routine; please contact support, as this is unlikely to fix itself.`,
+                role: 'system',
+            }]
+        }
         return response
     }
     /**
@@ -1152,6 +1191,24 @@ class Avatar extends EventEmitter {
         return this.experience
     }
     /**
+     * Get the `active` reliving memory.
+     * @getter
+     * @returns {object[]} - The active reliving memories
+     */
+    get livingMemory(){
+        return this.#livingMemory
+            ?? {}
+    }
+    /**
+     * Set the `active` reliving memory.
+     * @setter
+     * @param {Object} livingMemory - The new active reliving memory (or `null`)
+     * @returns {void}
+     */
+    set livingMemory(livingMemory){
+        this.#livingMemory = livingMemory
+    }
+    /**
      * Returns manifest for navigation of scenes/events and cast for the current experience.
      * @returns {ExperienceManifest} - The experience manifest.
      * @property {ExperienceCastMember[]} cast - The cast array for the experience.
@@ -1303,26 +1360,17 @@ class Avatar extends EventEmitter {
         if(nickname!==this.name)
             this.#nickname = nickname
     }
-    /**
-     * Get the `active` reliving memory.
-     * @getter
-     * @returns {object[]} - The active reliving memories
-     */
-    get livingMemory(){
-        return this.#livingMemory
-            ?? {}
-    }
-    /**
-     * Set the `active` reliving memory.
-     * @setter
-     * @param {Object} livingMemory - The new active reliving memory (or `null`)
-     * @returns {void}
-     */
-    set livingMemory(livingMemory){
-        this.#livingMemory = livingMemory
-    }
     get registrationId(){
         return this.#factory.registrationId
+    }
+    get setupComplete(){
+        return this.#setupComplete
+    }
+    set setupComplete(complete){
+        if(complete && !this.setupComplete){
+            this.#factory.avatarSetupComplete(this.id) // save to cosmos
+            this.#setupComplete = true
+        }
     }
     /**
      * Get vectorstore id.
@@ -1415,13 +1463,18 @@ class Q extends Avatar {
      * @returns {Object} - The greeting Response object: { responses, success, }
      */
     async greeting(){
-        let responses = []
         const greeting = await this.avatar.greeting(false)
-        responses.push(mPruneMessage(null, greeting, 'greeting'))
-        responses.forEach(response=>delete response.activeBotId)
+        const { routine, success, } = greeting
+        let { responses, } = greeting
+        responses = responses.map(response=>{
+            response = mPruneMessage(null, response, 'greeting')
+            delete response.activeBotId
+            return response
+        })
         return {
             responses,
-            success: true,
+            routine,
+            success,
         }
     }
     /**
@@ -1487,10 +1540,10 @@ class Q extends Avatar {
 	}
 	/**
 	 * Set MyLife core account basics. { birthdate, passphrase, }
-	 * @todo - move to mylife agent factory
+	 * @todo - deprecate addMember()
 	 * @param {string} birthdate - The birthdate of the member.
 	 * @param {string} passphrase - The passphrase of the member.
-	 * @returns {boolean} - `true` if successful
+	 * @returns {object} - The account creation object: { avatar, success, }
 	 */
 	async createAccount(birthdate, passphrase){
         if(!birthdate?.length || !passphrase?.length)
@@ -1498,7 +1551,7 @@ class Q extends Avatar {
         let avatar,
             success = false
         avatar = await this.#factory.createAccount(birthdate, passphrase)
-        if(Object.keys(avatar).length){
+        if(typeof avatar==='object' && Object.keys(avatar).length){
             const { mbr_id, } = avatar
             success = true
             this.addMember(mbr_id)
@@ -2124,37 +2177,38 @@ function mHelpIncludePreamble(type, isMyLife){
  * Initializes the Avatar instance with stored data
  * @param {MyLifeFactory|AgentFactory} factory - Member Avatar or Q
  * @param {LLMServices} llmServices - OpenAI object
- * @param {Q|Avatar} avatar - The avatar Instance (`this`)
+ * @param {Q|Avatar} Avatar - The avatar Instance (`this`)
  * @param {BotAgent} botAgent - BotAgent instance
  * @param {AssetAgent} assetAgent - AssetAgent instance
  * @returns {Promise<void>} - Return indicates successfully mutated avatar
  */
-async function mInit(factory, llmServices, avatar, botAgent, assetAgent){
+async function mInit(factory, llmServices, Avatar, botAgent, assetAgent){
     /* initial assignments */
-    const { being, mbr_id, ...avatarProperties } = factory.globals.sanitize(await factory.avatarProperties())
-    Object.assign(avatar, avatarProperties)
+    const { being, mbr_id, setupComplete=true, ...avatarProperties } = factory.globals.sanitize(await factory.avatarProperties())
+    Object.assign(Avatar, avatarProperties)
     if(!factory.isMyLife){
-        const { mbr_id, vectorstore_id, } = avatar
-        avatar.nickname = avatar.nickname
-            ?? avatar.names?.[0]
-            ?? `${ avatar.memberFirstName ?? 'member' }'s avatar`
+        Avatar.setupComplete = setupComplete
+        const { mbr_id, vectorstore_id, } = Avatar
+        Avatar.nickname = Avatar.nickname
+            ?? Avatar.names?.[0]
+            ?? `${ Avatar.memberFirstName ?? 'member' }'s Avatar`
         if(!vectorstore_id){
             const vectorstore = await llmServices.createVectorstore(mbr_id)
             if(vectorstore?.id){
-                avatar.vectorstore_id = vectorstore.id
-                await assetAgent.init(avatar.vectorstore_id)
+                Avatar.vectorstore_id = vectorstore.id
+                await assetAgent.init(Avatar.vectorstore_id)
             }
         }
     }
     /* initialize default bots */
-    await botAgent.init(avatar.id, avatar.vectorstore_id)
+    await botAgent.init(Avatar)
     if(factory.isMyLife)
         return
     /* evolver */
-    avatar.evolver = await (new EvolutionAgent(avatar))
+    Avatar.evolver = await (new EvolutionAgent(Avatar))
         .init()
     /* lived-experiences */
-    avatar.experiencesLived = await factory.experiencesLived(false)
+    Avatar.experiencesLived = await factory.experiencesLived(false)
 }
 /**
  * Instantiates a new item and returns the item object.
@@ -2304,8 +2358,8 @@ function mPruneMessage(activeBotId, message, type='chat', processStartTime=Date.
         content='',
         response_time=Date.now()-processStartTime
     const { content: messageContent=message, } = message
-    const rSource = /【.*?\】/gs
     const rLines = /\n{2,}/g
+    const rSource = /【.*?\】/gs
     content = Array.isArray(messageContent)
         ? messageContent.reduce((acc, item) => {
             if (item?.type==='text' && item?.text?.value){
@@ -2314,8 +2368,8 @@ function mPruneMessage(activeBotId, message, type='chat', processStartTime=Date.
             return acc
         }, '')
         : messageContent
-    content = content.replace(rLines, '\n')
-        .replace(rSource, '') // This line removes OpenAI LLM "source" references
+    content = content // .replace(rLines, '\n')
+        .replace(rSource, '') // remove OpenAI LLM "source" references
     message = new Marked().parse(content)
     const messageResponse = {
         activeBotId,
@@ -2409,6 +2463,48 @@ function mReplaceVariables(prompt, variableList, variableValues){
     return prompt
 }
 /**
+ * Returns a processed routine.
+ * @param {string|object} script - The routine script, converts JSON to object { cast, description, developers, events, files, name, public, purpose, status, title, version, }
+ * @param {Avatar} Avatar - The avatar instance
+ * @returns {object} - Synthetic Routine object (if maintained, develop into class; presumed it will be deleted altogether and folded into simple experiences) { cast, description, developers, events, purpose, title, }
+ */
+function mRoutine(script, Avatar){
+    if(typeof script === 'string')
+        script = JSON.parse(script)
+    const defaultCastMember = {
+        icon: 'avatar-thumb',
+        id: 'avatar',
+        role: Avatar.nickname,
+        type: 'avatar',
+    }
+    const { cast=[defaultCastMember], description, developers, events, files, name, public: isPublic, purpose, status, title, variables, version=1.0, } = script
+    if(!isPublic)
+        throw new Error('Routine is not currently for public release.')
+    if(status!=='active' || version < 1)
+        throw new Error('Routine is not currently active.')
+    if(variables?.length){
+        variables.forEach(_variable=>{
+            const { default: variableDefault, replacement: variableReplacement, variable, } = _variable
+            const replacement = Avatar[variableReplacement]
+                ?? variableDefault
+            events.forEach(event=>{
+                const { message, } = event?.dialog
+                    ?? {}
+                if(message)
+                    event.dialog.message = message.replace(new RegExp(`${ variable }`, 'g'), replacement)
+            })
+        })
+    }
+    return {
+        cast,
+        description,
+        developers,
+        events,
+        purpose,
+        title,
+    }
+}
+/**
  * Returns a sanitized event.
  * @module
  * @param {ExperienceEvent} event - Event object.
@@ -2474,7 +2570,7 @@ async function mValidateRegistration(bot_id, factory, validationId){
         const eligible = being==='registration'
             && factory.globals.isValidEmail(registrationEmail)
         if(eligible){
-            const successMessage = `Hello and _thank you_ for your registration, ${ humanName }!\nI'm Q, the ai-representative for MyLife, and I'm excited to help you get started, so let's do the following:\n1. Verify your email address\n2. set up your account\n3. get you started with your first MyLife experience!\n<br />\n<br />Let me walk you through the process.<br />In the chat below, please enter the email you registered with and hit the <b>submit</b> button!`
+            const successMessage = `Hello and _thank you_ for your registration, ${ humanName }!\nI'm Q, the ai-representative for MyLife, and I'm excited to help you get started, so let's do the following:\n\n1. Verify your email address\n2. set up your account\n3. get you started with your first MyLife experience!\n\nLet me walk you through the process.\n\nIn the chat below, please enter the email you registered with and hit the **submit** button!`
             message = mCreateSystemMessage(bot_id, successMessage, factory.message)
             registrationData.avatarName = avatarName
                 ?? humanName

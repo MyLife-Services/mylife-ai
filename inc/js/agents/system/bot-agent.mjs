@@ -2,7 +2,7 @@
 const mBot_idOverride = process.env.OPENAI_MAHT_GPT_OVERRIDE
 const mDefaultBotTypeArray = ['personal-avatar', 'avatar']
 const mDefaultBotType = mDefaultBotTypeArray[0]
-const mDefaultGreeting = 'Hello! If you need to know how to get started, just ask!'
+const mDefaultGreeting = 'avatar' // greeting routine
 const mDefaultGreetings = ['Welcome to MyLife! I am here to help you!']
 const mDefaultTeam = 'memory'
 const mRequiredBotTypes = ['personal-avatar']
@@ -28,9 +28,11 @@ const mTeams = [
 class Bot {
 	#collectionsAgent
 	#conversation
+	#documentName
 	#factory
 	#feedback
-	#initialGreeting
+	#firstAccess=false
+	#greetingRoutine
 	#greetings
 	#instructionNodes = new Set()
 	#llm
@@ -38,10 +40,12 @@ class Bot {
 	constructor(botData, llm, factory){
 		this.#factory = factory
 		this.#llm = llm
-		const { feedback=[], greeting=mDefaultGreeting, greetings=mDefaultGreetings, type=mDefaultBotType, ..._botData } = botData
+		const { feedback=[], greeting=mDefaultGreeting, greetings=mDefaultGreetings, name, unaccessed, type=mDefaultBotType, ..._botData } = botData
+		this.#documentName = name
 		this.#feedback = feedback
+		this.#firstAccess = unaccessed
 		this.#greetings = greetings
-		this.#initialGreeting = greeting
+		this.#greetingRoutine = type.split('-').pop()
 		this.#type = type
 		Object.assign(this, this.globals.sanitize(_botData))
 		switch(type){
@@ -75,7 +79,7 @@ class Bot {
 		Conversation.prompt = message
 		Conversation.originalPrompt = originalMessage
 		await mCallLLM(Conversation, allowSave, this.#llm, this.#factory, avatar) // mutates Conversation
-        /* frontend mutations */
+		this.accessed = true
 		return Conversation
 	}
     /**
@@ -153,17 +157,27 @@ class Bot {
 	/**
 	 * Retrieves a greeting message from the active bot.
 	 * @param {Boolean} dynamic - Whether to use dynamic greetings (`true`) or static (`false`)
-	 * @param {String} greetingPrompt - The prompt for the dynamic greeting
-	 * @returns {String} - The greeting message string
+	 * @param {string} greetingPrompt - The prompt for the dynamic greeting
+	 * @returns {object} - The Response object { responses, routine, success, }
 	 */
 	async greeting(dynamic=false, greetingPrompt='Greet me and tell me briefly what we did last'){
 		if(!this.llm_id)
 			throw new Error('Bot initialized incorrectly: missing `llm_id` from database')
-		const greetings = dynamic
-			? await mBotGreetings(this.thread_id, this.llm_id, greetingPrompt, this.#llm, this.#factory)
-			: this.greetings
-		const greeting = greetings[Math.floor(Math.random() * greetings.length)]
-		return greeting
+		let greeting,
+			responses=[],
+			routine
+		if(!this.#firstAccess){
+			const greetings = dynamic
+				? await mBotGreetings(this.thread_id, this.llm_id, greetingPrompt, this.#llm, this.#factory)
+				: [this.greetings[Math.floor(Math.random() * this.greetings.length)]]
+			responses.push(...greetings)
+		} else
+			routine = this.#greetingRoutine
+		return {
+			responses,
+			routine,
+			success: true,
+		}
 	}
     /**
      * Migrates Conversation from an old thread to a newly-created destination thread, observable in `this.Conversation`.
@@ -215,12 +229,23 @@ class Bot {
 		await this.#factory.updateBot(bot)
 	}
 	/* getters/setters */
+	get accessed(){
+		return !this.unaccessed
+	}
+	set accessed(accessed=true){
+		if(accessed){
+			this.update({
+				unaccessed: false,
+			})
+			this.#firstAccess = false
+		}
+	}
 	/**
 	 * Gets the frontend bot object.
 	 * @getter
 	 */
 	get bot() {
-		const { bot_name: name, description, flags, id, interests, purpose, type, version } = this
+		const { description, flags, id, interests, name, purpose, type, version } = this
 		const bot = {
 			description,
 			flags,
@@ -263,24 +288,11 @@ class Bot {
 	get isMyLife(){
 		return this.#factory.isMyLife
 	}
-	get micro(){
-		const {
-			bot_name,
-			id,
-			name,
-			provider,
-			type,
-			version,
-		} = this
-		const microBot = {
-			bot_name,
-			id,
-			name,
-			provider,
-			type,
-			version,
-		}
-		return microBot
+	get name(){
+		return this.bot_name
+	}
+	set name(name){
+		this.bot_name = name
 	}
 	get type(){
 		return this.#type
@@ -298,7 +310,7 @@ class Bot {
 class BotAgent {
 	#activeBot
     #activeTeam = mDefaultTeam
-    #avatarId
+    #avatar
     #bots
     #factory
 	#fileConversation
@@ -311,19 +323,19 @@ class BotAgent {
 	/**
 	 * Initializes the BotAgent instance.
 	 * @async
-	 * @param {Guid} avatarId - The Avatar id
+	 * @param {Guid} Avatar - The Avatar instance
 	 * @param {string} vectorstoreId - The Vectorstore id
 	 * @returns {Promise<BotAgent>} - The BotAgent instance
 	 */
-    async init(avatarId, vectorstoreId){
+    async init(Avatar){
 		/* validate request */
-        if(!avatarId?.length)
-            throw new Error('AvatarId required')
-        this.#avatarId = avatarId
+        if(!Avatar)
+            throw new Error('Avatar required')
+        this.#avatar = Avatar
 		this.#bots = []
-		this.#vectorstoreId = vectorstoreId
+		this.#vectorstoreId = Avatar.vectorstoreId
 		/* execute request */
-		await mInit(this, this.#bots, this.#factory, this.#llm)
+		await mInit(this, this.#bots, this.#avatar, this.#factory, this.#llm)
 		return this
     }
 	/* public functions */
@@ -346,7 +358,7 @@ class BotAgent {
 	 * @returns {Bot} - The created Bot instance
 	 */
 	async botCreate(botData){
-		const Bot = await mBotCreate(this.#avatarId, this.#vectorstoreId, botData, this.#llm, this.#factory)
+		const Bot = await mBotCreate(this.avatarId, this.#vectorstoreId, botData, this.#llm, this.#factory)
 		this.#bots.push(Bot)
 		this.setActiveBot(Bot.id)
 		return Bot
@@ -509,10 +521,11 @@ class BotAgent {
 			version = versionCurrent
 			versionUpdate = this.#factory.botInstructionsVersion(type)
 		}
-		greeting = await Bot.greeting(dynamic, `Greet member while thanking them for selecting you`)
+		const { responses, routine, success: greetingSuccess, } = await Bot.greeting(dynamic, `Greet member while thanking them for selecting you`)
 		return {
 			bot_id,
-			greeting,
+			responses,
+			routine,
 			success,
 			version,
 			versionUpdate,
@@ -634,7 +647,7 @@ class BotAgent {
 	 * @returns {String} - The Avatar id
 	 */
 	get avatarId(){
-		return this.#avatarId
+		return this.#avatar?.id
 	}
 	/**
 	 * Gets the Biographer bot for the BotAgent.
@@ -726,15 +739,17 @@ async function mBotCreate(avatarId, vectorstore_id, botData, llm, factory){
 		?? 'gpt-4o'
 	const { tools, tool_resources, } = mGetAIFunctions(type, factory.globals, vectorstore_id)
 	const id = factory.newGuid
+	const typeShort = type.split('-').pop()
     let {
-        bot_name = `My ${type}`,
-        description = `I am a ${type} for ${factory.memberName}`,
-        name = `bot_${type}_${avatarId}`,
+        bot_name=`My ${ typeShort }`,
+        description=`I am a ${ typeShort } for ${ factory.memberName }`,
+        name=`bot_${ type }_${ avatarId }`,
     } = botData
 	const validBotData = {
-		being: 'bot',
+		being: 'bot', // intentionally hard-coded
 		bot_name,
 		description,
+		unaccessed: true,
 		greeting,
 		greetings,
 		id,
@@ -751,6 +766,7 @@ async function mBotCreate(avatarId, vectorstore_id, botData, llm, factory){
 		tools,
 		tool_resources,
 		type,
+		unaccessed: true, // removed after first chat
 		vectorstore_id,
 		version,
 	}
@@ -763,7 +779,7 @@ async function mBotCreate(avatarId, vectorstore_id, botData, llm, factory){
 	validBotData.thread_id = thread_id
 	botData = await factory.createBot(validBotData) // repurposed incoming botData
 	const _Bot = new Bot(botData, llm, factory)
-	console.log(`bot created::${ type }`, _Bot.thread_id, _Bot.id, _Bot.bot_id, _Bot.bot_name )
+	console.log(`bot created::${ type }`, _Bot.thread_id, _Bot.id, _Bot.llm_id, _Bot.bot_name )
 	return _Bot
 }
 /**
@@ -1183,30 +1199,50 @@ function mGetGPTResources(globals, toolName, vectorstoreId){
  * @module
  * @param {BotAgent} BotAgent - The BotAgent to initialize
  * @param {Bot[]} bots - The array of bots (empty on init)
+ * @param {Avatar} Avatar - The Avatar instance
  * @param {AgentFactory} factory - The factory instance
  * @param {LLMServices} llm - The LLMServices instance
  * @returns {void}
  */
-async function mInit(BotAgent, bots, factory, llm){
-	const { avatarId, vectorstoreId, } = BotAgent
-	bots.push(...await mInitBots(avatarId, vectorstoreId, factory, llm))
+async function mInit(BotAgent, bots, Avatar, factory, llm){
+	const { vectorstoreId, } = BotAgent
+	bots.push(...await mInitBots(vectorstoreId, Avatar, factory, llm))
 	BotAgent.setActiveBot(null, false)
 }
 /**
  * Initializes active bots based upon criteria.
- * @param {Guid} avatarId - The Avatar id
  * @param {String} vectorstore_id - The Vectorstore id
+ * @param {Avatar} Avatar - The Avatar instance
  * @param {AgentFactory} factory - The MyLife factory instance
  * @param {LLMServices} llm - The LLMServices instance
  * @returns {Bot[]} - The array of activated and available bots
  */
-async function mInitBots(avatarId, vectorstore_id, factory, llm){
-	const bots = ( await factory.bots(avatarId) )
-		.map(botData=>{
+async function mInitBots(vectorstore_id, Avatar, factory, llm){
+	let bots = await factory.bots(Avatar?.id)
+	if(bots?.length){
+		bots = bots.map(botData=>{
 			botData.vectorstore_id = vectorstore_id
-			botData.object_id = avatarId
+			botData.object_id = Avatar.id
 			return new Bot(botData, llm, factory)
 		})
+	} else {
+		if(factory.isMyLife)
+			throw new Error('MyLife bots not yet implemented')
+		const botTypes = mGetBotTypes(factory.isMyLife)
+		bots = await Promise.all(
+			botTypes.map(async type=>{
+				const botData = {
+					object_id: Avatar.id,
+					type,
+				}
+				if(type.includes('avatar'))
+					botData.bot_name = Avatar.nickname
+				const Bot = await mBotCreate(Avatar.id, vectorstore_id, botData, llm, factory)
+				return Bot
+			})
+		)
+		Avatar.setupComplete = true
+	}
 	return bots
 }
 /**

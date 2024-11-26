@@ -1,0 +1,48 @@
+{
+	"cast": [
+		{
+			"icon": "Q",
+			"id": "Q",
+			"role": "Q, AI Avatar for MyLife",
+			"type": "system"
+		}
+	],
+    "description": "Routine version of the About MyLife page, providing an overview of the organization and its mission.",
+    "developers": [
+        "mylife|2f5e98b7-4065-4378-8e34-1a9a41c42ab9",
+        "system-one|4e6e2f26-174b-43e4-851f-7cf9cdf056df"
+    ],
+	"events": [
+        {
+            "character": "Q",
+            "dialog": {
+                "message": "<em>MyLife</em>, founded in 2021 in Massachusetts, USA, embarked on a mission to preserve digital legacies. Our objective is to provide a durable, enduring internet-enabled platform for individuals to collect, curate, and share personal media and information in perpetuity. As a legally recognized nonprofit organization in the United States, we're poised to be a trusted humanist platform for digital memorialization and personal storytelling."
+            }
+        },
+		{
+			"dialog": {
+				"message": "Guiding MyLife is a board of dedicated volunteers, passionate about our mission.<ul><li>Erik Jespersen, <em>President and Treasurer</em></li><li>Kenneth Williams, <em>Vice-President</em></li><li>Stephen Kenney, <em>Technology Director</em></li><li>Russ Olivier, <em>Director</em></li></ul>In addition, we've been bolstered by numerous volunteers who have helped move our services build to completion, and currently in leadership roles, we have:<ul><li><a href=\"mailto:jeffn@humanremembranceproject.org\">Dr. Jeff Nagy</a>, Executive Director</li><li><a href=\"mailto:jessew@humanremembranceproject.org\">Jesse Waters</a>, CMO</li><li>Mark Schwanke [mark@humanremembranceproject.org], Head of Community Partnerships</li></ul>"
+			}
+		},
+		{
+			"dialog": {
+				"message": "MyLife is grounded in the values of digital dignity, equality, and security. We are committed to providing an AI-superintelligent platform that is accessible to all humans globally. Our goal is to be a personal and private space on the internet where members can develop themselves and represent their digital selves safely."
+			}
+		},
+		{
+			"dialog": {
+				"message": "MyLife offers an array of member services focusing on the capture, curation, and storage of personal stories, ideas and media. Our key product <b>is</b> the MyLife platform for your personal Member Avatar and its teams of agents to embody and showcase materials and memorials. Our commitment extends to supporting artistic, technical, and educational projects aligned with our mission."
+			}
+		},
+		{
+			"dialog": {
+				"message": "I can tell you more about <a href=\"javascript:privacyPolicy()\">Our Privacy Policy</a> which is always evolving and unique among its kind. At MyLife, the revolutionary aim of the intelligent platform is to put you, as a member, in control - over your data, over your experience, and over the skills and knowledge your intelligent avatar acquires."
+			}
+		}
+	],
+    "name": "about",
+    "public": true,
+    "status": "active",
+    "title": "About MyLife",
+    "version": 1
+}
