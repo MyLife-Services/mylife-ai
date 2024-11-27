@@ -597,6 +597,12 @@ async function mCreateCollections(){
         const type = id.split('-').pop()
         if(!mAvailableCollections.includes(type))
             continue
+        const associatedBot = ( type==='entry' && mBots.some(bot=>bot.type==='journaler' || bot.type==='diary') )
+            || ( type==='memory' && mBots.some(bot=>bot.type==='biographer' || bot.type==='personal-biographer') )
+        if(!associatedBot && !['file', 'files'].includes(type)){
+            expunge(collection)
+            continue
+        }
         const collectionBar = document.getElementById(`collection-bar-${ type }`)
         if(collectionBar){
             const { dataset, } = collectionBar
@@ -2018,21 +2024,21 @@ function mUpdateBotContainerAddenda(botContainer){
                         hide(tutorialButton)
                 }
                 const introductionButton = document.getElementById('personal-avatar-introduction')
-                if(introductionButton){
+                if(introductionButton)
                     introductionButton.addEventListener('click', introduction)
-                }
                 const privacyPolicyButton = document.getElementById('personal-avatar-privacy')
-                if(privacyPolicyButton){
+                if(privacyPolicyButton)
                     privacyPolicyButton.addEventListener('click', privacyPolicy)
-                }
-                const greetingRoutineButton = document.getElementById('personal-avatar-routine')
-                if(greetingRoutineButton){
-                    greetingRoutineButton.addEventListener('click', routine('avatar'))
-                }
+                const greetingRoutineAvatarButton = document.getElementById('personal-avatar-routine')
+                if(greetingRoutineAvatarButton)
+                    greetingRoutineAvatarButton.addEventListener('click', _=>routine('avatar'))
                 break
             case 'biographer':
             case 'journaler':
             case 'personal-biographer':
+                const greetingRoutineBiographerButton = document.getElementById('personal-biographer-routine')
+                if(greetingRoutineBiographerButton)
+                    greetingRoutineBiographerButton.addEventListener('click', _=>routine('biographer'))
                 break
             case 'diary':
                 // add listener on `diary-start` button
