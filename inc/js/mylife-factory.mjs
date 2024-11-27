@@ -117,7 +117,7 @@ const vmClassGenerator = vm.createContext({
 })
 /* dependent constants and functions */
 const mActorGeneric = await mDataservices.bot(undefined, 'actor')
-const mActorQ = await mDataservices.bot(undefined, 'personal-avatar') // little-Q!
+const mActorQ = await mDataservices.bot(undefined, 'personal-avatar')
 const mAlerts = {
 	system: await mDataservices.getAlerts(), // not sure if we need other types in global module, but feasibly historical alerts could be stored here, etc.
 }
@@ -176,7 +176,7 @@ class BotFactory extends EventEmitter{
 	 * @returns {object} - The bot.
 	 */
 	async bot(id, type=mDefaultBotType, mbr_id){
-		return ( await this.dataservices.getItem(id) )
+		return ( await this.dataservices.bot(id, type) )
 			?? ( await this.dataservices.getItemByField(
 					'bot',
 					'type',
@@ -272,20 +272,19 @@ class BotFactory extends EventEmitter{
 	/**
 	 * Gets array of member `experiences` from database. When placed here, it allows for a bot to be spawned who has access to this information, which would make sense for a mini-avatar whose aim is to report what experiences a member has endured.
 	 * @public
-	 * @returns {Promise<array>} - Array of shorthand experience objects.
-	 * @property {string<Guid>} id - The experience id.
-	 * 
+	 * @returns {Promise<array>} - Array of shorthand experience objects
+	 * @property {string<Guid>} id - The experience id
 	 */
 	async experiences(includeLived=false){
 		// check consents for test-experiences [stub]
 		let testExperiences = []
-		// currently only system experiences exist
 		let experiences = await mDataservices.getItems(
 			'experience',
 			undefined,
 			[{ name: '@status', value: 'active' }],
 			'system',
-			) ?? []
+		)
+			?? []
 		if(!includeLived){
 			const livedExperiences = await this.experiencesLived() ?? []
 			experiences = experiences.filter( // filter out `lived-experience.id`)
@@ -316,14 +315,14 @@ class BotFactory extends EventEmitter{
 	/**
 	 * Gets a specified `experience` from database.
 	 * @public
-	 * @param {guid} _experience_id - The experience id in Cosmos.
-	 * @returns {Promise<object>} - The experience.
+	 * @param {guid} xid - The experience id in Cosmos
+	 * @returns {Promise<object>} - The experience data object
 	 */
-	async getExperience(_experience_id){
-		if(!_experience_id) 
+	async getExperience(xid){
+		if(!xid) 
 			throw new Error('factory.experience: experience id required')
 		// @todo remove restriction (?) for all experiences to be stored under MyLife `mbr_id`
-		return await mDataservices.getItem(_experience_id, 'system')
+		return await mDataservices.getItem(xid, 'system')
 	}
 	/**
 	 * Retrieves a collection item by Id.
@@ -403,19 +402,9 @@ class BotFactory extends EventEmitter{
 		return bot
 	}
 	/* getters/setters */
-	/**
-	 * Returns the system actor bot data.
-	 * @getter
-	 * @returns {object} - The system actor bot data.
-	 */
-	get actorGeneric(){
+	get actor(){
 		return mActorGeneric
 	}
-	/**
-	 * Returns MyLife _Q_ actor bot data.
-	 * @getter
-	 * @returns {object} - Q actor bot data.
-	 */
 	get actorQ(){
 		return mActorQ
 	}

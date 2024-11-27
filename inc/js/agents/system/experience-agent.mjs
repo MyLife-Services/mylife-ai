@@ -1,4 +1,5 @@
 /* module constants */
+/* ExperienceAgent class */
 /**
  * @class ExperienceAgent
  * Handles the `experience` process for a Member Avatar, with mutual integrity, allowing for internalized (but unrevealed) instance of the Member Avatar and the accompanying BotAgent. Can run one Experience at a time.
@@ -35,13 +36,28 @@ export class ExperienceAgent {
     async init(xid){
         if(!!this.#experience)
             throw new Error('ExperienceAgent already initialized; end the current experience before initializing a new one.')
-        this.#experience = await this.#botAgent.getExperience(xid)
+        this.#experience = await this.#factory.getExperience(xid)
         return this
     }
     end(){
         this.#experience = null
     }
+    /**
+     * Returns the list of experiences available for the member.
+     * @param {boolean} includeLived - Include lived experiences in the list
+     * @returns {Promise<Object[]>} - Array of shorthand experience payloads: { autoplay, description, id, name, purpose, skippable, }
+     */
+    async experiences(){
+        const experiences = mExperiences(await this.#factory.experiences(includeLived))
+        return experiences
+    }
     /* getters/setters */
+	get actor(){
+		return this.#factory.actor
+	}
+	get actorQ(){
+		return this.#factory.actorQ
+	}
     get mbr_id(){
         return this.#avatar.mbr_id
     }
@@ -51,5 +67,39 @@ export class ExperienceAgent {
     /* private functions */
 }
 /* module functions */
+
+/**
+ * Takes an experience document and converts it to use by frontend. Also filters out any inappropriate experiences.
+ * @param {array<object>} experiences - Array of Experience document objects.
+ * @returns {array<object>} - Array of shorthand experience payloads: { autoplay, description, id, name, purpose, skippable, }
+ */
+function mExperiences(experiences){
+    return experiences
+        .filter(experience=>{
+            const { status, dates, } = experience
+            const { end, runend, runEnd, runstart, runStart, start, } = dates
+            const now = Date.now()
+            const startDate = start || runstart || runStart
+                ? new Date(start ?? runstart ?? runStart).getTime()
+                : now
+            const endDate = end || runend || runEnd
+                ? new Date(end ?? runend ?? runEnd).getTime()
+                : now          
+            return status==='active'
+                && startDate <= now 
+                && endDate >= now
+        })
+        .map(experience=>{ // map to display versions
+            const { autoplay=false, description, id, name, purpose, skippable=true,  } = experience
+            return {
+                autoplay,
+                description,
+                id,
+                name,
+                purpose,
+                skippable,
+            }
+        })
+}
 /* exports */
 export default ExperienceAgent
