@@ -396,11 +396,16 @@ class BotAgent {
 	 * @param {String} prompt - The prompt for the conversation (optional)
 	 * @returns {Promise<Conversation>} - The Conversation instance
 	 */
-	async conversationStart(type='chat', form='system-avatar', prompt){
-		const { avatar, } = this
-		const { bot_id: _llm_id, id: bot_id, } = avatar
-		let { llm_id=_llm_id, } = avatar // @stub - deprecate bot_id
-		const Conversation = await mConversationStart(type, form, bot_id, null, llm_id, this.#llm, this.#factory, prompt)
+	async conversationStart(type='chat', form='system-avatar', prompt, scriptAdvisorLlmId){
+		let { id, llm_id, } = this.avatar
+		if(type==='experience'){
+			id = this.#factory.actor.id
+			llm_id = this.#factory.actor.llm_id
+		} else if(type==='script'){
+			// use  member avatar?
+			llm_id = scriptAdvisorLlmId
+		}
+		const Conversation = await mConversationStart(type, form, id, null, llm_id, this.#llm, this.#factory, prompt)
 		return Conversation
 	}
     /**

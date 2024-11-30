@@ -76,16 +76,17 @@ let inputElement = document.getElementById(`experience-input`) /* unique as is s
 /* event listeners */
 document.addEventListener('DOMContentLoaded', async event=>{
     mExperiences.push(...await mGetExperiences()) // stock all experiences internally
-    /* document listeners for experience launch */
-    window.addEventListener('launchExperience', async event=>{
-        const { detail: experienceId } = event
-        if(!globals.isGuid(experienceId))
-            throw new Error('mInitializePageListeners::launchExperience::Error()::`detail` is required')
-        mExperience = mExperiences.find(experience=>experience.id===experienceId)
-        if(!mExperience)
-            throw new Error('mInitializePageListeners()::launchExperience::no experience found in `mExperiences`')
-        stageTransition(experienceId, false)
-    })
+    /* document listener for experience launch */
+    if(mExperiences.length)
+        window.addEventListener('launchExperience', async event=>{
+            const { detail: experienceId } = event
+            if(!globals.isGuid(experienceId))
+                throw new Error('mInitializePageListeners::launchExperience::Error()::`detail` is required')
+            mExperience = mExperiences.find(experience=>experience.id===experienceId)
+            if(!mExperience)
+                throw new Error('mInitializePageListeners()::launchExperience::no experience found in `mExperiences`')
+            stageTransition(experienceId, false)
+        })
     console.log('experience.mjs::DOMContentLoaded()::mExperiences', mExperiences)
 })
 /* public functions */
@@ -177,11 +178,10 @@ async function experiencePlay(memberInput){
 }
 /**
  * Retrieve full or scoped list of experiences from server.
- * @todo - more robust logic underpinning selection of experiences, currently only system-controlled exist.
  * @requires mExperiences
- * @returns {Experience[]} - The return is an array of Experience objects.
+ * @returns {Object[]} - Array of shorthand `experience` payloads
  */
-function experiences(scope){
+function experiences(){
     return mExperiences
 }
 /**
@@ -200,17 +200,17 @@ function experienceSkip(sceneId){
         throw new Error("Scene not found!")
 }
 /**
- * Start experience onscreen, displaying welcome ande loading remaining data.
+ * Start experience onscreen, displaying welcome and loading remaining data.
  * @public
  * @param {Guid} experienceId - The Experience id
  * @returns {Promise<void>}
  */
 async function experienceStart(experienceId){
     if(!globals.isGuid(experienceId))
-        throw new Error('experienceStart::Error()::valid `experienceId` is required')
+        return
     mExperience = mExperiences.find(experience=>experience.id===experienceId)
     if(!mExperience)
-        throw new Error('experienceStart::Error()::no experience found in `mExperiences` to match `experienceId`: ' + experienceId)
+        return
     /* present stage */
     mStageWelcome()
     const { description, events, id, name, purpose, title, skippable=false } = mExperience
@@ -786,16 +786,14 @@ function mEventInput(){
  * @async
  * @requires mExperience
  * @param {object} memberInput - Member input in form of object
+ * @param {Guid} xid - The experience id
  * @returns {Object[]} - Array of event objects
  */
-async function mEvents(memberInput){
-    const experienceId = mExperience?.id
-    if(!experienceId?.length)
-        throw new Error(`Experience id not found: ${ experienceId }`)
-    let { autoplay, events, id, location, name, purpose, skippable, } = await globals.datamanager.experienceEvents(experienceId, memberInput)
-    if(!events?.length) // @todo - deprecate, could infinity loop
-        events = await mEvents()
+async function mEvents(memberInput, xid=mExperience.id){
+    const response = await globals.datamanager.experienceEvents(xid, memberInput)
+    const { autoplay, events, id, location, name, purpose, skippable, success, } = response
     mExperience.location = location
+    console.log('mEvents::response', response, mExperience)
     return events
 }
 /**
@@ -839,13 +837,11 @@ function mEventStage(){
  * @param {string} scope - The scope of the experiences to retrieve; undefined=all.
  * @returns {Promise<Experience[]>} - The return is an array of Experience objects.
  */
-async function mGetExperiences(scope){
+async function mGetExperiences(scope='system'){
     const experiences = []
-    // @stub - member experience fetch goes here
     /* system experiences */
-    if((scope ?? 'system')==='system'){
+    if(scope==='system'){
         let systemExperiences = await globals.datamanager.experiences()
-        // mGetExperiencesFromServer(`/experiences`)
         systemExperiences = systemExperiences?.experiences
             ?? systemExperiences
             ?? experiences

@@ -10,7 +10,6 @@ import { Member, MyLife } from './core.mjs'
 import {
 	extendClass_consent,
     extendClass_conversation,
-	extendClass_experience,
     extendClass_file,
 	extendClass_message,
 } from './factory-class-extenders/class-extenders.mjs'	//	do not remove, although they are not directly referenced, they are called by eval in mConfigureSchemaPrototypes()
@@ -26,7 +25,6 @@ const mDefaultBotType = 'personal-avatar'
 const mExtensionFunctions = {
 	extendClass_consent: extendClass_consent,
 	extendClass_conversation: extendClass_conversation,
-	extendClass_experience: extendClass_experience,
 	extendClass_file: extendClass_file,
 	extendClass_message: extendClass_message,
 }
@@ -116,7 +114,7 @@ const vmClassGenerator = vm.createContext({
 //	eventEmitter: EventEmitter,
 })
 /* dependent constants and functions */
-const mActorGeneric = await mDataservices.bot(undefined, 'actor')
+const mActor = await mDataservices.bot(undefined, 'actor')
 const mActorQ = await mDataservices.bot(undefined, 'personal-avatar')
 const mAlerts = {
 	system: await mDataservices.getAlerts(), // not sure if we need other types in global module, but feasibly historical alerts could be stored here, etc.
@@ -403,7 +401,7 @@ class BotFactory extends EventEmitter{
 	}
 	/* getters/setters */
 	get actor(){
-		return mActorGeneric
+		return mActor
 	}
 	get actorQ(){
 		return mActorQ

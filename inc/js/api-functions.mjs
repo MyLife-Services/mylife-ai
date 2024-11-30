@@ -73,10 +73,10 @@ async function experienceCast(ctx){
  */
 async function experience(ctx){
     await mAPIKeyValidation(ctx)
-    const { MemberSession, } = ctx.state
-    const { eid, } = ctx.params
+    const { avatar: Avatar, } = ctx.state
+    const { xid, } = ctx.params
     const { memberInput, } = ctx.request.body
-    ctx.body = await MemberSession.experience(eid, memberInput)
+    ctx.body = await Avatar.experience(xid, memberInput)
 }
 /**
  * Request to end an active Living-Experience for member.
@@ -86,9 +86,9 @@ async function experience(ctx){
  */
 async function experienceEnd(ctx){
     await mAPIKeyValidation(ctx)
-    const { MemberSession, } = ctx.state
-    const { eid, } = ctx.params
-    ctx.body = MemberSession.experienceEnd(eid)
+    const { avatar: Avatar, } = ctx.state
+    const { xid, } = ctx.params
+    ctx.body = Avatar.experienceEnd(xid)
 }
 /**
  * Delivers the manifest of an experience. Manifests are the data structures that define the experience, including scenes, events, and other data. Experience must be "started" in order to request.
@@ -122,15 +122,14 @@ async function experienceNavigation(ctx){
  */
 async function experiences(ctx){
     await mAPIKeyValidation(ctx)
-    const { MemberSession, } = ctx.state
-    // limit one mandatory experience (others could be highlighted in alerts) per session
-    const experiencesObject = await MemberSession.experiences()
+    const { avatar: Avatar, } = ctx.state
+    const experiencesObject = await Avatar.experiences()
     ctx.body = experiencesObject
 }
 async function experiencesLived(ctx){
     await mAPIKeyValidation(ctx)
-    const { MemberSession, } = ctx.state
-    ctx.body = MemberSession.experiencesLived
+    const { avatar: Avatar, } = ctx.state
+    ctx.body = Avatar.experiencesLived
 }
 /**
  * Validates member key and returns member data. Leverages the key validation structure to ensure payload is liegimate. Currently in use by OpenAI GPT and local Postman instance.

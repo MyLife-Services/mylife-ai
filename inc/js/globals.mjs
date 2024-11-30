@@ -137,7 +137,7 @@ class Globals extends EventEmitter {
 	}
 	/**
 	 * Sanitize an object by removing forbidden Cosmos fields and undefined/null values.
-	 * @param {object} obj - Cosmos document to sanitize
+	 * @param {object} obj - Object variables to sanitize
 	 * @param {Array} immutableFields - Fields that should not be altered, and are removed from update
 	 * @returns {object} - Sanitized data object
 	 */

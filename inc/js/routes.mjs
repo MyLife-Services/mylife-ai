@@ -14,7 +14,6 @@ import {
     greetings,
     help,
     index,
-    interfaceMode,
     item,
     logout,
     loginSelect,
@@ -89,11 +88,11 @@ _apiRouter.get('/experiences/:mid', experiences) // **note**: currently triggers
 _apiRouter.get('/experiencesLived/:mid', experiencesLived)
 _apiRouter.get('/logout', apiLogout)
 _apiRouter.head('/keyValidation/:mid', keyValidation)
-_apiRouter.patch('/experiences/:mid/experience/:eid/cast', experienceCast)
-_apiRouter.patch('/experiences/:mid/experience/:eid/end', experienceEnd)
-_apiRouter.patch('/experiences/:mid/experience/:eid/manifest', experienceManifest) // proxy for both cast and navigation
-_apiRouter.patch('/experiences/:mid/experience/:eid/navigation', experienceNavigation)
-_apiRouter.patch('/experiences/:mid/experience/:eid', experience) // **note**: This line should be the last one alphabetically due to the wildcard.
+_apiRouter.patch('/experiences/:mid/experience/:xid/cast', experienceCast)
+_apiRouter.patch('/experiences/:mid/experience/:xid/end', experienceEnd)
+_apiRouter.patch('/experiences/:mid/experience/:xid/manifest', experienceManifest) // proxy for both cast and navigation
+_apiRouter.patch('/experiences/:mid/experience/:xid/navigation', experienceNavigation)
+_apiRouter.patch('/experiences/:mid/experience/:xid', experience) // **note**: This line should be the last one alphabetically due to the wildcard.
 _apiRouter.post('/challenge/:mid', challenge)
 _apiRouter.post('/entry/:mid', entry)
 _apiRouter.post('/keyValidation/:mid', keyValidation)
@@ -116,11 +115,10 @@ _memberRouter.get('/experiencesLived', experiencesLived)
 _memberRouter.get('/greeting', greetings)
 _memberRouter.get('/greetings', greetings)
 _memberRouter.get('/item/:iid', item)
-_memberRouter.get('/mode', interfaceMode)
 _memberRouter.get('/teams', teams)
-_memberRouter.patch('/experience/:eid', experience)
-_memberRouter.patch('/experience/:eid/end', experienceEnd)
-_memberRouter.patch('/experience/:eid/manifest', experienceManifest)
+_memberRouter.patch('/experience/:xid', experience)
+_memberRouter.patch('/experience/:xid/end', experienceEnd)
+_memberRouter.patch('/experience/:xid/manifest', experienceManifest)
 _memberRouter.patch('/memory/relive/:iid', reliveMemory)
 _memberRouter.patch('/memory/end/:iid', endMemory)
 _memberRouter.post('/', chat)
@@ -133,7 +131,6 @@ _memberRouter.post('/feedback/:mid', feedback)
 _memberRouter.post('/item', item)
 _memberRouter.post('/migrate/bot/:bid', migrateBot)
 _memberRouter.post('/migrate/chat/:bid', migrateChat)
-_memberRouter.post('/mode', interfaceMode)
 _memberRouter.post('/obscure/:iid', obscure)
 _memberRouter.post('/passphrase', passphraseReset)
 _memberRouter.post('/retire/chat/:bid', retireChat)

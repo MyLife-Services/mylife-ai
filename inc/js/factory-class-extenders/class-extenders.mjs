@@ -1,14 +1,6 @@
 import {
     mSaveConversation,
 } from './class-conversation-functions.mjs'
-import{
-    mAppear,
-    mDialog,
-    mGetEvent,
-    mInput,
-    mGetScene,
-    mGetSceneNext,
-} from './class-experience-functions.mjs'
 import {
 	assignContent,
 } from './class-message-functions.mjs'
@@ -272,123 +264,6 @@ function extendClass_conversation(originClass, referencesObject){
     return Conversation
 }
 /**
- * Extends the `Experience` class.
- * @param {*} originClass - The class to extend.
- * @param {Object} referencesObject - The references to extend the class with, factory, llm, etc.
- * @returns {Experience} - The `Experience` extended class definition.
- */
-function extendClass_experience(originClass, referencesObject){
-    class Experience extends originClass {
-        #cast = []
-        constructor(obj) {
-            super(obj)
-        }
-        /* public functions */
-        /**
-         * Initialize the experience.
-         * @todo - implement building classes either on-demand or on-init to create scene and event classes
-         * @returns {Experience} - The initialized experience.
-         */
-        init(){
-            /* self-validation */
-            if(!this.scenes || !this.scenes.length)
-                throw new Error('No scenes provided for experience')
-            /* sort scenes/events by order in place */
-            this.scenes.sort((_a, _b)=>(_a?.order??0)-(_b.order??0))
-            this.scenes.forEach(_scene=>{
-                if(!_scene.events || !_scene.events.length)
-                    throw new Error('No events provided for scene')
-                _scene.events.sort((_a, _b)=>(_a?.order??0)-(_b.order??0))
-            })
-            return this
-        }
-        /**
-         * From specified event, returns `synthetic` Dialog data package, see `mDialog` in `class-experience-functions.mjs`.
-         * @param {Guid} eventId - The event id.
-         * @param {number} iteration - The iteration number, array-variant.
-         * @returns {object} - `synthetic` Dialog data package.
-         */
-        dialogData(eventId, iteration=0){
-            return mDialog(this.event(eventId), iteration)
-        }
-        /**
-         * Gets a specified event from the experience. Throws error if not found.
-         * @param {Array} scenes - The array of scenes to search.
-         * @param {Guid} eventId - The event id.
-         * @returns {object} - The event object data.
-         * @throws {Error} - If event not found.
-         */
-        event(eventId){
-            return mGetEvent(this.scenes, eventId)
-        }
-        /**
-         * From specified event, returns `synthetic` Input data package, see `mInput` in `class-experience-functions.mjs`.
-         * @param {Guid} eventId - The event id.
-         * @param {number} iteration - The iteration number, array-variant.
-         * @returns {object} - `synthetic` Input data package.
-         */
-        input(eventId, iteration=0){
-            return mInput(this.event(eventId), iteration)
-        }
-        /**
-         * Gets a specified scene from the experience. Throws error if not found.
-         * @param {Guid} sceneId 
-         * @returns {object} - The scene object data.
-         */
-        scene(sceneId){
-            return mGetScene(this.scenes, sceneId)
-        }
-        sceneNext(sceneId){
-            return mGetSceneNext(this.scenes, sceneId)
-        }
-        /* getters/setters */
-        /**
-         * Get the cast of the experience.
-         * @getter
-         * @returns {ExperienceCastMember[]} - The array of cast members.
-         */
-        get castMembers(){
-            return this.cast.map(castMember=>{
-                const { bot_id, icon, id, name, role, type, url, } = castMember
-                return { bot_id, icon, id, name, role, type, url, }
-            })
-        }
-        /**
-         * Get the experience in frontend format. Currently intentionally omitting manifest, grab separately, they are not "required". Scenes and events are only required in `eventSequences`.
-         * @getter
-         * @returns {object} - The `synthetic` experience object.
-         */
-        get experience(){
-            const { autoplay, description, goal, id, location, purpose, skippable, title, version } = this
-            return {
-                autoplay,
-                description,
-                goal,
-                id,
-                location,
-                purpose,
-                skippable,
-                title,
-                version: version ?? 0,
-            }
-        }
-        /**
-         * Get the manifest of the experience.
-         * @getter
-         * @returns {object} - The manifest of the experience.
-         * @property {array} cast - The cast array of the experience.
-         * @property {object} navigation - The navigation object of the experience.
-         */
-        get manifest(){
-            return {
-                cast: this.castMembers,
-                navigation: this.navigation,
-            }
-        }
-    }
-    return Experience
-}
-/**
  * Extends the `File` class.
  * @param {*} originClass - The class to extend.
  * @param {Object} referencesObject - The references to extend the class with, factory, llm, etc.
@@ -468,7 +343,6 @@ function extendClass_message(originClass, referencesObject) {
 export {
 	extendClass_consent,
     extendClass_conversation,
-    extendClass_experience,
     extendClass_file,
 	extendClass_message,
 }

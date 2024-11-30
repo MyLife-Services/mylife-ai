@@ -208,23 +208,6 @@ async function index(ctx){
 		ctx.redirect(`/members`) // Redirect to /members if authorized
 	await ctx.render('index')
 }
-/**
- * Set or get the avatar interface mode for the member.
- * @module
- * @public
- * @api - No associated view
- * @param {object} ctx - Koa Context object
- * @returns {object} - Koa Context object
- * @property {string} ctx.body - The interface mode for the member.
- */
-function interfaceMode(ctx){
-	const { avatar, } = ctx.state
-	if(ctx.method==='POST' && ctx.request.body.mode){
-		avatar.mode = ctx.request.body.mode
-	}
-	ctx.body = avatar.mode
-	return
-}
 async function item(ctx){
 	const { iid: id, } = ctx.params
 	const { avatar, } = ctx.state
@@ -453,7 +436,6 @@ export {
 	greetings,
 	help,
 	index,
-	interfaceMode,
 	item,
 	logout,
 	loginSelect,
