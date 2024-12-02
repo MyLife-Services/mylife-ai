@@ -254,11 +254,11 @@ class Datamanager {
      * Gets the manifest of the Experience.
      * @private
      * @async
-     * @param {Guid} eid - The Experience id
+     * @param {Guid} xid - The Experience id
      * @returns {Promise<Experience>} - Experience object: { autoplay, events, id, location, name, purpose, skippable, }
      */
-    async experienceManifest(eid){
-        const url =`/members/experience/${ eid }/manifest`
+    async experienceManifest(xid){
+        const url =`/members/experience/${ xid }/manifest`
         const options = {
             headers: {
                 'Content-Type': 'application/json',
@@ -270,7 +270,8 @@ class Datamanager {
     }
     /**
      * Fetches the experiences from the server.
-     * @returns {Promise<Experience[]>} - Array of Experience objects: { autoplay, events, id, location, name, purpose, skippable, }     */
+     * @returns {Promise<Experience[]>} - Array of Experience objects: { autoplay, events, id, location, name, purpose, skippable, }
+     */
     async experiences(){
         const url = `/experiences`
         const response = await this.#fetch(url)

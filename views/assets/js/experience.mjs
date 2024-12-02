@@ -217,7 +217,8 @@ async function experienceStart(experienceId){
     if(!events?.length)
         mExperience.events = await mEvents()
     /* experience manifest */
-    const manifest = await mManifest(id)
+    const manifest = await globals.datamanager.experienceManifest(id)
+    console.log('experienceStart::manifest', manifest)
     if(!manifest)
         throw new Error("Experience not found")
     if(!Array.isArray(manifest.cast)) // cast required, navigation not required
