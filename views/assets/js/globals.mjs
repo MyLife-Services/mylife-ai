@@ -215,28 +215,15 @@ class Datamanager {
         return response
     }
     /**
-     * End experience on server.
-     * @public
-     * @async
-     * @param {Guid} experienceId - The experience id
-     * @returns {Promise<Object>} - The response object
-     */
-    async experienceEnd(experienceId){
-        const url = `/members/experience/${ experienceId }/end`
-        const options = { method: 'PATCH', }
-        const response = await this.#fetch(url, options)
-        return response
-    }
-    /**
      * Retrieves first or next sequence of experience events and updates mExperience object.
      * @private
      * @async
-     * @param {Guid} experienceId - The experience id
+     * @param {Guid} eid - The experience id
      * @param {object} memberInput - Member input in form of object
      * @returns {Promise<Experience>} - Experience object: { autoplay, events, id, location, name, purpose, skippable, }
      */
-    async experienceEvents(experienceId, memberInput){
-        const url = `/members/experience/${ experienceId }`
+    async experience(eid, memberInput){
+        const url = `/members/experience/${ eid }`
         const body = memberInput?.length
             ? JSON.stringify({ memberInput, })
             : null
@@ -251,14 +238,27 @@ class Datamanager {
         return response
     }
     /**
+     * End experience on server.
+     * @public
+     * @async
+     * @param {Guid} experienceId - The experience id
+     * @returns {Promise<Object>} - The response object
+     */
+    async experienceEnd(experienceId){
+        const url = `/members/experience/${ experienceId }/end`
+        const options = { method: 'PATCH', }
+        const response = await this.#fetch(url, options)
+        return response
+    }
+    /**
      * Gets the manifest of the Experience.
      * @private
      * @async
-     * @param {Guid} id - The Experience id
+     * @param {Guid} eid - The Experience id
      * @returns {Promise<Experience>} - Experience object: { autoplay, events, id, location, name, purpose, skippable, }
      */
-    async experienceManifest(experienceId){
-        const url =`/members/experience/${ experienceId }/manifest`
+    async experienceManifest(eid){
+        const url =`/members/experience/${ eid }/manifest`
         const options = {
             headers: {
                 'Content-Type': 'application/json',

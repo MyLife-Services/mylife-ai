@@ -1,6 +1,6 @@
 import LLMServices from "../../mylife-llm-services.mjs"
 import BotAgent from "./bot-agent.mjs"
-
+import { Marked } from 'marked'
 /* module constants */
 const mAvailableEventActionMap = {
     dialog: {
@@ -12,7 +12,11 @@ const mAvailableEventActionMap = {
 const mDefaultScriptAdvisorLLMId = 'asst_NonLpXQ5maLpIciwxwGqsMwV'
 let mActor,
     mActorQ
-/* CastMember class */
+/* class definitions */
+/**
+ * @class Actor
+ * An `actor` is a bot that can be used in an `experience` to interact with a Member Avatar. The Actor can be a system bot, (either a generic actor or an instance of `Q`), or a known bot specific to a Member Avatar.
+ */
 class Actor {
     #bot
     constructor(Bot){
@@ -29,6 +33,10 @@ class Actor {
             ?? this.id
     }
 }
+/**
+ * @class CastMember
+ * A `cast member` is an `actor` that is part of the `cast` of an `experience`. The `cast member` can be a system actor, a system bot, or a known bot specific to a Member Avatar, but these aspects and characteristics are managed generically by the underlying Actor for now.
+ */
 class CastMember extends Actor {
     #factory
     #id
@@ -54,7 +62,11 @@ class CastMember extends Actor {
         return this.#type
     }
 }
-/* Experience class */
+/**
+ * @class Experience
+ * An `experience` is the unit of demonstration of a particular pre-built script by MyLife (or Member) _or_ the execution of illustration of a memory, idea, or other database `item` that can be rendered experientially. The Experience Agent can manage multiple `experiences` of this ilk.
+ * @todo - add `scriptAdvisor` to Experience, which would be a separate conversation for the scriptAdvisor bot to determine success conditions for scene, etc.
+ */
 class Experience {
     #botAgent
     #cast
@@ -107,8 +119,7 @@ class Experience {
         if(prompt?.length)
             scriptDialog.prompt = prompt
         await this.#botAgent.chat(scriptDialog, false)
-        console.log(scriptDialog)
-        console.log('getScriptDialog::messages', scriptDialog.getMessages())
+        const messages = scriptDialog.getMessages()
         return messages
     }
     end(){
@@ -293,11 +304,13 @@ class ExperienceEvent {
     #action
     #id
     #order
+    #portrayed
     constructor(obj){
-        const { action, id, order, ..._obj } = obj
+        const { action, id, order, portrayed, ..._obj } = obj // note: portrayed is forcibly assigned by Avatar
         this.#action = action
         this.#id = id
         this.#order = order
+        this.#portrayed = false
         Object.assign(this, _obj)
     }
     /* getters/setters */
@@ -328,6 +341,12 @@ class ExperienceEvent {
     }
     get order(){
         return this.#order
+    }
+    get portrayed(){
+        return this.#portrayed
+    }
+    set portrayed(portrayed){
+        this.#portrayed = !!portrayed
     }
 }
 /* module functions */
@@ -477,7 +496,7 @@ async function mEventDialog(Event, Experience, iteration=0){
             const { cast, memberDialog, scriptAdvisorBotId, scriptDialog, variables: experienceVariables, } = Experience
             const castMember = cast.find(castMember=>castMember.id===characterId)
             const { bot, } = castMember
-            const { llm_id, id, } = bot // two properties needed for mPruneMessage
+            const { llm_id, id, } = bot
             if(!llm_id || !id)
                 throw new Error(`mEventDialog()::Bot id: ${ characterId } not found in cast`)
             scriptDialog.llm_id = llm_id
@@ -490,9 +509,8 @@ async function mEventDialog(Event, Experience, iteration=0){
             if(!messages?.length)
                 console.log('mEventDialog::no messages returned from LLM', prompt, llm_id)
             scriptDialog.addMessages(messages)
-            memberDialog.addMessage(scriptDialog.mostRecentDialog) // text string
+            memberDialog.addMessage(scriptDialog.mostRecentDialog)
             const responseDialog = new Marked().parse(memberDialog.mostRecentDialog)
-            console.log('mEventDialog::scriptedDialog', responseDialog)
             return responseDialog
         default:
             throw new Error(`Dialog type \`${ type }\` not recognized`)
@@ -642,12 +660,6 @@ async function mEventProcess(memberInput, Event, Experience){
     const { id: xid, location, memberDialog, scriptDialog, variables, } = Experience
     const { action, id: eid } = Event
     let { character, dialog, input, stage, } = Event
-    if(!action)
-        action = input
-            ? 'input'
-            : dialog
-                ? 'dialog'
-                : 'stage'
     switch(action){ // **note**: intentional pass-throughs on `switch`
         case 'input':
             if(input && Object.keys(input).length){
@@ -675,11 +687,8 @@ async function mEventProcess(memberInput, Event, Experience){
         default:
             throw new Error('Event action not recognized')
     }
-    Event.sid = location.sid
-    Event.xid = xid
-    /* log to experience */
-    Experience.events.push(Event)
     /* update location pointers */
+    Experience.events.push(Event)
     Experience.location.eid = eid
     Experience.location.iteration = Event.complete
         ? 0
@@ -728,28 +737,25 @@ async function mExperienceRun(memberInput, Experience){
     const { sid, eid, xid, } = Experience.location
     const scene = Experience.scene(sid)
     let eventIndex=scene.events.findIndex(event=>event.id===eid),
-        eventSequence=[],
-        sceneComplete = true // presume scene completes
+        sceneComplete = true // when no breakpoints
+    const originalEventIndex = eventIndex
     while(scene.events?.[eventIndex]){
         const Event = new ExperienceEvent(scene.events[eventIndex])
-        const processedEvent = await mEventProcess(memberInput, Event, Experience)
-        if(memberInput)
-            memberInput = null // clear for next event
-        if(processedEvent.skip) // currently no occasion
-            console.log('mExperiencePlay: event skipped, not presented to frontend')
-        else
-            eventSequence.push(processedEvent.event)
-        if(!processedEvent.complete){
+        await mEventProcess(memberInput, Event, Experience)
+        if(memberInput) // clear for next Event (or loop!)
+            memberInput = null
+        if(!Event.complete){
             sceneComplete = false
             break
-        } // INPUT event incomplete
+        }
         eventIndex++
     }
     /* end-of-scene */
     if(sceneComplete){
         const nextScene = Experience.sceneNext(sid)
+        let sequenceEnd
         if(nextScene){
-            eventSequence.push({ // end current scene
+            sequenceEnd = { // end current scene
                 action: 'end',
                 complete: true,
                 id: sid,
@@ -758,30 +764,31 @@ async function mExperienceRun(memberInput, Experience){
                 title: scene.title,
                 type: 'scene',
                 xid,
-            }) // provide marker for front-end [end of event sequence]; begin next scene with next request
+            } // provide marker for front-end [end of event sequence]; begin next scene with next request
             Experience.location.sid = nextScene.id
             Experience.location.eid = nextScene.events[0].id
         } else {
             /* end-of-experience */
-            const { goal, name: experienceName, } = Experience
-            const name = experienceName ?? 'MyLife Experience'
+            const { developers, goal, name: experienceName, } = Experience
+            const name = experienceName
+                ?? 'MyLife Experience'
             const { title=name, } = Experience
-            eventSequence.push({
+            sequenceEnd = {
                 action: 'end',
                 complete: true,
+                developers,
                 goal,
                 id: xid,
                 name,
                 title,
                 type: 'experience',
                 xid,
-            }) // provide marker for front-end [end of event sequence]
+            } // provide marker for front-end [end of event sequence]
             Experience.location.completed = true
         }
+        if(sequenceEnd)
+            Experience.events.push(sequenceEnd)
     }
-    Experience.events.push(...eventSequence)
-    console.log('mExperiencePlay::Experience.events::lived', Experience.events)
-    return eventSequence
 }
 /**
  * Takes an experience document and converts it to use by frontend. Also filters out any inappropriate experiences.

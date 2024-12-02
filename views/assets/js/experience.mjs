@@ -213,7 +213,7 @@ async function experienceStart(experienceId){
         return
     /* present stage */
     mStageWelcome()
-    const { description, events, id, name, purpose, title, skippable=false } = mExperience
+    const { events, id, } = mExperience
     if(!events?.length)
         mExperience.events = await mEvents()
     /* experience manifest */
@@ -790,10 +790,12 @@ function mEventInput(){
  * @returns {Object[]} - Array of event objects
  */
 async function mEvents(memberInput, xid=mExperience.id){
-    const response = await globals.datamanager.experienceEvents(xid, memberInput)
-    const { autoplay, events, id, location, name, purpose, skippable, success, } = response
+    const { instruction, experience, success, } = await globals.datamanager.experience(xid, memberInput)
+    if(!success)
+        throw new Error(`Experience failed! ${ xid }`)
+    const { autoplay, description, events, id, location, purpose, skippable, title, } = experience
     mExperience.location = location
-    console.log('mEvents::response', response, mExperience)
+    console.log('mEvents::response', experience, mExperience)
     return events
 }
 /**
@@ -804,7 +806,7 @@ async function mEvents(memberInput, xid=mExperience.id){
  * @returns {Object[]} - Array of animation objects.
  */
 function mEventStage(){
-    const { action, sceneId, stage, } = mEvent
+    const { action, sid: sceneId, stage, } = mEvent
     const animationSequence = []
     if(stage && Object.keys(stage).length){
         const { backdrop=mBackdropDefault, click, type } = stage
@@ -993,8 +995,9 @@ function mShowTransport(){
  * @returns {void}
  */
 function mStageWelcome(){
-    const { description: experienceDescription, name: experienceName, title: experienceTitle, } = mExperience
-    title.textContent = experienceTitle ?? experienceName ?? `Untitled Production`
+    const { description: experienceDescription, title: experienceTitle, } = mExperience
+    title.textContent = experienceTitle
+        ?? `Untitled Production`
     if(experienceDescription?.length)
         description.textContent = experienceDescription
     mShowTransport()

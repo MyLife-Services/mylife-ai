@@ -11,7 +11,6 @@ import { Entry, Memory, } from './mylife-models.mjs'
 import EvolutionAgent from './agents/system/evolution-agent.mjs'
 import ExperienceAgent from './agents/system/experience-agent.mjs'
 import LLMServices from './mylife-llm-services.mjs'
-import { stat } from 'fs'
 /* module constants */
 // file services
 const __dirpath = fileURLToPath(import.meta.url)
@@ -335,12 +334,18 @@ class Avatar extends EventEmitter {
      * Starts, continues or resumes a specific experience.
      * @public
      * @param {Guid} xid - The experience id
-     * @returns {Experience}
+     * @returns {object} - The frontend response object: { error, experience, instruction, success, }
      */
     async experience(xid){
         const Experience = await this.#experienceAgent.experience(xid)
+        const experience = mPruneExperience(Experience)
         // add frontend instructions here
-        return Experience
+        const response = {
+            instructions: this.frontendInstruction,
+            experience,
+            success: true,
+        }
+        return response
     }
     /**
      * Ends the specified experience.
@@ -1701,6 +1706,42 @@ function mPruneConversation(conversation){
         id,
         name,
         type,
+    }
+}
+function mPruneEvent(Event, sid){
+    const { action, character, dialog, id, input, order, stage, title, type, } = Event
+    return {
+        action,
+        character,
+        dialog,
+        eid: id,
+        id,
+        input,
+        order,
+        sid,
+        stage,
+        title,
+        type,
+    }
+}
+function mPruneExperience(Experience){
+    const { autoplay, description, events: unfilteredEventArray, id, location, purpose, skippable, title, } = Experience
+    const events = unfilteredEventArray
+        .filter(event=>event.portrayed===false)
+        .map(event=>{
+            event.portrayed=true
+            return mPruneEvent(event, location.sid)
+        })
+    return {
+        autoplay,
+        description,
+        events,
+        id,
+        location,
+        purpose,
+        skippable,
+        title,
+        xid: id,
     }
 }
 /**
