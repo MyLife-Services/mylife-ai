@@ -52,11 +52,24 @@ class CastMember extends Actor {
         Object.assign(this, _obj)
     }
     /* getters/setters */
+    get castMember(){
+        return {
+            icon: this.icon,
+            id: this.#id,
+            name: this.#name,
+            role: this.role,
+            type: this.#type,
+            url: this.url,
+        }
+    }
     get id(){
         return this.#id
     }
     get name(){
         return this.#name
+    }
+    set name(name){
+        this.#name = name
     }
     get type(){
         return this.#type
@@ -129,6 +142,7 @@ class Experience {
         return this.#events.find(event=>event.id===eid)
     }
     async run(memberInput){
+        console.log('Experience.run', memberInput)
         if(!this.#running)
             await mExperienceStart(this, this.#botAgent)
         await mExperienceRun(memberInput, this)
@@ -142,8 +156,8 @@ class Experience {
 
     }
     sceneNext(sid){
-        const sceneIndex = this.scene.findIndex(scene=>scene.id===sid)
-        const nextScene = this.#scenes[sceneIndex+1]
+        const sceneIndex = this.scriptScenes.findIndex(scene=>scene.id===sid)
+        const nextScene = this.scriptScenes?.[sceneIndex+1]
         return nextScene
     }
     /* getters/setters */
@@ -164,6 +178,12 @@ class Experience {
     }
     set location(location){
         this.#location = location
+    }
+    get manifest(){
+        return {
+            cast: this.#cast.map(castMember=>castMember.castMember),
+            navigation: this.#navigation,
+        }
     }
     get memberDialog(){
         return this.#memberDialog
@@ -246,12 +266,13 @@ class ExperienceAgent {
      * @returns {Promise<Experience>}
      */
     async experience(xid, memberInput){
-        let Experience = this.#experiences.find(experience=>experience.id===xid)
+        let Experience = this.findExperience(xid)
         if(!Experience){
             const experienceData = await this.#factory.getExperience(xid)
             Experience = mExperience(experienceData, this.#botAgent, this.#llm, this.#factory, this.#variables)
             this.#experiences.push(Experience)
         }
+        console.log()
         await Experience.run(memberInput)
         return Experience
     }
@@ -269,6 +290,9 @@ class ExperienceAgent {
             this.#livedExperiences.push(Experience)
         }
     }
+    experienceManifest(xid){
+        return this.findExperience(xid)?.manifest
+    }
     /**
      * Returns the list of experiences available for the member.
      * @param {boolean} includeLived - Include lived experiences in the list
@@ -280,6 +304,9 @@ class ExperienceAgent {
     }
     experiencesActive(){
         return this.#experiences
+    }
+    findExperience(xid){
+        return this.#experiences.find(experience=>experience.id===xid)
     }
     /* getters/setters */
 	get actor(){
@@ -593,10 +620,9 @@ async function mEventInput(memberInput, Event, Experience, iteration=0){
     const scriptConsultant = scriptAdvisor
         ?? scriptDialog
         ?? dialog
-    scriptConsultant.bot_id = scriptAdvisorBotId
-    const messages = await mCallLLM(llm, scriptConsultant, prompt)
-        ?? []
-    if(!messages.length){
+    scriptConsultant.llm_id = scriptAdvisorBotId
+    const messages = await Experience.getScriptDialog(prompt)
+    if(!messages?.length){
         console.log('mEventInput::no messages returned from LLM', prompt, scriptAdvisorBotId, scriptConsultant)
         throw new Error('No messages returned from LLM')
     }
@@ -635,8 +661,9 @@ async function mEventInput(memberInput, Event, Experience, iteration=0){
         // See success_complex in API script, key is variable, value is potential values _or_ event guid
         // loop through keys and compare to Experience.experienceVariables
     }
-    input.complete = input.success
+    input.complete = !!input?.success
         ?? false
+    Event.portrayed = input.complete
     return input
 }
 /**
@@ -906,13 +933,13 @@ function mLocation(Experience, eid){
 function mNavigation(scenes){
     return scenes
         .map(scene=>{
-            const { backdrop, hooks, description, id, order, required=false, skippable=true, title=`untitled`, type, } = scene
+            const { backdrop, hooks, description, id: sid, order, required=false, skippable=true, title=`untitled`, type, } = scene
             return {
                 backdrop,
-                id,
                 description,
                 order,
                 required,
+                sid,
                 skippable,
                 title,
                 type,

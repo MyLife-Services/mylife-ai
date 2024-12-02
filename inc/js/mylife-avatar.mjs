@@ -334,10 +334,12 @@ class Avatar extends EventEmitter {
      * Starts, continues or resumes a specific experience.
      * @public
      * @param {Guid} xid - The experience id
+     * @param {object} memberInput - Member input object
      * @returns {object} - The frontend response object: { error, experience, instruction, success, }
      */
-    async experience(xid){
-        const Experience = await this.#experienceAgent.experience(xid)
+    async experience(xid, memberInput){
+        console.log('experience', xid, memberInput)
+        const Experience = await this.#experienceAgent.experience(xid, memberInput)
         const experience = mPruneExperience(Experience)
         // add frontend instructions here
         const response = {
@@ -558,6 +560,9 @@ class Avatar extends EventEmitter {
      */
     async itemUpdate(item){
         return await this.#factory.updateItem(item)
+    }
+    manifest(xid){
+        return this.#experienceAgent.experienceManifest(xid)
     }
     /**
      * Migrates a bot to a new, presumed combined (with internal or external) bot.

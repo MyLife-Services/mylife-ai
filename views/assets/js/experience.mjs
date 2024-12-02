@@ -329,7 +329,6 @@ function submitInput(event){
     if(value?.length){
         const memberInput = { [inputVariableName ?? variable ?? 'input']: value }
         experiencePlay(memberInput)
-            .catch(error=>console.log('submitInput::experiencePlay independent fire ERROR', error.message, memberInput))
     }
 }
 /* private functions */
@@ -858,13 +857,13 @@ async function mGetExperiences(scope='system'){
 /**
  * Get scene data from navigation.
  * @private
- * @requires mExperience - The Experience object.
- * @param {Guid} sceneId 
- * @returns 
+ * @requires mExperience - The Experience object
+ * @param {Guid} sid - The scene id 
+ * @returns {Object} - The scene object
  */
-function mGetScene(sceneId){
+function mGetScene(sid){
     const { navigation, } = mExperience
-    return navigation.find(nav=>nav.id===sceneId)
+    return navigation.find(nav=>nav.sid===sid)
 }
 /**
  * Returns the presumed source of an image based on type and icon data.
@@ -922,8 +921,9 @@ function mIsMember(type){
  */
 function mSceneTransition(){
     const { cast, location, } = mExperience
-    const { sceneId: upcomingSceneId, } = location
-    const { currentScene: currentSceneId=upcomingSceneId, skippable=true, } = mExperience
+    const { sid: upcomingSceneId, } = location
+    const { sid: currentSceneId=upcomingSceneId, skippable=true, } = mExperience
+    console.log('mSceneTransition::currentSceneId', currentSceneId, upcomingSceneId, mExperience)
     const upcomingScene = mGetScene(upcomingSceneId)
     if(!upcomingScene)
         throw new Error(`Scene not found! ${currentSceneId}`)

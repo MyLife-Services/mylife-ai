@@ -224,8 +224,8 @@ class Datamanager {
      */
     async experience(eid, memberInput){
         const url = `/members/experience/${ eid }`
-        const body = memberInput?.length
-            ? JSON.stringify({ memberInput, })
+        let body = memberInput
+            ? JSON.stringify(memberInput)
             : null
         const options = {
             body,
@@ -234,6 +234,7 @@ class Datamanager {
             },
             method: 'PATCH',
         }
+        console.log(`experience: ${ url }`, body, options)
         const response = await this.#fetch(url, options)
         return response
     }

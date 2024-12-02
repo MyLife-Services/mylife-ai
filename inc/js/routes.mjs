@@ -90,7 +90,7 @@ _apiRouter.get('/logout', apiLogout)
 _apiRouter.head('/keyValidation/:mid', keyValidation)
 _apiRouter.patch('/experiences/:mid/experience/:xid/cast', experienceCast)
 _apiRouter.patch('/experiences/:mid/experience/:xid/end', experienceEnd)
-_apiRouter.patch('/experiences/:mid/experience/:xid/manifest', experienceManifest) // proxy for both cast and navigation
+_apiRouter.patch('/experiences/:mid/experience/:xid/manifest', experienceManifest) // { cast, navigation, }
 _apiRouter.patch('/experiences/:mid/experience/:xid/navigation', experienceNavigation)
 _apiRouter.patch('/experiences/:mid/experience/:xid', experience) // **note**: This line should be the last one alphabetically due to the wildcard.
 _apiRouter.post('/challenge/:mid', challenge)

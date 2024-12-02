@@ -58,14 +58,13 @@ async function experienceBuilder(ctx){
  */
 async function experienceCast(ctx){
     await mAPIKeyValidation(ctx)
-    const { assistantType, avatar, mbr_id } = ctx.state
-    const { eid } = ctx.params
-    ctx.body = avatar.cast
-    return
+    const { avatar: Avatar, } = ctx.state
+    const { xid, } = ctx.params
+    ctx.body = Avatar.manifest(xid)?.cast
 }
 /**
  * Conducts active Living-Experience for member. Passes data to avatar to manages the start, execution and completion of a member experience. Note: ctx.request.body is free JSON in order to tolerate a number of success/failure conditions.
- * @param {Koa} ctx - Koa Context object.
+ * @param {Koa} ctx - Koa Context object. **note** `ctx.request.body` is free JSON parsed by intelligence
  * @returns {Promise<object>} - Promise object represents object with following properties.
  * @property {boolean} success - Success status.
  * @property {array} events - Array of next Event(s).
@@ -75,7 +74,8 @@ async function experience(ctx){
     await mAPIKeyValidation(ctx)
     const { avatar: Avatar, } = ctx.state
     const { xid, } = ctx.params
-    const { memberInput, } = ctx.request.body
+    const memberInput = ctx.request.body
+    console.log('api-functions::experience()', memberInput, xid)
     ctx.body = await Avatar.experience(xid, memberInput)
 }
 /**
@@ -100,18 +100,18 @@ async function experienceEnd(ctx){
  */
 async function experienceManifest(ctx){
     await mAPIKeyValidation(ctx)
-    const { avatar, } = ctx.state
-    ctx.body = avatar.manifest
-    return
+    const { avatar: Avatar, } = ctx.state
+    const { xid, } = ctx.params
+    ctx.body = Avatar.manifest(xid)
 }
 /**
  * Navigation array of scenes for experience.
  */
 async function experienceNavigation(ctx){
     await mAPIKeyValidation(ctx)
-    const { avatar, } = ctx.state
-    ctx.body = avatar.navigation
-    return
+    const { avatar: Avatar, } = ctx.state
+    const { xid, } = ctx.params
+    ctx.body = Avatar.manifest(xid)?.navigation
 }
 /**
  * Returns experiences relevant to member. If first request of session, will return mandatory system experience, if exists **and begin executing it**! On subsequent requests, just returns experiences.
